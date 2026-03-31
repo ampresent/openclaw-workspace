@@ -23,6 +23,7 @@ Use project logs as source of truth; store concise references + active context.
 
 - 🎹 钢琴练习 → `projects/piano-practice/`
 - 📋 日常事务 → `projects/daily-affairs/`
+- 💡 灵感收集 → `projects/inspiration/`
 
 项目状态、进度、待办全部在项目文件内，MEMORY.md 不重复记录。
 
