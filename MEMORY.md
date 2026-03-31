@@ -12,6 +12,10 @@ Use project logs as source of truth; store concise references + active context.
 - Charters: See `LOG_CHARTERS.md`
 - Caches/Digests: See `LOG_CACHES.md`
 
+## 核心规则
+
+- **所有修改立即 commit + push**，不留未提交的改动
+
 ## Notes
 
 ### 🎹 钢琴练习项目
