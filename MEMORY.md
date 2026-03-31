@@ -19,19 +19,12 @@ Use project logs as source of truth; store concise references + active context.
 
 ## Notes
 
-### 🎹 钢琴练习项目
+### 项目索引
 
-**项目路径**：`projects/piano-practice/`
-**启动时间**：2026-04-01
-**当前阶段**：大七和弦（Maj7）入门
-**计划**：C → G → F → D 四调先行，后续扩展到 12 调 + 和弦进行 + 简单曲目应用
+- 🎹 钢琴练习 → `projects/piano-practice/`
+- 📋 日常事务 → `projects/daily-affairs/`
 
-### 📋 日常事务管理
-
-**项目路径**：`projects/daily-affairs/`
-**启动时间**：2026-04-01
-**用途**：管理账单、家务、证件、健康、旅行等日常事务
-**状态**：待录入事项
+项目状态、进度、待办全部在项目文件内，MEMORY.md 不重复记录。
 
 ### 📚 微信读书上传技能 (weread-upload)
 
