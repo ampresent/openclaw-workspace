@@ -64,6 +64,13 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 
 **MEMORY.md 只用于**：长期偏好、经验教训、重要决策理由、用户习惯等"元信息"。
 
+### 🛠️ Skill 归属规则
+
+**Skill 文档不写 MEMORY.md，写 TOOLS.md。**
+- skill 安装路径、用法、要求、注意事项 → `TOOLS.md`
+- MEMORY.md 只保留一行索引（名称 + "详见 TOOLS.md"）
+- 创建新 skill 时，文档写在 skill 自身的 SKILL.md 内，使用说明同步到 TOOLS.md
+
 ### 🚨 Memory Flush Protocol (Pre-Compaction)
 
 Context windows fill up. When they do, older messages get compacted or lost. **Don't wait for this to happen — monitor and act.**
