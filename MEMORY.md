@@ -28,6 +28,8 @@ Use project logs as source of truth; store concise references + active context.
 
 ### Skill 索引
 
-- 📚 微信读书上传 → 详见 TOOLS.md
-- 📖 Z-Library 电子书 → 详见 TOOLS.md
+Skill 文档在 `~/.openclaw/skills/<name>/SKILL.md`，TOOLS.md 中也有简要索引。
+
+- 📚 微信读书上传 (weread-upload)
+- 📖 Z-Library 电子书 (z-library)
 

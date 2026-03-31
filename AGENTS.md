@@ -66,10 +66,11 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 
 ### 🛠️ Skill 归属规则
 
-**Skill 文档不写 MEMORY.md，写 TOOLS.md。**
-- skill 安装路径、用法、要求、注意事项 → `TOOLS.md`
-- MEMORY.md 只保留一行索引（名称 + "详见 TOOLS.md"）
-- 创建新 skill 时，文档写在 skill 自身的 SKILL.md 内，使用说明同步到 TOOLS.md
+**Skill 文档写在 skill 自身目录的 SKILL.md 里，不写 MEMORY.md，也不写 TOOLS.md。**
+- skill 安装路径、用法、要求、注意事项 → `~/.openclaw/skills/<name>/SKILL.md`
+- TOOLS.md 只保留一行索引（名称 + 一句话描述）
+- MEMORY.md 不记录 skill 详情
+- 创建新 skill 时，文档写在 SKILL.md 内，TOOLS.md 更新索引即可
 
 ### 🚨 Memory Flush Protocol (Pre-Compaction)
 
