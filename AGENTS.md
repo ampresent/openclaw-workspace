@@ -68,6 +68,7 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 
 **Skill 文档写在 skill 自身目录的 SKILL.md 里，不写 MEMORY.md，也不写 TOOLS.md。**
 - skill 安装路径、用法、要求、注意事项 → `~/.openclaw/skills/<name>/SKILL.md`
+- **同时存一份到 `workspace/skills/<name>/SKILL.md`**，方便版本管理和复用
 - TOOLS.md 只保留一行索引（名称 + 一句话描述）
 - MEMORY.md 不记录 skill 详情
 - 创建新 skill 时，文档写在 SKILL.md 内，TOOLS.md 更新索引即可
