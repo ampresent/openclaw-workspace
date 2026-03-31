@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "agent-discogs": {
+      "source": "jmfontaine/agent-discogs",
+      "sourceType": "github",
+      "computedHash": "82efc76e55aafb4c74becb287686fb12bd15212cab55fb453a826076004ccb7e"
+    }
+  }
+}

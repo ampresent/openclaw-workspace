@@ -1,0 +1,14 @@
+#!/bin/bash
+# weread-upload - 微信读书上传工具
+# 使用方法：weread-upload <文件路径>
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHON_SCRIPT="$SCRIPT_DIR/tools/weread_upload.py"
+
+if [ ! -f "$PYTHON_SCRIPT" ]; then
+    echo "❌ 错误：找不到上传脚本"
+    echo "位置：$PYTHON_SCRIPT"
+    exit 1
+fi
+
+python3 "$PYTHON_SCRIPT" "$@"

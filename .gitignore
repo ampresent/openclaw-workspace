@@ -1,0 +1,79 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# Environment
+.env
+.env.local
+*.db
+*.sqlite
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ============ 安全排除（敏感数据）============
+
+# SSH 密钥
+.ssh/
+*.pem
+*.key
+
+# Cookies 和认证
+cookies*.json
+*-cookies.json
+*credentials*
+*token*
+
+# 密钥目录
+keys/
+secrets/
+
+# 个人配置（如需要可单独管理）
+personal-config/
+
+# 其他项目
+quant-system/
+quant-/
+
+# 临时文件
+temp/
+tmp/
+*.tmp
+
+# 数据文件（可能包含敏感信息）
+data/
+*.csv
+*.xlsx
+
+# 脚本中的敏感脚本
+scrape-*.sh
+export-*.js
+*-export.js
+update_*.py
+add-*.py
+test-*.py
+
+# OpenCLI 配置（可能包含 token）
+.opencli/
+
+# 活动日志
+LOG_*.md

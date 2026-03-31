@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "long-project-manager": {
+      "name": "Long Project Manager",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=long-project-manager",
+      "source": "skillhub",
+      "version": "1.0.0"
+    },
+    "mermaid": {
+      "name": "Mermaid Diagrams",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=mermaid",
+      "source": "skillhub",
+      "version": "1.0.0"
+    }
+  }
+}

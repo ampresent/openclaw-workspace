@@ -1,0 +1,28 @@
+gantt
+    title 钢琴练习 · 项目甘特图
+    dateFormat YYYY-MM-DD
+    axisFormat %m/%d
+
+    section 阶段一：Maj7 基础
+    5 度圈热身           :done, c1, 2026-04-01, 1d
+    Cmaj7 练习           :active, c2, 2026-04-01, 3d
+    Fmaj7 练习           :c3, after c2, 2d
+    Gmaj7 练习           :c4, after c3, 2d
+    Dmaj7 练习           :c5, after c4, 2d
+    四调循环练习          :c6, after c5, 3d
+
+    section 阶段一补充：Dom7
+    Dom7 课程学习         :d1, 2026-04-01, 5d
+    C7 练习              :d2, after c2, 2d
+    Maj7 vs Dom7 对比     :d3, after d2, 2d
+
+    section 阶段二：和弦连接
+    ii-V-I 理解          :e1, after c6, 2d
+    C/F/G 调 ii-V-I      :e2, after e1, 7d
+    转位练习              :e3, after e1, 5d
+    听觉训练              :e4, after e2, 5d
+
+    section 阶段三：曲目应用
+    选曲 Autumn Leaves    :f1, after e2, 3d
+    曲目练习              :f2, after f1, 10d
+    即兴探索              :f3, after f2, 5d
