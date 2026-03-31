@@ -15,6 +15,7 @@ Use project logs as source of truth; store concise references + active context.
 ## 核心规则
 
 - **所有修改立即 commit + push**，不留未提交的改动
+- **任务相关事项 → 项目文件，不写 MEMORY.md**。涉及任务创建、更新、状态变更时，调用 `long-project-manager` skill，写入对应项目的 TODO.md / STATUS.md / LOG.md。MEMORY.md 只记录决策、偏好、长期经验
 
 ## Notes
 

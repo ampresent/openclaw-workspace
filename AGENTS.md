@@ -54,6 +54,16 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - When you make a mistake → document it so future-you doesn't repeat it
 - **Text > Brain** 📝
 
+### 📋 任务归属规则
+
+**任务相关事项不写 MEMORY.md，写项目文件。** 涉及以下情况时，调用 `long-project-manager` skill：
+- 创建新任务 → `projects/<项目>/TODO.md`
+- 更新任务状态 → `projects/<项目>/STATUS.md` + 勾选 TODO
+- 记录进展 → `projects/<项目>/LOG.md`
+- 做了决策 → `projects/<项目>/DECISIONS.md`
+
+**MEMORY.md 只用于**：长期偏好、经验教训、重要决策理由、用户习惯等"元信息"。
+
 ### 🚨 Memory Flush Protocol (Pre-Compaction)
 
 Context windows fill up. When they do, older messages get compacted or lost. **Don't wait for this to happen — monitor and act.**
