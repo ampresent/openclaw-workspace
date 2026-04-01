@@ -1,7 +1,5 @@
 # USER.md - About Your Human
 
-_Learn about the person you're helping. Update this as you go._
-
 ---
 
 ## 基本信息
@@ -33,8 +31,7 @@ _Learn about the person you're helping. Update this as you go._
 
 ## 关注领域
 
-- 科技行业趋势
-- 人工智能/算力发展
+- 科技行业趋势、AI/算力发展
 - 金融市场动态
 - 上海本地政策
 - 旅游资讯
@@ -43,31 +40,27 @@ _Learn about the person you're helping. Update this as you go._
 
 ## 个人兴趣
 
-- ✈️ **旅游**: 喜欢旅行，关注旅游目的地、机票酒店优惠、签证政策等
+- 🎵 **音乐**：深度爵士 + 日本噪音/迷幻 + 暗黑工业/新古典（详见 MEMORY.md 音乐偏好）
+- 🎹 **钢琴**：大七和弦入门中（projects/piano-practice/）
+- ✈️ **旅游**：喜欢旅行，关注机票酒店优惠
+- 🎷 **爵士演出**：关注上海爵士现场
 
 ---
 
-## 自动化任务
+## 重点监控场馆
 
-| 任务 | 时间 | 说明 |
-|------|------|------|
-| 📰 新闻日报 + 影响分析 | 每天 12:00 | 结合个人情况的新闻分析 |
-| 🎷 爵士演出搜索 | 每天 20:35 | 上海爵士演出信息汇总 |
-
----
-
-## 重点监控场馆（爵士演出）
-
-| 优先级 | 场馆 | 图标 |
-|--------|------|------|
-| ⭐⭐⭐ | Blue Note Shanghai | 🔵 |
-| ⭐⭐⭐ | 前滩 31 | 🎴 |
-| ⭐⭐ | JZ Club | 🎷 |
-| ⭐⭐ | 林肯中心 Jazz Club | 🎺 |
-| ⭐⭐ | 西岸大剧院 | 🏛️ |
+| 优先级 | 场馆 |
+|--------|------|
+| ⭐⭐⭐ | Blue Note Shanghai、前滩 31 |
+| ⭐⭐ | JZ Club、林肯中心 Jazz Club、西岸大剧院 |
 
 ---
 
-*最后更新：2026-03-23*
+## 待办
 
-The more you know, the better you can help. But remember — you're learning about a person, not building a dossier. Respect the difference.
+- 2026-05-17 参加永乐婚礼
+- 需订 4/6 机票
+
+---
+
+*最后更新：2026-04-01*

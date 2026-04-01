@@ -1,35 +1,53 @@
 # MEMORY.md - Long-Term Memory
 
-[PROJECT-GOVERNANCE:START]
-Has project management skill installed; leverage it at every opportunity.
-Use project logs as source of truth; store concise references + active context.
-[PROJECT-GOVERNANCE:END]
-
----
-
-## Project Logs Index
-
-- Charters: See `LOG_CHARTERS.md`
-- Caches/Digests: See `LOG_CACHES.md`
-
 ## 核心规则
 
 - **所有修改立即 commit + push**，不留未提交的改动
-- **任务相关事项 → 项目文件，不写 MEMORY.md**。涉及任务创建、更新、状态变更时，调用 `long-project-manager` skill，写入对应项目的 TODO.md / STATUS.md / LOG.md。MEMORY.md 只记录决策、偏好、长期经验
-- **Skill 文档 → TOOLS.md，不写 MEMORY.md**。skill 的安装路径、用法、注意事项等写入 TOOLS.md。MEMORY.md 只保留"装了什么 skill"的一行索引
+- **任务相关事项 → 项目文件**。涉及任务创建、更新、状态变更时，调用 `long-project-manager` skill，写入对应项目的 TODO.md / STATUS.md / LOG.md。MEMORY.md 只记录决策、偏好、长期经验
+- **Skill 文档 → TOOLS.md**。skill 的安装路径、用法、注意事项等写入 TOOLS.md。MEMORY.md 只保留"装了什么 skill"的一行索引
 
-## Notes
+---
 
-### 项目索引
+## 用户档案
 
-- 🎹 钢琴练习 → `projects/piano-practice/`
+- 程序员，上海，时区 Asia/Shanghai
+- 投资：公司内部私募（大量）、黄金（大量）、美股（少量）
+- 关注：科技/AI、金融市场、上海本地政策
+- 父亲 58 岁
+
+---
+
+## 音乐偏好
+
+- **收藏量**：3500+ 张，5 星 1875 张
+- **强项**：John Coltrane（40+张）、Miles Davis、Charles Mingus、Thelonious Monk、Chet Baker — 深度爵士爱好者
+- **日本系**：Acid Mothers Temple、Les Rallizes Dénudés、Keiji Haino、Merzbow、Hijokaidan、K2、Incapacitants — 日本噪音/迷幻摇滚重口味
+- **暗黑系**：Death in June（8 张）、MZ.412（7 张）、Current 93、Coil、Folkstorm、Blood Axis — 新古典/军事工业/启示录民谣
+- **暗氛围**：Raison d'être、In Slaughter Natives、Bohren & der Club of Gore、Dale Cooper Quartet
+- **推荐反馈记录**：
+  - ✅ Spiritual Jazz（Alice Coltrane 大成功）
+  - ✅ Game OST（Silent Hill 很成功）
+  - ⚠️ Dub 一般（Lee Scratch Perry 反响平平）
+  - ⚠️ Dark Ambient 需谨慎（Lustmord 一般）
+
+---
+
+## 项目索引
+
+- 🎹 钢琴练习 → `projects/piano-practice/`（大七和弦入门中）
 - 📋 日常事务 → `projects/daily-affairs/`
 - 💡 灵感收集 → `projects/inspiration/`
 
-### Skill 索引
+---
 
-Skill 文档在 `~/.openclaw/skills/<name>/SKILL.md`，TOOLS.md 中也有简要索引。
+## Skill 索引（21 个）
 
-- 📚 微信读书上传 (weread-upload)
-- 📖 Z-Library 电子书 (z-library)
+见 `TOOLS.md` 完整列表。来源：本地创建 + skillhub + obra/superpowers
 
+---
+
+## 自动化 & 待办
+
+- 曾配置每日新闻 (12:00)、爵士演出搜索 (20:00) cron — 当前环境无 cron jobs（需重新配置）
+- 2026-05-17：参加永乐婚礼
+- 需订 4/6 机票（提醒 4/3 9:00）
