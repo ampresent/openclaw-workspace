@@ -18,6 +18,7 @@
 
 ### 暗氛围
 - Raison d'être、In Slaughter Natives、Bohren & der Club of Gore、Dale Cooper Quartet
+- **Sunset Mission** ⭐⭐⭐⭐ (2026-04-01 标记，还可以)
 
 ## 推荐反馈记录
 
