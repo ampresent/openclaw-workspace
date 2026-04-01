@@ -18,6 +18,12 @@
       "zip_url": "https://lightmake.site/api/v1/download?slug=resume-assistant",
       "source": "skillhub",
       "version": "1.0.6"
+    },
+    "fund-query": {
+      "name": "场外基金查询",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=fund-query",
+      "source": "skillhub",
+      "version": "1.0.0"
     }
   }
 }

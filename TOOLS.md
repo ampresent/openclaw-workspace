@@ -4,12 +4,15 @@ Skills 定义工具怎么用，这个文件记录你自己的环境细节。
 
 ---
 
-## 已安装 Skills（22 个）
+## 已安装 Skills（23 个）
 
 Skill 文档在 `skills/<name>/SKILL.md`。
 
 ### 简历 & 求职
 - 📄 resume-assistant — 简历润色、定制、评分、检查清单、多格式导出
+
+### 投资 & 金融
+- 💰 fund-query — 场外基金查询（实时估值、净值、涨跌）
 
 ### 音乐 & 文化
 - 🎵 music-recommender — 基于豆瓣收藏推荐专辑
