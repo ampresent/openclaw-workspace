@@ -12,6 +12,12 @@
       "zip_url": "https://lightmake.site/api/v1/download?slug=mermaid",
       "source": "skillhub",
       "version": "1.0.0"
+    },
+    "resume-assistant": {
+      "name": "Resume Assistant",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=resume-assistant",
+      "source": "skillhub",
+      "version": "1.0.6"
     }
   }
 }
