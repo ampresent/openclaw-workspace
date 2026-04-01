@@ -30,6 +30,12 @@
       "zip_url": "https://lightmake.site/api/v1/download?slug=proactive-agent",
       "source": "skillhub",
       "version": "3.1.0"
+    },
+    "health-score-pro": {
+      "name": "Health Score Pro",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=health-score-pro",
+      "source": "skillhub",
+      "version": "1.4.6"
     }
   }
 }
