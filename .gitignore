@@ -77,3 +77,4 @@ test-*.py
 
 # 活动日志
 LOG_*.md
+*.bak
