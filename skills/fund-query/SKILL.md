@@ -1,6 +1,6 @@
 ---
 name: fund-query
-description: 查询场外基金（公募基金）的实时估值、净值、基本信息。支持天天基金代码查询。当用户询问基金净值、基金估值、基金涨跌时使用。
+description: 查询场外基金（公募基金）的实时估值、净值、基本信息及持仓日报。支持 QDII 基金自动 fallback。当用户询问基金净值、估值、涨跌、持仓盈亏时使用。
 metadata:
   requires:
     bins: [python3]
@@ -8,71 +8,49 @@ metadata:
 
 # 场外基金查询
 
-查询公募基金的实时估值、历史净值和基本信息。
+查询公募基金的实时估值、历史净值、基本信息及持仓日报。QDII 基金自动 fallback 到最新净值。
 
 ## 使用场景
 
-- 用户询问基金净值："005827 净值多少？"
-- 用户询问基金估值："易方达蓝筹现在估值多少？"
-- 用户询问基金涨跌："招商白酒今天涨了还是跌了？"
+- 查询单只基金估值/净值
+- 批量查询持仓当日盈亏（`--portfolio`）
+- QDII 基金查询（自动用最新净值替代实时估值）
 
 ## 使用方法
 
+### 单只查询
+
 ```bash
-python3 {{SKILL_DIR}}/scripts/fund_query.py <基金代码> [命令]
+python3 {{SKILL_DIR}}/scripts/fund_query_v2.py <基金代码> [estimate|nav]
 ```
 
-**命令**：
-- `estimate` 或不传 - 查询实时估值（默认）
-- `info` - 查询基金基本信息
-- `history` - 查询历史净值
+- 不传 / `estimate`：实时估值优先，自动 fallback 到净值
+- `nav`：仅查最新净值
 
-**示例**：
+### 持仓日报
+
 ```bash
-# 查询实时估值
-python3 {{SKILL_DIR}}/scripts/fund_query.py 005827
-
-# 查询基金信息
-python3 {{SKILL_DIR}}/scripts/fund_query.py 005827 info
-
-# 查询历史净值
-python3 {{SKILL_DIR}}/scripts/fund_query.py 005827 history
+python3 {{SKILL_DIR}}/scripts/fund_query_v2.py --portfolio <json文件>
 ```
 
-## 支持的基金代码格式
+JSON 格式：
+```json
+[
+  {"code": "000217", "name": "华安黄金ETF联接C", "amount": 344359.66},
+  {"code": "007722", "name": "天弘标普500(QDII-FOF)C", "amount": 102352.58}
+]
+```
 
-- 6 位数字基金代码，如 `005827`、`110022`、`161725`
-- 天天基金/东方财富基金代码
-
-## 常见基金代码参考
-
-| 基金名称 | 基金代码 |
-|----------|----------|
-| 易方达蓝筹精选混合 | 005827 |
-| 易方达消费行业 | 110022 |
-| 招商中证白酒 | 161725 |
-| 景顺长城新兴成长 | 260108 |
-| 中欧医疗健康混合A | 003095 |
-| 诺安成长混合 | 320007 |
+持仓文件：`projects/investment/portfolio.json`
 
 ## 数据来源
 
-天天基金网（fund.eastmoney.com）公开 API
-
-## 输出格式
-
-查询成功后以紧凑格式展示：
-
-```
-📊 **{基金名称}**（{基金代码}）
-
-💰 实时估值：{估值} 元 | 📈 涨跌幅：{涨跌幅}% ↑/↓
-📅 估值时间：{时间}
-📊 昨日净值：{昨日净值} 元（{净值日期}）
-```
+- 📊 实时估值：fundgz.1234567.com.cn（国内基金交易时段 9:30-15:00）
+- 📋 最新净值：fund.eastmoney.com pingzhongdata（所有基金可用，QDII fallback）
 
 ## 注意事项
 
-1. 实时估值仅在交易时段更新（9:30-15:00）
-2. 非交易时段显示最近一次的净值数据
+1. 实时估值仅在交易时段更新
+2. QDII 基金不支持实时估值，自动使用最近一个交易日的净值涨跌幅
 3. 基金代码必须为 6 位数字
+4. 旧版 `fund_query.py` 保留但不再推荐使用
