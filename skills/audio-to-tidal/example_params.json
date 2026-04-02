@@ -1,0 +1,82 @@
+{
+  "_bpm": 123,
+  "_description": "Example: Dub techno track in G minor, C2 dominant",
+  "orbits": [
+    {
+      "note": "c2",
+      "synth": "sine",
+      "gain": 0.85,
+      "lpf": 180,
+      "sustain": 0.15,
+      "attack": 0.003,
+      "release": 0.05,
+      "speed": 1,
+      "interval": 1.0
+    },
+    {
+      "note": "g3",
+      "synth": "supersaw",
+      "gain": 0.2,
+      "lpf": 400,
+      "sustain": 0.25,
+      "attack": 0.02,
+      "release": 0.1,
+      "speed": 1,
+      "interval": 1.0
+    },
+    {
+      "note": "a4",
+      "synth": "superfm",
+      "gain": 0.15,
+      "lpf": 800,
+      "sustain": 0.5,
+      "attack": 0.05,
+      "release": 0.2,
+      "speed": 0.5,
+      "interval": 2.0,
+      "delay": 0.3,
+      "delaytime": 0.25,
+      "delayfeedback": 0.3
+    },
+    {
+      "note": "c3",
+      "synth": "sine",
+      "gain": 0.35,
+      "lpf": 2000,
+      "hpf": 400,
+      "sustain": 0.04,
+      "attack": 0.001,
+      "release": 0.02,
+      "speed": 2,
+      "interval": 1.0,
+      "degrade": 0.35
+    },
+    {
+      "note": "g2",
+      "synth": "supersaw",
+      "gain": 0.25,
+      "lpf": 1200,
+      "sustain": 0.15,
+      "attack": 0.005,
+      "release": 0.08,
+      "speed": 0.25,
+      "interval": 4.0,
+      "delay": 0.25,
+      "delaytime": 0.25,
+      "delayfeedback": 0.3
+    },
+    {
+      "note": "a5",
+      "synth": "superfm",
+      "gain": 0.08,
+      "lpf": 5000,
+      "hpf": 1000,
+      "sustain": 0.3,
+      "attack": 0.02,
+      "release": 0.15,
+      "speed": 0.5,
+      "interval": 2.0,
+      "degrade": 0.4
+    }
+  ]
+}
