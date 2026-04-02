@@ -1,798 +1,1435 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ampresent</title>
+<title>TIDALS — Live Coding</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
 
-  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
   :root {
-    --bg: #0a0a0f;
-    --surface: #12121a;
-    --surface-2: #1a1a26;
-    --border: #2a2a3a;
-    --text: #e8e6f0;
-    --text-dim: #8884a0;
+    --bg: #08080e;
+    --surface: #0e0e18;
+    --surface-2: #14142a;
+    --border: #1e1e3a;
+    --text: #d8d4e8;
+    --text-dim: #6864a0;
     --accent: #7c6cf0;
     --accent-glow: #9b8cff;
     --gold: #d4a853;
-    --red: #e05555;
-    --green: #55cc88;
+    --green: #44dd88;
+    --red: #ee5555;
+    --cyan: #55ccdd;
+    --pink: #dd66aa;
   }
-
-  html { scroll-behavior: smooth; }
 
   body {
-    font-family: 'Inter', -apple-system, sans-serif;
+    font-family: 'Inter', sans-serif;
     background: var(--bg);
     color: var(--text);
-    line-height: 1.6;
-    min-height: 100vh;
-  }
-
-  /* --- Header --- */
-  .hero {
-    position: relative;
-    padding: 80px 24px 60px;
-    text-align: center;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
   }
 
-  .hero::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, rgba(124,108,240,0.12) 0%, transparent 70%);
-    pointer-events: none;
+  /* --- Top Bar --- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    height: 48px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 16px;
+    z-index: 10;
   }
 
-  .avatar {
-    width: 96px;
-    height: 96px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), var(--gold));
-    margin: 0 auto 24px;
+  .logo {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: 0.2em;
+    background: linear-gradient(90deg, var(--accent), var(--gold));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .logo-sub {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+  }
+
+  .topbar-center {
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 40px;
-    font-weight: 700;
-    color: #fff;
-    box-shadow: 0 0 40px rgba(124,108,240,0.3);
+    gap: 6px;
   }
 
-  .hero h1 {
-    font-size: 2rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    margin-bottom: 8px;
+  .cps-display {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--gold);
+    background: rgba(212,168,83,0.08);
+    padding: 3px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(212,168,83,0.2);
   }
 
-  .hero .tagline {
-    color: var(--text-dim);
-    font-size: 1.05rem;
-    font-weight: 300;
-    max-width: 520px;
-    margin: 0 auto;
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: all 0.3s;
   }
 
-  /* --- Layout --- */
-  .container {
-    max-width: 860px;
-    margin: 0 auto;
-    padding: 0 24px 80px;
+  .status-dot.active {
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 1.5s infinite;
   }
 
-  section {
-    margin-bottom: 48px;
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
   }
 
-  .section-title {
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--accent);
-    margin-bottom: 16px;
+  .topbar-actions {
     display: flex;
-    align-items: center;
     gap: 8px;
   }
 
-  .section-title::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border);
-  }
-
-  /* --- Cards --- */
-  .card {
-    background: var(--surface);
+  .btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    padding: 5px 12px;
+    border-radius: 6px;
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px;
-    transition: border-color 0.2s;
-  }
-
-  .card:hover { border-color: var(--accent); }
-
-  .card-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
-  }
-
-  /* --- Profile --- */
-  .profile-card h3 {
-    font-size: 1.1rem;
-    margin-bottom: 12px;
-    color: var(--gold);
-  }
-
-  .profile-card .info-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.9rem;
-  }
-
-  .profile-card .info-row:last-child { border-bottom: none; }
-  .profile-card .info-label { color: var(--text-dim); }
-
-  /* --- Tags --- */
-  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-
-  .tag {
-    font-size: 0.78rem;
-    padding: 4px 12px;
-    border-radius: 20px;
     background: var(--surface-2);
-    border: 1px solid var(--border);
     color: var(--text-dim);
-    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.04em;
   }
 
-  .tag.accent {
+  .btn:hover {
     border-color: var(--accent);
     color: var(--accent-glow);
     background: rgba(124,108,240,0.08);
   }
 
-  /* --- Music Player --- */
-  .player-card {
-    background: linear-gradient(135deg, var(--surface) 0%, #16162a 100%);
-    position: relative;
+  .btn.play {
+    border-color: var(--green);
+    color: var(--green);
+  }
+
+  .btn.play:hover {
+    background: rgba(68,221,136,0.1);
+    box-shadow: 0 0 12px rgba(68,221,136,0.2);
+  }
+
+  .btn.stop {
+    border-color: var(--red);
+    color: var(--red);
+  }
+
+  .btn.stop:hover {
+    background: rgba(238,85,85,0.1);
+  }
+
+  .btn.eval {
+    border-color: var(--accent);
+    color: var(--accent-glow);
+  }
+
+  /* --- Main Layout --- */
+  .main {
+    flex: 1;
+    display: flex;
     overflow: hidden;
   }
 
-  .player-card::after {
+  /* --- Editor --- */
+  .editor-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    min-width: 0;
+  }
+
+  .editor-tabs {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    height: 36px;
+    flex-shrink: 0;
+  }
+
+  .tab {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    border-right: 1px solid var(--border);
+    color: var(--text-dim);
+    transition: all 0.15s;
+    position: relative;
+  }
+
+  .tab.active {
+    color: var(--text);
+    background: var(--bg);
+  }
+
+  .tab.active::after {
     content: '';
     position: absolute;
-    top: 0; right: 0;
-    width: 200px; height: 200px;
-    background: radial-gradient(circle, rgba(212,168,83,0.06) 0%, transparent 70%);
-    pointer-events: none;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent);
   }
 
-  .player-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 20px;
+  .tab:hover { color: var(--text); }
+
+  .tab-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
   }
 
-  .player-title {
-    font-size: 1.2rem;
-    font-weight: 600;
-  }
+  .tab.active .tab-dot { background: var(--green); }
 
-  .player-meta {
-    color: var(--text-dim);
-    font-size: 0.85rem;
-    margin-top: 4px;
-  }
-
-  .player-badge {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    padding: 4px 10px;
-    border-radius: 6px;
-    background: rgba(124,108,240,0.12);
-    color: var(--accent-glow);
-    border: 1px solid rgba(124,108,240,0.25);
-  }
-
-  .waveform-container {
+  .editor-wrapper {
+    flex: 1;
     position: relative;
-    height: 80px;
-    margin: 16px 0;
-    cursor: pointer;
-    border-radius: 8px;
     overflow: hidden;
-    background: rgba(0,0,0,0.3);
   }
 
-  canvas#waveform {
+  .editor-container {
+    position: absolute;
+    inset: 0;
+    display: none;
+    overflow: auto;
+  }
+
+  .editor-container.active { display: flex; }
+
+  .line-numbers {
+    width: 48px;
+    background: var(--surface);
+    padding: 12px 0;
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--text-dim);
+    user-select: none;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .line-numbers div {
+    padding-right: 12px;
+  }
+
+  .editor-area {
+    flex: 1;
+    position: relative;
+  }
+
+  textarea.code-editor {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--accent-glow);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 20px;
+    padding: 12px 16px;
+    border: none;
+    outline: none;
+    resize: none;
+    z-index: 2;
+    white-space: pre;
+    overflow: auto;
+    tab-size: 2;
+  }
+
+  pre.code-highlight {
+    position: absolute;
+    inset: 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 20px;
+    padding: 12px 16px;
+    z-index: 1;
+    white-space: pre;
+    overflow: auto;
+    pointer-events: none;
+    color: var(--text);
+  }
+
+  /* Syntax colors */
+  .hl-string { color: var(--green); }
+  .hl-number { color: var(--gold); }
+  .hl-comment { color: var(--text-dim); font-style: italic; }
+  .hl-keyword { color: var(--accent-glow); }
+  .hl-function { color: var(--cyan); }
+  .hl-param { color: var(--pink); }
+  .hl-paren { color: var(--text-dim); }
+
+  /* --- Right Panel --- */
+  .right-panel {
+    width: 340px;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  /* --- Visualizer --- */
+  .viz-section {
+    height: 180px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  canvas#viz {
     width: 100%;
     height: 100%;
     display: block;
   }
 
-  .progress-overlay {
+  .viz-label {
     position: absolute;
-    top: 0; left: 0; bottom: 0;
-    width: 0%;
-    background: rgba(124,108,240,0.15);
-    pointer-events: none;
-    transition: width 0.1s linear;
+    top: 8px;
+    left: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
   }
 
-  .progress-line {
-    position: absolute;
-    top: 0; bottom: 0;
-    width: 2px;
-    background: var(--accent-glow);
-    left: 0%;
-    pointer-events: none;
-    box-shadow: 0 0 8px var(--accent);
-  }
-
-  .player-controls {
+  /* --- Log / Console --- */
+  .log-section {
+    flex: 1;
     display: flex;
-    align-items: center;
-    gap: 16px;
+    flex-direction: column;
+    overflow: hidden;
   }
 
-  .play-btn {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    border: 2px solid var(--accent);
-    background: transparent;
-    color: var(--accent-glow);
-    font-size: 18px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
+  .log-header {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
 
-  .play-btn:hover {
-    background: var(--accent);
-    color: #fff;
-    box-shadow: 0 0 20px rgba(124,108,240,0.4);
-  }
-
-  .time-display {
+  .log-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.82rem;
-    color: var(--text-dim);
-    min-width: 90px;
+    font-size: 11.5px;
+    line-height: 18px;
+    background: var(--bg);
   }
 
-  .volume-control {
-    margin-left: auto;
+  .log-entry {
+    padding: 2px 0;
     display: flex;
-    align-items: center;
     gap: 8px;
   }
 
-  .volume-control span { font-size: 14px; cursor: pointer; }
-
-  input[type="range"] {
-    -webkit-appearance: none;
-    width: 80px;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--border);
-    outline: none;
-  }
-
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--accent);
-    cursor: pointer;
-  }
-
-  /* --- Visualizer --- */
-  .viz-container {
-    height: 48px;
-    margin-top: 16px;
-    display: flex;
-    align-items: flex-end;
-    gap: 2px;
-  }
-
-  .viz-bar {
-    flex: 1;
-    background: linear-gradient(to top, var(--accent), var(--gold));
-    border-radius: 2px 2px 0 0;
-    min-height: 3px;
-    transition: height 0.05s ease;
-    opacity: 0.8;
-  }
-
-  /* --- Tracks list --- */
-  .tracks { margin-top: 20px; }
-
-  .track-item {
-    display: flex;
-    align-items: center;
-    padding: 10px 12px;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background 0.15s;
-    gap: 12px;
-  }
-
-  .track-item:hover { background: var(--surface-2); }
-  .track-item.active { background: rgba(124,108,240,0.08); }
-
-  .track-num {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
+  .log-time {
     color: var(--text-dim);
-    width: 20px;
-    text-align: center;
+    flex-shrink: 0;
   }
 
-  .track-item.active .track-num { color: var(--accent-glow); }
+  .log-msg { color: var(--text); }
+  .log-msg.info { color: var(--cyan); }
+  .log-msg.success { color: var(--green); }
+  .log-msg.warn { color: var(--gold); }
+  .log-msg.error { color: var(--red); }
 
-  .track-info { flex: 1; }
-  .track-name { font-size: 0.92rem; font-weight: 500; }
-  .track-detail { font-size: 0.78rem; color: var(--text-dim); margin-top: 2px; }
-
-  .track-duration {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--text-dim);
-  }
-
-  /* --- Venues --- */
-  .venue-list { display: flex; flex-direction: column; gap: 8px; }
-
-  .venue-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    border-radius: 10px;
+  /* --- Pattern Slots --- */
+  .slots-section {
     background: var(--surface);
-    border: 1px solid var(--border);
-    transition: all 0.2s;
-  }
-
-  .venue-item:hover { border-color: var(--gold); transform: translateX(4px); }
-
-  .venue-stars { font-size: 0.7rem; color: var(--gold); }
-  .venue-name { font-size: 0.92rem; font-weight: 500; }
-  .venue-note { font-size: 0.78rem; color: var(--text-dim); margin-left: auto; }
-
-  /* --- Links --- */
-  .links-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 12px;
-  }
-
-  .link-card {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px;
-    border-radius: 10px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    text-decoration: none;
-    color: var(--text);
-    transition: all 0.2s;
-  }
-
-  .link-card:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  }
-
-  .link-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    background: var(--surface-2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-  }
-
-  .link-text .link-title { font-size: 0.9rem; font-weight: 500; }
-  .link-text .link-desc { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
-
-  /* --- Footer --- */
-  .footer {
-    text-align: center;
-    padding: 32px;
-    color: var(--text-dim);
-    font-size: 0.8rem;
     border-top: 1px solid var(--border);
-    margin-top: 48px;
+    flex-shrink: 0;
   }
 
-  .footer a { color: var(--accent); text-decoration: none; }
-  .footer a:hover { text-decoration: underline; }
+  .slots-header {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
 
-  /* --- Responsive --- */
-  @media (max-width: 600px) {
-    .hero { padding: 48px 16px 40px; }
-    .hero h1 { font-size: 1.5rem; }
-    .container { padding: 0 16px 48px; }
-    .card { padding: 16px; }
-    .player-controls { flex-wrap: wrap; }
+  .slots-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    padding: 1px;
+  }
+
+  .slot {
+    background: var(--bg);
+    padding: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+
+  .slot:hover { background: var(--surface-2); }
+
+  .slot.active {
+    background: rgba(124,108,240,0.1);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+
+  .slot-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--accent-glow);
+  }
+
+  .slot-pattern {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--text-dim);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .slot.muted .slot-id { color: var(--text-dim); }
+  .slot.muted .slot-pattern { text-decoration: line-through; opacity: 0.4; }
+
+  /* --- Bottom Bar --- */
+  .bottombar {
+    height: 28px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  .bottombar .hint {
+    margin-left: auto;
+  }
+
+  .kbd {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 0.62rem;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+  /* Responsive */
+  @media (max-width: 860px) {
+    .right-panel { width: 260px; }
+    .viz-section { height: 120px; }
   }
 </style>
 </head>
 <body>
 
-<!-- Hero -->
-<header class="hero">
-  <div class="avatar">A</div>
-  <h1>ampresent</h1>
-  <p class="tagline">Programmer · Live Coder · Jazz & Noise Enthusiast</p>
-</header>
+<!-- Top Bar -->
+<div class="topbar">
+  <span class="logo">TIDALS</span>
+  <span class="logo-sub">live coding</span>
 
-<div class="container">
+  <div class="topbar-center">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="cps-display" id="cpsDisplay">128 BPM</span>
+  </div>
 
-  <!-- Profile -->
-  <section>
-    <div class="section-title">Profile</div>
-    <div class="card-grid">
-      <div class="card profile-card">
-        <h3>🖥️ 关于我</h3>
-        <div class="info-row"><span class="info-label">职业</span><span>程序员</span></div>
-        <div class="info-row"><span class="info-label">城市</span><span>上海</span></div>
-        <div class="info-row"><span class="info-label">时区</span><span>Asia/Shanghai (GMT+8)</span></div>
-        <div class="info-row"><span class="info-label">收藏</span><span>3500+ 张专辑</span></div>
-        <div class="info-row"><span class="info-label">五星</span><span>1875 张</span></div>
-      </div>
-      <div class="card profile-card">
-        <h3>🎵 音乐口味</h3>
-        <div class="tags">
-          <span class="tag accent">Deep Jazz</span>
-          <span class="tag accent">Japanese Noise</span>
-          <span class="tag accent">Dark Ambient</span>
-          <span class="tag">Neoclassical</span>
-          <span class="tag">Industrial</span>
-          <span class="tag">Psychedelic</span>
-          <span class="tag">Live Coding</span>
-          <span class="tag">Detroit Techno</span>
-        </div>
-        <div style="margin-top: 16px; font-size: 0.85rem; color: var(--text-dim);">
-          Coltrane · Miles · Acid Mothers Temple · Merzbow · Death in June · Bohren & der Club of Gore
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Music Player -->
-  <section>
-    <div class="section-title">🎧 Generated Music</div>
-    <div class="card player-card">
-      <div class="player-header">
-        <div>
-          <div class="player-title">Detroit Techno — Generative</div>
-          <div class="player-meta">Pure JS Synthesis · TidalCycles-inspired</div>
-        </div>
-        <span class="player-badge">LIVE CODED</span>
-      </div>
-
-      <div class="waveform-container" id="waveformContainer">
-        <canvas id="waveform"></canvas>
-        <div class="progress-overlay" id="progressOverlay"></div>
-        <div class="progress-line" id="progressLine"></div>
-      </div>
-
-      <div class="player-controls">
-        <button class="play-btn" id="playBtn" title="Play/Pause">▶</button>
-        <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
-        <div class="volume-control">
-          <span id="muteBtn">🔊</span>
-          <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.8">
-        </div>
-      </div>
-
-      <div class="viz-container" id="visualizer"></div>
-
-      <div class="tracks">
-        <div class="track-item active" data-src="detroit-techno.wav" data-title="Detroit Techno — Generative" data-meta="Pure JS Synthesis · 128 BPM · 30s">
-          <span class="track-num">01</span>
-          <div class="track-info">
-            <div class="track-name">Detroit Techno — Generative</div>
-            <div class="track-detail">909 Drums · FM Synth · Sub Bass · Supersaw Pad</div>
-          </div>
-          <span class="track-duration">0:30</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Venues -->
-  <section>
-    <div class="section-title">📍 监控场馆</div>
-    <div class="venue-list">
-      <div class="venue-item">
-        <span class="venue-stars">⭐⭐⭐</span>
-        <span class="venue-name">Blue Note Shanghai</span>
-        <span class="venue-note">顶级爵士现场</span>
-      </div>
-      <div class="venue-item">
-        <span class="venue-stars">⭐⭐⭐</span>
-        <span class="venue-name">前滩 31</span>
-        <span class="venue-note">综合演艺空间</span>
-      </div>
-      <div class="venue-item">
-        <span class="venue-stars">⭐⭐</span>
-        <span class="venue-name">JZ Club</span>
-        <span class="venue-note">老牌爵士据点</span>
-      </div>
-      <div class="venue-item">
-        <span class="venue-stars">⭐⭐</span>
-        <span class="venue-name">林肯中心 Jazz Club</span>
-        <span class="venue-note">Lincoln Center 系列</span>
-      </div>
-      <div class="venue-item">
-        <span class="venue-stars">⭐⭐</span>
-        <span class="venue-name">西岸大剧院</span>
-        <span class="venue-note">西岸文化走廊</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- Platform Links -->
-  <section>
-    <div class="section-title">🔗 Platform</div>
-    <div class="links-grid">
-      <a class="link-card" href="https://github.com/ampresent" target="_blank" rel="noopener">
-        <div class="link-icon">🐙</div>
-        <div class="link-text">
-          <div class="link-title">GitHub</div>
-          <div class="link-desc">@ampresent</div>
-        </div>
-      </a>
-      <a class="link-card" href="#" target="_blank" rel="noopener">
-        <div class="link-icon">🎹</div>
-        <div class="link-text">
-          <div class="link-title">TidalCycles</div>
-          <div class="link-desc">Live Coding Patterns</div>
-        </div>
-      </a>
-      <a class="link-card" href="#" target="_blank" rel="noopener">
-        <div class="link-icon">🟣</div>
-        <div class="link-text">
-          <div class="link-title">SuperCollider</div>
-          <div class="link-desc">Synth Design</div>
-        </div>
-      </a>
-      <a class="link-card" href="#" target="_blank" rel="noopener">
-        <div class="link-icon">🎵</div>
-        <div class="link-text">
-          <div class="link-title">Douban Music</div>
-          <div class="link-desc">3500+ 收藏</div>
-        </div>
-      </a>
-    </div>
-  </section>
-
+  <div class="topbar-actions">
+    <button class="btn" id="btnReset" title="Reset code">↺ RESET</button>
+    <button class="btn eval" id="btnEval" title="Evaluate (Ctrl+Enter)">▸ EVAL</button>
+    <button class="btn play" id="btnPlay" title="Start (Space)">▶ PLAY</button>
+    <button class="btn stop" id="btnStop" title="Stop (Esc)">■ STOP</button>
+  </div>
 </div>
 
-<footer class="footer">
-  Built with <a href="https://tidalcycles.org">TidalCycles</a> · <a href="https://supercollider.github.io">SuperCollider</a> · Pure JS Synthesis<br>
-  <span style="color: var(--border);">ampresent © 2026</span>
-</footer>
+<!-- Main -->
+<div class="main">
+  <!-- Editor -->
+  <div class="editor-panel">
+    <div class="editor-tabs">
+      <div class="tab active" data-tab="0">
+        <span class="tab-dot"></span>
+        main.tidal
+      </div>
+      <div class="tab" data-tab="1">
+        <span class="tab-dot"></span>
+        helpers
+      </div>
+    </div>
+    <div class="editor-wrapper">
+      <div class="editor-container active" data-tab="0">
+        <div class="line-numbers" id="lineNumbers0"></div>
+        <div class="editor-area">
+          <pre class="code-highlight" id="highlight0"></pre>
+          <textarea class="code-editor" id="editor0" spellcheck="false" autocomplete="off"></textarea>
+        </div>
+      </div>
+      <div class="editor-container" data-tab="1">
+        <div class="line-numbers" id="lineNumbers1"></div>
+        <div class="editor-area">
+          <pre class="code-highlight" id="highlight1"></pre>
+          <textarea class="code-editor" id="editor1" spellcheck="false" autocomplete="off"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel">
+    <!-- Visualizer -->
+    <div class="viz-section">
+      <canvas id="viz"></canvas>
+      <div class="viz-label">Spectrum</div>
+    </div>
+
+    <!-- Pattern Slots -->
+    <div class="slots-section">
+      <div class="slots-header">Pattern Slots (d1–d8)</div>
+      <div class="slots-grid" id="slotsGrid"></div>
+    </div>
+
+    <!-- Log -->
+    <div class="log-section">
+      <div class="log-header">Console</div>
+      <div class="log-content" id="logContent"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Bar -->
+<div class="bottombar">
+  <span id="clockDisplay">0:00:00</span>
+  <span id="cycleDisplay">cycle 0</span>
+  <span class="hint">
+    <span class="kbd">Ctrl+Enter</span> eval ·
+    <span class="kbd">Space</span> play/stop ·
+    <span class="kbd">Ctrl+D</span> mute slot
+  </span>
+</div>
 
 <script>
-// --- Audio Player ---
-const audio = new Audio();
-audio.crossOrigin = 'anonymous';
-audio.volume = 0.8;
+// ============================================================
+//  TIDALS — Browser TidalCycles Live Coding Engine
+// ============================================================
 
-const playBtn = document.getElementById('playBtn');
-const timeDisplay = document.getElementById('timeDisplay');
-const volumeSlider = document.getElementById('volumeSlider');
-const muteBtn = document.getElementById('muteBtn');
-const progressOverlay = document.getElementById('progressOverlay');
-const progressLine = document.getElementById('progressLine');
-const waveformContainer = document.getElementById('waveformContainer');
-const canvas = document.getElementById('waveform');
-const ctx = canvas.getContext('2d');
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let actx, masterGain, analyser, analyserData;
+let isRunning = false;
+let startTime = 0;
+let cps = 128 / 60 / 4; // cycles per second
+let bpm = 128;
+let cycleCount = 0;
+let schedulerTimer = null;
 
-let isPlaying = false;
-let currentTrack = 'detroit-techno.wav';
+// Slots
+const MAX_SLOTS = 8;
+let slots = Array.from({length: MAX_SLOTS}, (_, i) => ({
+  id: i + 1,
+  pattern: '',
+  parsed: [],
+  muted: false,
+  gain: 0.8,
+}));
 
-// Waveform data
-let waveformData = [];
+let currentTab = 0;
 
-function formatTime(s) {
-  if (isNaN(s)) return '0:00';
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return m + ':' + String(sec).padStart(2, '0');
+// ---- Audio Context Init ----
+function initAudio() {
+  if (actx) return;
+  actx = new AudioCtx();
+  masterGain = actx.createGain();
+  masterGain.gain.value = 0.7;
+  analyser = actx.createAnalyser();
+  analyser.fftSize = 256;
+  analyserData = new Uint8Array(analyser.frequencyBinCount);
+  masterGain.connect(analyser);
+  analyser.connect(actx.destination);
+  log('Audio engine ready', 'success');
 }
 
-// Generate visual waveform
-function generateWaveform() {
-  const bars = 120;
-  waveformData = [];
-  for (let i = 0; i < bars; i++) {
-    // Procedural waveform shape
-    const t = i / bars;
-    const env = Math.sin(t * Math.PI) * 0.7 + 0.3;
-    const r1 = Math.sin(t * 47) * 0.5 + 0.5;
-    const r2 = Math.sin(t * 23 + 1) * 0.3 + 0.3;
-    const r3 = Math.sin(t * 7) * 0.2 + 0.2;
-    waveformData.push((r1 * 0.5 + r2 * 0.3 + r3 * 0.2) * env);
-  }
-}
+// ---- Sound Synthesis ----
+function playSound(type, time, params = {}) {
+  if (!actx) return;
+  const t = time;
+  const dur = params.dur || 0.2;
+  const gain = params.gain || 0.8;
+  const note = params.note || 0;
+  const freq = 440 * Math.pow(2, note / 12);
+  const cutoff = params.cutoff || 8000;
+  const resonance = params.resonance || 0;
 
-function drawWaveform(progress) {
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.scale(dpr, dpr);
+  const g = actx.createGain();
+  g.gain.value = gain;
+  g.connect(masterGain);
 
-  const w = rect.width;
-  const h = rect.height;
-  const barW = w / waveformData.length;
-  const played = progress * waveformData.length;
+  const filter = actx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = cutoff;
+  filter.Q.value = resonance * 20;
+  filter.connect(g);
 
-  ctx.clearRect(0, 0, w, h);
-
-  waveformData.forEach((v, i) => {
-    const barH = v * h * 0.8;
-    const x = i * barW;
-    const y = (h - barH) / 2;
-
-    if (i < played) {
-      ctx.fillStyle = 'rgba(155, 140, 255, 0.7)';
-    } else {
-      ctx.fillStyle = 'rgba(136, 132, 160, 0.25)';
+  switch (type) {
+    case 'bd': case 'kick': {
+      // 909 kick
+      const osc = actx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(160, t);
+      osc.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+      const kg = actx.createGain();
+      kg.gain.setValueAtTime(1, t);
+      kg.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      osc.connect(kg);
+      kg.connect(filter);
+      osc.start(t);
+      osc.stop(t + 0.4);
+      // click
+      const buf = actx.createBuffer(1, actx.sampleRate * 0.005, actx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (d.length * 0.3));
+      const ns = actx.createBufferSource();
+      ns.buffer = buf;
+      const ng = actx.createGain();
+      ng.gain.setValueAtTime(0.5, t);
+      ng.gain.exponentialRampToValueAtTime(0.001, t + 0.01);
+      ns.connect(ng);
+      ng.connect(filter);
+      ns.start(t);
+      break;
     }
-    ctx.fillRect(x + 1, y, barW - 2, barH);
-  });
+    case 'sn': case 'snare': {
+      // tone
+      const osc = actx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = 200;
+      const og = actx.createGain();
+      og.gain.setValueAtTime(0.5, t);
+      og.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+      osc.connect(og);
+      og.connect(filter);
+      osc.start(t);
+      osc.stop(t + 0.1);
+      // noise
+      const buf = actx.createBuffer(1, actx.sampleRate * 0.2, actx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const ns = actx.createBufferSource();
+      ns.buffer = buf;
+      const nf = actx.createBiquadFilter();
+      nf.type = 'highpass';
+      nf.frequency.value = 1000;
+      const ng = actx.createGain();
+      ng.gain.setValueAtTime(0.6, t);
+      ng.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+      ns.connect(nf);
+      nf.connect(ng);
+      ng.connect(filter);
+      ns.start(t);
+      ns.stop(t + 0.2);
+      break;
+    }
+    case 'hh': case 'hihat': {
+      const buf = actx.createBuffer(1, actx.sampleRate * 0.06, actx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const ns = actx.createBufferSource();
+      ns.buffer = buf;
+      const nf = actx.createBiquadFilter();
+      nf.type = 'highpass';
+      nf.frequency.value = 6000;
+      const ng = actx.createGain();
+      ng.gain.setValueAtTime(0.35, t);
+      ng.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+      ns.connect(nf);
+      nf.connect(ng);
+      ng.connect(filter);
+      ns.start(t);
+      ns.stop(t + 0.06);
+      break;
+    }
+    case 'oh': case 'openh': {
+      const buf = actx.createBuffer(1, actx.sampleRate * 0.3, actx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const ns = actx.createBufferSource();
+      ns.buffer = buf;
+      const nf = actx.createBiquadFilter();
+      nf.type = 'highpass';
+      nf.frequency.value = 5000;
+      const ng = actx.createGain();
+      ng.gain.setValueAtTime(0.3, t);
+      ng.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      ns.connect(nf);
+      nf.connect(ng);
+      ng.connect(filter);
+      ns.start(t);
+      ns.stop(t + 0.3);
+      break;
+    }
+    case 'cp': case 'clap': {
+      for (let hit = 0; hit < 3; hit++) {
+        const ht = t + hit * 0.012;
+        const buf = actx.createBuffer(1, actx.sampleRate * 0.02, actx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const ns = actx.createBufferSource();
+        ns.buffer = buf;
+        const nf = actx.createBiquadFilter();
+        nf.type = 'bandpass';
+        nf.frequency.value = 2000;
+        const ng = actx.createGain();
+        ng.gain.setValueAtTime(0.5, ht);
+        ng.gain.exponentialRampToValueAtTime(0.001, ht + 0.015);
+        ns.connect(nf);
+        nf.connect(ng);
+        ng.connect(filter);
+        ns.start(ht);
+      }
+      // tail
+      const tbuf = actx.createBuffer(1, actx.sampleRate * 0.12, actx.sampleRate);
+      const td = tbuf.getChannelData(0);
+      for (let i = 0; i < td.length; i++) td[i] = Math.random() * 2 - 1;
+      const tns = actx.createBufferSource();
+      tns.buffer = tbuf;
+      const tnf = actx.createBiquadFilter();
+      tnf.type = 'bandpass';
+      tnf.frequency.value = 1800;
+      const tng = actx.createGain();
+      tng.gain.setValueAtTime(0.4, t + 0.035);
+      tng.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+      tns.connect(tnf);
+      tnf.connect(tng);
+      tng.connect(filter);
+      tns.start(t + 0.035);
+      break;
+    }
+    case 'superfm': case 'fm': {
+      const osc = actx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const mod = actx.createOscillator();
+      mod.type = 'sine';
+      mod.frequency.value = freq * 2;
+      const modGain = actx.createGain();
+      modGain.gain.value = freq * 3;
+      mod.connect(modGain);
+      modGain.connect(osc.frequency);
+      const env = actx.createGain();
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(0.5, t + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.001, t + dur * 2);
+      osc.connect(env);
+      env.connect(filter);
+      osc.start(t);
+      mod.start(t);
+      osc.stop(t + dur * 2 + 0.1);
+      mod.stop(t + dur * 2 + 0.1);
+      break;
+    }
+    case 'supersaw': case 'saw': {
+      for (let d = -1; d <= 1; d++) {
+        const osc = actx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.value = freq * (1 + d * 0.005);
+        const env = actx.createGain();
+        env.gain.setValueAtTime(0, t);
+        env.gain.linearRampToValueAtTime(0.2, t + 0.05);
+        env.gain.exponentialRampToValueAtTime(0.001, t + dur * 3);
+        osc.connect(env);
+        env.connect(filter);
+        osc.start(t);
+        osc.stop(t + dur * 3 + 0.1);
+      }
+      break;
+    }
+    case 'sine': {
+      const osc = actx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const env = actx.createGain();
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(0.5, t + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.001, t + dur * 2);
+      osc.connect(env);
+      env.connect(filter);
+      osc.start(t);
+      osc.stop(t + dur * 2 + 0.1);
+      break;
+    }
+    default: {
+      // Unknown synth: sine fallback
+      const osc = actx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const env = actx.createGain();
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(0.3, t + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.001, t + dur * 2);
+      osc.connect(env);
+      env.connect(filter);
+      osc.start(t);
+      osc.stop(t + dur * 2 + 0.1);
+    }
+  }
 }
 
-// Init
-generateWaveform();
-drawWaveform(0);
+// ---- Pattern Parser ----
+// Parse TidalCycles-like syntax into an array of events
+// Supports: "bd sn ~ hh", gain, note, lpf, s (sound), euclidean bd(3,8)
+function parsePattern(code) {
+  const events = [];
+  const lines = code.split('\n');
 
-// Play/Pause
-playBtn.addEventListener('click', () => {
-  if (!audio.src) {
-    audio.src = currentTrack;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('--') || trimmed.startsWith('//') || trimmed === '') continue;
+
+    // Match: d1 $ sound "..." or d1 $ note "..." # s "..."
+    const slotMatch = trimmed.match(/^d(\d+)\s*\$\s*(.+)/);
+    if (!slotMatch) {
+      // Try simpler: d1: pattern
+      const simpleMatch = trimmed.match(/^d(\d+)\s*:\s*(.+)/);
+      if (simpleMatch) {
+        const slotId = parseInt(simpleMatch[1]);
+        const patStr = simpleMatch[2].trim();
+        const evts = parseSlotBody(patStr, slotId);
+        events.push(...evts);
+      }
+      continue;
+    }
+
+    const slotId = parseInt(slotMatch[1]);
+    const body = slotMatch[2];
+    const evts = parseSlotBody(body, slotId);
+    events.push(...evts);
   }
-  if (isPlaying) {
-    audio.pause();
-  } else {
-    audio.play().catch(() => {});
-  }
-});
 
-audio.addEventListener('play', () => {
-  isPlaying = true;
-  playBtn.textContent = '⏸';
-  startVisualizer();
-});
-
-audio.addEventListener('pause', () => {
-  isPlaying = false;
-  playBtn.textContent = '▶';
-});
-
-audio.addEventListener('ended', () => {
-  isPlaying = false;
-  playBtn.textContent = '▶';
-  progressOverlay.style.width = '100%';
-  progressLine.style.left = '100%';
-});
-
-audio.addEventListener('timeupdate', () => {
-  const progress = audio.duration ? audio.currentTime / audio.duration : 0;
-  timeDisplay.textContent = formatTime(audio.currentTime) + ' / ' + formatTime(audio.duration);
-  progressOverlay.style.width = (progress * 100) + '%';
-  progressLine.style.left = (progress * 100) + '%';
-  drawWaveform(progress);
-});
-
-// Seek
-waveformContainer.addEventListener('click', (e) => {
-  const rect = waveformContainer.getBoundingClientRect();
-  const progress = (e.clientX - rect.left) / rect.width;
-  if (audio.duration) {
-    audio.currentTime = progress * audio.duration;
-  }
-});
-
-// Volume
-volumeSlider.addEventListener('input', (e) => {
-  audio.volume = parseFloat(e.target.value);
-  updateVolumeIcon();
-});
-
-muteBtn.addEventListener('click', () => {
-  audio.muted = !audio.muted;
-  updateVolumeIcon();
-});
-
-function updateVolumeIcon() {
-  if (audio.muted || audio.volume === 0) muteBtn.textContent = '🔇';
-  else if (audio.volume < 0.5) muteBtn.textContent = '🔉';
-  else muteBtn.textContent = '🔊';
+  return events;
 }
 
-// Track selection
-document.querySelectorAll('.track-item').forEach(item => {
-  item.addEventListener('click', () => {
-    document.querySelectorAll('.track-item').forEach(t => t.classList.remove('active'));
-    item.classList.add('active');
-    const src = item.dataset.src;
-    audio.src = src;
-    audio.play().catch(() => {});
-  });
-});
+function parseSlotBody(body, slotId) {
+  // Extract sound pattern from quotes
+  const soundMatch = body.match(/sound\s+"([^"]+)"/);
+  const noteMatch = body.match(/note\s+"([^"]+)"/);
+  const sMatch = body.match(/#\s*s\s+"([^"]+)"/);
 
-// Visualizer
-const vizContainer = document.getElementById('visualizer');
-const VIZ_BARS = 32;
-for (let i = 0; i < VIZ_BARS; i++) {
-  const bar = document.createElement('div');
-  bar.className = 'viz-bar';
-  bar.style.height = '3px';
-  vizContainer.appendChild(bar);
+  // Extract params
+  const gainMatch = body.match(/#?\s*gain\s+"?([^"#\s]+)"?/);
+  const lpfMatch = body.match(/#?\s*lpf\s+(\d+)/);
+  const resonanceMatch = body.match(/#?\s*resonance\s+([\d.]+)/);
+
+  const pattern = soundMatch ? soundMatch[1] : (noteMatch ? noteMatch[1] : null);
+  if (!pattern) return [];
+
+  const synth = sMatch ? sMatch[1] : (noteMatch ? 'superfm' : null);
+  const baseGain = gainMatch ? parseFloat(gainMatch[1]) : 0.8;
+  const cutoff = lpfMatch ? parseInt(lpfMatch[1]) : 8000;
+  const res = resonanceMatch ? parseFloat(resonanceMatch[1]) : 0;
+
+  return parseSteps(pattern, slotId, synth, baseGain, cutoff, res);
 }
 
-let vizAnim;
-function startVisualizer() {
-  const bars = vizContainer.querySelectorAll('.viz-bar');
-  function animate() {
-    if (!isPlaying) return;
-    bars.forEach((bar, i) => {
-      const t = Date.now() / 1000;
-      const h = 3 + Math.abs(Math.sin(t * 3 + i * 0.5)) * 35
-        + Math.abs(Math.sin(t * 7 + i * 0.8)) * 15
-        + Math.random() * 8;
-      bar.style.height = h + 'px';
+function parseSteps(pattern, slotId, synth, gain, cutoff, resonance) {
+  const events = [];
+  // Handle stack, fast, slow
+  // For simplicity, parse the inner pattern string
+
+  // Euclidean: bd(3,8)
+  const eucMatch = pattern.match(/^(\w+)\((\d+),(\d+)(?:,(-?\d+))?\)$/);
+  if (eucMatch) {
+    const sound = eucMatch[1];
+    const hits = parseInt(eucMatch[2]);
+    const steps = parseInt(eucMatch[3]);
+    const rot = parseInt(eucMatch[4] || 0);
+    const euc = euclidean(hits, steps, rot);
+    for (let i = 0; i < steps; i++) {
+      if (euc[i]) {
+        events.push({
+          slot: slotId,
+          sound,
+          synth: synth || sound,
+          step: i,
+          totalSteps: steps,
+          gain,
+          note: 0,
+          cutoff,
+          resonance,
+        });
+      }
+    }
+    return events;
+  }
+
+  // Split pattern by spaces
+  const parts = pattern.split(/\s+/);
+  const totalSteps = parts.length;
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (part === '~' || part === '-') continue;
+
+    // Multiplication: bd*2 means two hits in one step
+    const multMatch = part.match(/^(\w+)\*(\d+)$/);
+    if (multMatch) {
+      const sound = multMatch[1];
+      const mult = parseInt(multMatch[2]);
+      for (let m = 0; m < mult; m++) {
+        events.push({
+          slot: slotId,
+          sound,
+          synth: synth || sound,
+          step: i + m / mult,
+          totalSteps,
+          gain,
+          note: 0,
+          cutoff,
+          resonance,
+        });
+      }
+      continue;
+    }
+
+    // Note values: c4, eb3, g4
+    const noteMatch = part.match(/^([a-gA-G][#b]?)(\d)$/);
+    if (noteMatch) {
+      const noteName = noteMatch[1].toLowerCase();
+      const octave = parseInt(noteMatch[2]);
+      const semitone = noteToSemitone(noteName);
+      const note = semitone + (octave - 4) * 12;
+      events.push({
+        slot: slotId,
+        sound: synth || 'superfm',
+        synth: synth || 'superfm',
+        step: i,
+        totalSteps,
+        gain,
+        note,
+        cutoff,
+        resonance,
+      });
+      continue;
+    }
+
+    // Chord: [c4,eb4,g4]
+    if (part.startsWith('[') && part.endsWith(']')) {
+      const notes = part.slice(1, -1).split(',');
+      for (const n of notes) {
+        const nm = n.trim().match(/^([a-gA-G][#b]?)(\d)$/);
+        if (nm) {
+          const semitone = noteToSemitone(nm[1].toLowerCase());
+          const note = semitone + (parseInt(nm[2]) - 4) * 12;
+          events.push({
+            slot: slotId,
+            sound: synth || 'superfm',
+            synth: synth || 'superfm',
+            step: i,
+            totalSteps,
+            gain: gain / notes.length,
+            note,
+            cutoff,
+            resonance,
+          });
+        }
+      }
+      continue;
+    }
+
+    // Plain sound
+    events.push({
+      slot: slotId,
+      sound: part,
+      synth: synth || part,
+      step: i,
+      totalSteps,
+      gain,
+      note: 0,
+      cutoff,
+      resonance,
     });
-    vizAnim = requestAnimationFrame(animate);
   }
-  cancelAnimationFrame(vizAnim);
-  animate();
+
+  return events;
 }
 
-// Resize handler
-window.addEventListener('resize', () => {
-  const progress = audio.duration ? audio.currentTime / audio.duration : 0;
-  drawWaveform(progress);
+function noteToSemitone(name) {
+  const map = { c: 0, 'c#': 1, db: 1, d: 2, 'd#': 3, eb: 3, e: 4, f: 5, 'f#': 6, gb: 6, g: 7, 'g#': 8, ab: 8, a: 9, 'a#': 10, bb: 10, b: 11 };
+  return map[name] || 0;
+}
+
+function euclidean(hits, steps, rotation = 0) {
+  const pattern = new Array(steps).fill(false);
+  if (hits <= 0) return pattern;
+  if (hits >= steps) return pattern.fill(true);
+
+  // Bjorklund algorithm (simplified)
+  const bucket = new Array(steps).fill(0);
+  for (let i = 0; i < steps; i++) {
+    bucket[i] = Math.floor((i * hits) / steps);
+  }
+  for (let i = 1; i < steps; i++) {
+    pattern[i] = bucket[i] !== bucket[i - 1];
+  }
+  pattern[0] = true;
+
+  // Apply rotation
+  if (rotation !== 0) {
+    const r = ((rotation % steps) + steps) % steps;
+    const rotated = [...pattern.slice(r), ...pattern.slice(0, r)];
+    return rotated;
+  }
+
+  return pattern;
+}
+
+// ---- Scheduler ----
+function startScheduler() {
+  const lookAhead = 0.15; // seconds
+  const scheduleInterval = 50; // ms
+  let nextCycleTime = actx.currentTime;
+  let currentCycle = 0;
+
+  function schedule() {
+    if (!isRunning) return;
+
+    while (nextCycleTime < actx.currentTime + lookAhead) {
+      const cycleStartTime = nextCycleTime;
+      cycleCount = currentCycle;
+      updateCycleDisplay();
+
+      // Schedule all events in this cycle
+      for (const slot of slots) {
+        if (slot.muted || slot.parsed.length === 0) continue;
+
+        for (const evt of slot.parsed) {
+          const stepTime = cycleStartTime + (evt.step / evt.totalSteps) / cps;
+          const dur = 1 / evt.totalSteps / cps;
+
+          if (stepTime >= actx.currentTime - 0.01) {
+            playSound(evt.synth, stepTime, {
+              gain: evt.gain * slot.gain,
+              note: evt.note,
+              dur,
+              cutoff: evt.cutoff,
+              resonance: evt.resonance,
+            });
+
+            // Log events (throttled)
+            if (Math.random() < 0.1) {
+              log(`d${slot.id} ▸ ${evt.synth} step:${evt.step}`, 'info');
+            }
+          }
+        }
+      }
+
+      nextCycleTime += 1 / cps;
+      currentCycle++;
+    }
+
+    schedulerTimer = setTimeout(schedule, scheduleInterval);
+  }
+
+  schedule();
+}
+
+// ---- Player Controls ----
+function play() {
+  initAudio();
+  if (actx.state === 'suspended') actx.resume();
+  if (isRunning) return;
+
+  isRunning = true;
+  startTime = actx.currentTime;
+  document.getElementById('statusDot').classList.add('active');
+  document.getElementById('btnPlay').classList.remove('play');
+  document.getElementById('btnPlay').classList.add('stop');
+  document.getElementById('btnPlay').textContent = '▶ PLAY';
+
+  startScheduler();
+  startVisualizer();
+  log('▶ Playing', 'success');
+}
+
+function stop() {
+  isRunning = false;
+  if (schedulerTimer) clearTimeout(schedulerTimer);
+  document.getElementById('statusDot').classList.remove('active');
+  document.getElementById('btnPlay').classList.add('play');
+  document.getElementById('btnPlay').classList.remove('stop');
+  document.getElementById('btnPlay').textContent = '▶ PLAY';
+  log('■ Stopped', 'warn');
+}
+
+function togglePlay() {
+  if (isRunning) stop(); else play();
+}
+
+function evalCode() {
+  initAudio();
+  const code = editors[0].value;
+  log('Evaluating...', 'info');
+
+  // Parse all slots
+  const events = parsePattern(code);
+
+  // Group by slot
+  const grouped = {};
+  for (const evt of events) {
+    if (!grouped[evt.slot]) grouped[evt.slot] = [];
+    grouped[evt.slot].push(evt);
+  }
+
+  // Update slots
+  for (let i = 1; i <= MAX_SLOTS; i++) {
+    if (grouped[i]) {
+      slots[i - 1].pattern = extractPattern(code, i);
+      slots[i - 1].parsed = grouped[i];
+    }
+  }
+
+  // Check for setcps
+  const cpsMatch = code.match(/setcps\s*\(([^)]+)\)/);
+  if (cpsMatch) {
+    try {
+      const expr = cpsMatch[1].replace(/(\d+)\/(\d+)\/(\d+)/, (_, a, b, c) => a / b / c);
+      cps = eval(expr);
+      bpm = Math.round(cps * 60 * 4);
+      document.getElementById('cpsDisplay').textContent = `${bpm} BPM`;
+      log(`CPS set to ${cps.toFixed(4)} (${bpm} BPM)`, 'success');
+    } catch(e) {}
+  }
+
+  renderSlots();
+  log(`✓ Evaluated — ${events.length} events across ${Object.keys(grouped).length} slots`, 'success');
+
+  // Auto-play if not playing
+  if (!isRunning) play();
+}
+
+function extractPattern(code, slotId) {
+  const re = new RegExp(`d${slotId}\\s*[\\$:]\\s*(.+)`, 'm');
+  const m = code.match(re);
+  if (!m) return '';
+  const soundMatch = m[1].match(/sound\s+"([^"]+)"/);
+  const noteMatch = m[1].match(/note\s+"([^"]+)"/);
+  return soundMatch ? soundMatch[1] : (noteMatch ? noteMatch[1] : m[1].substring(0, 30));
+}
+
+// ---- UI ----
+function log(msg, type = '') {
+  const el = document.getElementById('logContent');
+  const now = new Date();
+  const time = now.toTimeString().substring(0, 8);
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-time">${time}</span><span class="log-msg ${type}">${msg}</span>`;
+  el.appendChild(entry);
+  el.scrollTop = el.scrollHeight;
+
+  // Keep max 200 entries
+  while (el.children.length > 200) el.removeChild(el.firstChild);
+}
+
+function renderSlots() {
+  const grid = document.getElementById('slotsGrid');
+  grid.innerHTML = '';
+  for (const slot of slots) {
+    const el = document.createElement('div');
+    el.className = 'slot' + (slot.muted ? ' muted' : '') + (slot.parsed.length > 0 ? ' active' : '');
+    el.innerHTML = `
+      <div class="slot-id">d${slot.id}</div>
+      <div class="slot-pattern">${slot.pattern || '—'}</div>
+    `;
+    el.addEventListener('click', () => {
+      slot.muted = !slot.muted;
+      renderSlots();
+      log(`d${slot.id} ${slot.muted ? 'muted' : 'unmuted'}`, 'warn');
+    });
+    grid.appendChild(el);
+  }
+}
+
+function updateCycleDisplay() {
+  const elapsed = actx ? (actx.currentTime - startTime) : 0;
+  const h = Math.floor(elapsed / 3600);
+  const m = Math.floor((elapsed % 3600) / 60);
+  const s = Math.floor(elapsed % 60);
+  document.getElementById('clockDisplay').textContent =
+    `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  document.getElementById('cycleDisplay').textContent = `cycle ${cycleCount}`;
+}
+
+// ---- Editor ----
+const editors = [
+  document.getElementById('editor0'),
+  document.getElementById('editor1'),
+];
+const highlights = [
+  document.getElementById('highlight0'),
+  document.getElementById('highlight1'),
+];
+const lineNums = [
+  document.getElementById('lineNumbers0'),
+  document.getElementById('lineNumbers1'),
+];
+
+// Default code
+editors[0].value = `-- Detroit Techno — 128 BPM
+-- Hit Ctrl+Enter to evaluate
+
+-- Kick: four-on-the-floor
+d1 $ sound "bd ~ ~ ~ bd ~ ~ ~ bd ~ ~ ~ bd ~ ~ ~"
+
+-- Hi-hats: off-beat with variation
+d2 $ sound "hh ~ hh ~ hh ~ hh ~"
+
+-- Open hat accent
+d3 $ sound "~ ~ ~ ~ ~ ~ ~ oh"
+
+-- Snare: backbeat
+d4 $ sound "~ ~ ~ sn ~ ~ ~ sn"
+
+-- FM Synth melody: minor pentatonic
+d5 $ note "c3 ~ ~ ~ f3 ~ ~ ~ g3 ~ ~ ~ c3 ~ ~ ~" # s "superfm" # lpf 3000
+
+-- Sub bass
+d6 $ note "c2 ~ ~ ~ c2 ~ ~ ~ f2 ~ ~ ~ g2 ~ ~ ~" # s "superfm" # lpf 300
+
+-- Stab: occasional accent
+d7 $ note "eb4 ~ g4 ~ bf4 ~ ~ ~" # s "supersaw" # lpf 2000 # gain 0.5`;
+
+editors[1].value = `-- Helpers & experiments
+-- Copy patterns here for testing
+
+-- Euclidean rhythm examples:
+-- d8 $ sound "bd(3,8)"
+-- d8 $ sound "sn(5,8,2)"
+
+-- Multiplication:
+-- d8 $ sound "hh*4"
+
+-- Available sounds: bd, sn, hh, oh, cp
+-- Available synths: superfm, supersaw, sine
+-- Parameters: gain, lpf, resonance, note`;
+
+// Syntax highlighting
+function highlight(code) {
+  return code
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/(--.*$)/gm, '<span class="hl-comment">$1</span>')
+    .replace(/(\/\/.*$)/gm, '<span class="hl-comment">$1</span>')
+    .replace(/"(.*?)"/g, '<span class="hl-string">"$1"</span>')
+    .replace(/\b(d\d+|stack|fast|slow|every|rev|degradeBy|sometimes|within|chunk|iter|intercalate|hush|silence)\b/g, '<span class="hl-keyword">$1</span>')
+    .replace(/\b(sound|note|gain|lpf|hpf|resonance|delay|delaytime|delayfeedback|room|sz|squiz|s|setcps|pan|speed|cut|orbit)\b/g, '<span class="hl-function">$1</span>')
+    .replace(/\b(\d+\.?\d*)\b/g, '<span class="hl-number">$1</span>')
+    .replace(/(#)/g, '<span class="hl-param">$1</span>');
+}
+
+function updateEditor(idx) {
+  const code = editors[idx].value;
+  highlights[idx].innerHTML = highlight(code);
+
+  // Line numbers
+  const lines = code.split('\n');
+  lineNums[idx].innerHTML = lines.map((_, i) => `<div>${i + 1}</div>`).join('');
+}
+
+// Sync scroll
+editors.forEach((ed, i) => {
+  ed.addEventListener('input', () => updateEditor(i));
+  ed.addEventListener('scroll', () => {
+    highlights[i].scrollTop = ed.scrollTop;
+    highlights[i].scrollLeft = ed.scrollLeft;
+    lineNums[i].scrollTop = ed.scrollTop;
+  });
+
+  // Tab key
+  ed.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = ed.selectionStart;
+      const end = ed.selectionEnd;
+      ed.value = ed.value.substring(0, start) + '  ' + ed.value.substring(end);
+      ed.selectionStart = ed.selectionEnd = start + 2;
+      updateEditor(i);
+    }
+  });
 });
 
-// Keyboard shortcuts
+// Init editors
+updateEditor(0);
+updateEditor(1);
+
+// Tabs
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const idx = parseInt(tab.dataset.tab);
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.editor-container').forEach(c => c.classList.remove('active'));
+    document.querySelector(`.editor-container[data-tab="${idx}"]`).classList.add('active');
+    currentTab = idx;
+  });
+});
+
+// ---- Visualizer ----
+const vizCanvas = document.getElementById('viz');
+const vizCtx = vizCanvas.getContext('2d');
+
+function startVisualizer() {
+  function draw() {
+    if (!isRunning) return;
+    requestAnimationFrame(draw);
+
+    const dpr = window.devicePixelRatio || 1;
+    const rect = vizCanvas.getBoundingClientRect();
+    vizCanvas.width = rect.width * dpr;
+    vizCanvas.height = rect.height * dpr;
+    vizCtx.scale(dpr, dpr);
+
+    const w = rect.width;
+    const h = rect.height;
+
+    vizCtx.fillStyle = 'rgba(8, 8, 14, 0.3)';
+    vizCtx.fillRect(0, 0, w, h);
+
+    if (analyser) {
+      analyser.getByteFrequencyData(analyserData);
+      const bars = analyserData.length;
+      const barW = w / bars;
+
+      for (let i = 0; i < bars; i++) {
+        const v = analyserData[i] / 255;
+        const barH = v * h * 0.9;
+        const hue = 250 + v * 60; // purple to gold
+        vizCtx.fillStyle = `hsla(${hue}, 70%, ${40 + v * 30}%, ${0.6 + v * 0.4})`;
+        vizCtx.fillRect(i * barW, h - barH, barW - 1, barH);
+      }
+    }
+
+    // Beat indicator
+    const beatPhase = (actx.currentTime * cps * 4) % 1;
+    const beatAlpha = Math.max(0, 1 - beatPhase * 4);
+    if (beatAlpha > 0) {
+      vizCtx.fillStyle = `rgba(124, 108, 240, ${beatAlpha * 0.15})`;
+      vizCtx.fillRect(0, 0, w, h);
+    }
+  }
+  draw();
+}
+
+// ---- Keyboard Shortcuts ----
 document.addEventListener('keydown', (e) => {
-  if (e.code === 'Space') { e.preventDefault(); playBtn.click(); }
-});
-</script>
+  // Ctrl+Enter: eval
+  if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault();
+    evalCode();
+    return;
+  }
 
+  // Space: play/stop (only if not in editor)
+  if (e.code === 'Space' && e.target.tagName !== 'TEXTAREA') {
+    e.preventDefault();
+    togglePlay();
+    return;
+  }
+
+  // Escape: stop
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    stop();
+    return;
+  }
+
+  // Ctrl+D: mute/unmute focused slot
+  if (e.ctrlKey && e.key === 'd') {
+    e.preventDefault();
+    // Toggle last active slot
+    const active = slots.find(s => s.parsed.length > 0);
+    if (active) {
+      active.muted = !active.muted;
+      renderSlots();
+      log(`d${active.id} ${active.muted ? 'muted' : 'unmuted'}`, 'warn');
+    }
+  }
+});
+
+// ---- Button Handlers ----
+document.getElementById('btnPlay').addEventListener('click', togglePlay);
+document.getElementById('btnStop').addEventListener('click', stop);
+document.getElementById('btnEval').addEventListener('click', evalCode);
+document.getElementById('btnReset').addEventListener('click', () => {
+  if (confirm('Reset all code?')) {
+    editors[0].value = '';
+    editors[1].value = '';
+    updateEditor(0);
+    updateEditor(1);
+    slots.forEach(s => { s.parsed = []; s.pattern = ''; });
+    renderSlots();
+    log('Reset', 'warn');
+  }
+});
+
+// ---- Init ----
+renderSlots();
+log('TIDALS ready — write TidalCycles code and press Ctrl+Enter', 'info');
+log('Supported: sound, note, gain, lpf, resonance, s (synth)', 'info');
+log('Sounds: bd, sn, hh, oh, cp | Synths: superfm, supersaw, sine', 'info');
+log('Patterns: "bd sn", "bd(3,8)", "hh*4", "~" = rest', 'info');
+</script>
 </body>
 </html>
