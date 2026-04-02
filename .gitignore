@@ -78,3 +78,15 @@ test-*.py
 # 活动日志
 LOG_*.md
 *.bak
+
+# 大文件：音频 / 视频 / 图片
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.aac
+*.m4a
+*.mp4
+*.mkv
+*.avi
+*.mov
