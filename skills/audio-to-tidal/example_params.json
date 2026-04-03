@@ -1,82 +1,38 @@
 {
   "_bpm": 123,
-  "_description": "Example: Dub techno track in G minor, C2 dominant",
-  "orbits": [
+  "_notes": "Dub techno signal chain params for 10.8s sample",
+  "chains": [
     {
-      "note": "c2",
-      "synth": "sine",
-      "gain": 0.85,
-      "lpf": 180,
-      "sustain": 0.15,
-      "attack": 0.003,
-      "release": 0.05,
-      "speed": 1,
-      "interval": 1.0
+      "source": {"notes": ["g2", "a#2", "d3"], "synth": "supersaw", "detune": 1.006},
+      "filter": {"lpf": 350, "resonance": 0.75, "lfo_rate": 0.12, "lfo_depth": 0.8},
+      "saturate": {"type": "tape", "drive": 2.8},
+      "delay": {"time": 0.366, "feedback": 0.65, "lpf": 1800, "mix": 0.45},
+      "reverb": {"size": 0.7, "damp": 0.4, "mix": 0.3},
+      "pattern": {"speed": 1, "interval": 1.0, "degrade": 0.08, "sustain": 0.2, "attack": 0.003, "release": 0.1},
+      "gain": 0.85
     },
     {
-      "note": "g3",
-      "synth": "supersaw",
-      "gain": 0.2,
-      "lpf": 400,
-      "sustain": 0.25,
-      "attack": 0.02,
-      "release": 0.1,
-      "speed": 1,
-      "interval": 1.0
+      "source": {"notes": ["c2"], "synth": "superfm", "mod_ratio": 2, "mod_index": 3.0},
+      "filter": {"lpf": 180, "resonance": 0.6},
+      "saturate": {"type": "tape", "drive": 3.0},
+      "delay": {"time": 0.244, "feedback": 0.55, "lpf": 800, "mix": 0.3},
+      "pattern": {"speed": 2, "interval": 1.0, "degrade": 0.12, "sustain": 0.15, "attack": 0.005, "release": 0.06},
+      "gain": 0.7
     },
     {
-      "note": "a4",
-      "synth": "superfm",
-      "gain": 0.15,
-      "lpf": 800,
-      "sustain": 0.5,
-      "attack": 0.05,
-      "release": 0.2,
-      "speed": 0.5,
-      "interval": 2.0,
-      "delay": 0.3,
-      "delaytime": 0.25,
-      "delayfeedback": 0.3
+      "source": {"notes": ["g3", "a#3", "d4"], "synth": "sine"},
+      "filter": {"lpf": 2500, "resonance": 0.4, "lfo_rate": 0.08, "lfo_depth": 0.4},
+      "saturate": {"type": "tube", "drive": 1.5},
+      "delay": {"time": 0.183, "feedback": 0.75, "lpf": 4000, "mix": 0.35},
+      "reverb": {"size": 0.5, "damp": 0.6, "mix": 0.2},
+      "pattern": {"speed": 1, "interval": 0.5, "degrade": 0.2, "sustain": 0.1, "attack": 0.002, "release": 0.04},
+      "gain": 0.45
     },
     {
-      "note": "c3",
-      "synth": "sine",
-      "gain": 0.35,
-      "lpf": 2000,
-      "hpf": 400,
-      "sustain": 0.04,
-      "attack": 0.001,
-      "release": 0.02,
-      "speed": 2,
-      "interval": 1.0,
-      "degrade": 0.35
-    },
-    {
-      "note": "g2",
-      "synth": "supersaw",
-      "gain": 0.25,
-      "lpf": 1200,
-      "sustain": 0.15,
-      "attack": 0.005,
-      "release": 0.08,
-      "speed": 0.25,
-      "interval": 4.0,
-      "delay": 0.25,
-      "delaytime": 0.25,
-      "delayfeedback": 0.3
-    },
-    {
-      "note": "a5",
-      "synth": "superfm",
-      "gain": 0.08,
-      "lpf": 5000,
-      "hpf": 1000,
-      "sustain": 0.3,
-      "attack": 0.02,
-      "release": 0.15,
-      "speed": 0.5,
-      "interval": 2.0,
-      "degrade": 0.4
+      "source": {"notes": ["g2"], "synth": "noise"},
+      "filter": {"lpf": 250},
+      "pattern": {"speed": 1, "interval": 4.0, "degrade": 0.3, "sustain": 0.06, "attack": 0.001, "release": 0.04},
+      "gain": 0.15
     }
   ]
 }

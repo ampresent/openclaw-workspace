@@ -4,12 +4,14 @@ Audio Spectrum Analyzer for TidalCycles generation.
 Usage: python3 analyze.py <input.wav> [output_dir]
 
 Outputs spectral data files for TidalCycles parameter mapping.
+v2: harmonic ratio, filter resonance estimation, delay tail analysis.
 """
 import numpy as np
 import librosa
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from scipy.signal import find_peaks, butter, sosfilt
 import json, csv, os, sys
 
 
@@ -72,27 +74,135 @@ def analyze(wav_path, out_dir=None):
     top_notes = [note_names[i] for i in np.argsort(chroma_avg)[::-1][:5]]
 
     # Spectral peaks
-    from scipy.signal import find_peaks
-    pk_idx, _ = find_peaks(avg_spec, height=np.max(avg_spec)*0.1, distance=10)
+    pk_idx, pk_props = find_peaks(avg_spec, height=np.max(avg_spec)*0.1, distance=10)
     peaks = sorted([(float(freqs[i]), float(avg_spec[i])) for i in pk_idx], key=lambda x: -x[1])
 
-    # === Temporal Analysis (NEW) ===
+    # === Harmonic analysis (NEW v2) ===
+    # Estimate fundamental and harmonic ratio
+    harmonic_info = {}
+    if len(peaks) > 0:
+        fundamental_hz = peaks[0][0]
+        # Find harmonics (integer multiples of fundamental within 5% tolerance)
+        harmonic_energy = 0
+        total_energy = float(np.sum(avg_spec ** 2))
+        for mult in range(1, 16):
+            target = fundamental_hz * mult
+            if target > freqs[-1]:
+                break
+            # Find energy near this harmonic
+            idx = np.searchsorted(freqs, target)
+            lo_i = max(0, idx - 3)
+            hi_i = min(len(avg_spec), idx + 4)
+            harmonic_energy += float(np.sum(avg_spec[lo_i:hi_i] ** 2))
 
-    # 1. Onset interval pattern — rhythm signature
+        harmonic_ratio = harmonic_energy / (total_energy + 1e-10)
+
+        # Estimate saturation level from high-frequency content
+        # More harmonics in high freq = more saturation
+        li_h = np.searchsorted(freqs, 2000)
+        hi_h = np.searchsorted(freqs, 10000)
+        hi_energy = float(np.mean(avg_spec[li_h:hi_h] ** 2))
+        lo_energy = float(np.mean(avg_spec[:li_h] ** 2))
+        saturation_ratio = hi_energy / (lo_energy + 1e-10)
+
+        harmonic_info = {
+            'fundamental_hz': round(fundamental_hz, 1),
+            'fundamental_note': librosa.hz_to_note(fundamental_hz) if fundamental_hz > 20 else '-',
+            'harmonic_ratio': round(harmonic_ratio, 4),
+            'saturation_ratio': round(saturation_ratio, 6),
+            'harmonic_energy_db': round(10*np.log10(harmonic_energy + 1e-10), 1),
+            'saturation_level': 'high' if saturation_ratio > 0.15 else ('medium' if saturation_ratio > 0.05 else 'low'),
+        }
+
+    # === Filter resonance estimation (NEW v2) ===
+    # Resonant peaks are narrow and tall relative to surroundings
+    resonance_peaks = []
+    for freq_pk, mag_pk in peaks[:8]:
+        idx = np.searchsorted(freqs, freq_pk)
+        # Measure Q (peak sharpness): ratio of peak to average of neighbors
+        lo_i = max(0, idx - 10)
+        hi_i = min(len(avg_spec), idx + 11)
+        neighbors = np.concatenate([avg_spec[lo_i:idx-2], avg_spec[idx+3:hi_i]])
+        if len(neighbors) > 0:
+            q_ratio = mag_pk / (np.mean(neighbors) + 1e-10)
+            if q_ratio > 2.0:  # sharp peak = resonance candidate
+                resonance_peaks.append({
+                    'hz': round(freq_pk, 1),
+                    'note': librosa.hz_to_note(freq_pk),
+                    'q_ratio': round(float(q_ratio), 2),
+                })
+
+    filter_info = {
+        'resonance_peaks': resonance_peaks[:5],
+        'has_resonance': len(resonance_peaks) > 0,
+        'filter_sweep_detected': bool(np.std(centroid) / (np.mean(centroid) + 1e-10) > 0.3),
+        'centroid_variation_cv': round(float(np.std(centroid) / (np.mean(centroid) + 1e-10)), 3),
+    }
+
+    # === Delay tail estimation (NEW v2) ===
+    # Analyze energy decay after onsets to estimate delay parameters
+    delay_info = {}
+    if len(onset_frames) > 3:
+        decay_rates = []
+        delay_times_est = []
+        for i, of in enumerate(onset_frames[:20]):
+            # Get RMS after onset for ~1 second
+            start = of
+            end = min(of + int(1.0 * sr / 512), len(rms))
+            if end - start > 10:
+                segment = rms[start:end]
+                # Find local max
+                peak_idx = np.argmax(segment[:min(20, len(segment))])
+                tail = segment[peak_idx:]
+                if len(tail) > 10:
+                    # Estimate decay rate (exponential fit in log domain)
+                    log_tail = np.log(tail + 1e-10)
+                    x = np.arange(len(log_tail))
+                    if np.std(x) > 0 and np.std(log_tail) > 0:
+                        slope, _ = np.polyfit(x, log_tail, 1)
+                        decay_rates.append(float(slope))
+
+                    # Estimate time to -60dB (reverb tail)
+                    threshold = tail[0] * 0.01  # -40dB
+                    below = np.where(tail < threshold)[0]
+                    if len(below) > 0:
+                        delay_times_est.append(float(below[0]) * 512 / sr)
+
+        avg_decay = float(np.mean(decay_rates)) if decay_rates else 0
+        avg_tail = float(np.mean(delay_times_est)) if delay_times_est else 0
+
+        # Estimate feedback from decay rate
+        # decay_rate ≈ ln(feedback) / delay_time
+        # For dub delay (feedback 0.5-0.8), decay_rate is moderate
+        if avg_decay < 0 and len(delay_times_est) > 0:
+            est_feedback = min(0.95, max(0.1, np.exp(avg_decay * np.mean(delay_times_est) * 512 / sr)))
+        else:
+            est_feedback = 0.3
+
+        delay_info = {
+            'avg_decay_rate': round(avg_decay, 4),
+            'avg_reverb_tail_s': round(avg_tail, 3),
+            'estimated_feedback': round(float(est_feedback), 3),
+            'has_long_tail': avg_tail > 0.5,
+            'delay_character': 'dub' if (avg_tail > 0.5 and est_feedback > 0.5) else ('short' if avg_tail < 0.2 else 'medium'),
+        }
+
+    # === Temporal Analysis ===
+
+    # 1. Onset interval pattern
     onset_intervals = np.diff(onset_times) if len(onset_times) > 1 else np.array([])
     onset_interval_histogram = []
     if len(onset_intervals) > 0:
-        bins = np.linspace(0, 2.0, 41)  # 50ms bins up to 2s
-        hist, bin_edges = np.histogram(onset_intervals, bins=bins, density=True)
+        bins = np.linspace(0, 2.0, 41)
+        hist, _ = np.histogram(onset_intervals, bins=bins, density=True)
         onset_interval_histogram = [round(float(h), 4) for h in hist]
 
-    # 2. Spectral flux — frame-to-frame spectral change (temporal timbre evolution)
+    # 2. Spectral flux
     S_phase = np.abs(librosa.stft(y, n_fft=4096, hop_length=512))
-    # Half-wave rectified difference
     flux = np.sum(np.maximum(0, np.diff(S_phase, axis=1)), axis=0)
     flux_norm = flux / (np.max(flux) + 1e-10)
 
-    # 3. Temporal centroid — how energy distributes over time
+    # 3. Temporal centroid
     if len(rms) > 0:
         rms_norm = rms / (np.sum(rms) + 1e-10)
         temporal_centroid = float(np.sum(rms_norm * np.arange(len(rms))))
@@ -108,11 +218,7 @@ def analyze(wav_path, out_dir=None):
             if end > start:
                 beat_rms.append(float(np.mean(rms[start:end])))
         beat_rms = np.array(beat_rms)
-        # Normalize per-beat envelope
-        if np.max(beat_rms) > 0:
-            beat_rms_norm = beat_rms / np.max(beat_rms)
-        else:
-            beat_rms_norm = beat_rms
+        beat_rms_norm = beat_rms / np.max(beat_rms) if np.max(beat_rms) > 0 else beat_rms
     else:
         beat_rms = np.array([])
         beat_rms_norm = np.array([])
@@ -129,7 +235,7 @@ def analyze(wav_path, out_dir=None):
     else:
         beat_centroid = np.array([])
 
-    # 6. Onset density over time (events per second, 0.5s windows)
+    # 6. Onset density over time
     window_sec = 0.5
     num_windows = max(1, int(dur / window_sec) + 1)
     onset_density = np.zeros(num_windows)
@@ -137,7 +243,7 @@ def analyze(wav_path, out_dir=None):
         idx = min(int(t / window_sec), num_windows - 1)
         onset_density[idx] += 1
 
-    # 7. Onset strength — mean onset detection function per beat
+    # 7. Onset strength per beat
     onset_env = librosa.onset.onset_strength(y=y, sr=sr)
     if len(beat_frames) > 2:
         beat_onset_strength = []
@@ -153,7 +259,7 @@ def analyze(wav_path, out_dir=None):
     with open(os.path.join(out_dir, 'band_energy.csv'), 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['band', 'hz_low', 'hz_high', 'avg_energy', 'energy_db'])
-        for name, (lo, hi) in bands:
+        for name, lo, hi in bands:
             b = band_energy.get(name, {'energy': 0, 'db': -100})
             w.writerow([name, lo, hi, f'{b["energy"]:.8f}', f'{b["db"]:.2f}'])
 
@@ -183,7 +289,6 @@ def analyze(wav_path, out_dir=None):
         for i in range(len(freqs)):
             w.writerow([f'{freqs[i]:.1f}', f'{avg_spec[i]:.6f}'])
 
-    # === Temporal CSV exports (NEW) ===
     with open(os.path.join(out_dir, 'spectral_flux.csv'), 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['time_s', 'flux'])
@@ -221,7 +326,6 @@ def analyze(wav_path, out_dir=None):
         'mfcc_means': [round(float(np.mean(mfccs[i])), 2) for i in range(13)],
         'rms_mean': round(float(np.mean(rms)), 6),
         'rms_std': round(float(np.std(rms)), 6),
-        # === Temporal features (NEW) ===
         'temporal': {
             'temporal_centroid_frame': round(temporal_centroid, 2),
             'onset_interval_mean_s': round(float(np.mean(onset_intervals)), 4) if len(onset_intervals) > 0 else None,
@@ -238,12 +342,15 @@ def analyze(wav_path, out_dir=None):
             'onset_density_std': round(float(np.std(onset_density)), 3),
             'beat_onset_strength': [round(float(x), 2) for x in beat_onset_strength],
         },
+        'harmonic': harmonic_info,
+        'filter': filter_info,
+        'delay': delay_info,
     }
     with open(os.path.join(out_dir, 'summary.json'), 'w') as f:
         json.dump(summary, f, indent=2, default=str)
 
     # === Visualization ===
-    fig, axes = plt.subplots(6, 1, figsize=(14, 22))
+    fig, axes = plt.subplots(7, 1, figsize=(14, 26))
     S_db = librosa.amplitude_to_db(S, ref=np.max)
     img = librosa.display.specshow(S_db, sr=sr, hop_length=512, x_axis='time', y_axis='log', ax=axes[0])
     axes[0].set_ylim(20, 15000); axes[0].set_title('Spectrogram')
@@ -252,8 +359,10 @@ def analyze(wav_path, out_dir=None):
     axes[1].semilogx(freqs[freqs>0], 20*np.log10(avg_spec[freqs>0]+1e-10), linewidth=0.8)
     for f, m in peaks[:8]:
         axes[1].axvline(f, color='r', alpha=0.4, linewidth=0.5)
+        axes[1].annotate(librosa.hz_to_note(f), (f, 20*np.log10(m+1e-10)),
+                        fontsize=7, color='red', alpha=0.7)
     axes[1].set_xlim(20, 20000); axes[1].set_xlabel('Hz'); axes[1].set_ylabel('dB')
-    axes[1].set_title('Average Spectrum'); axes[1].grid(True, alpha=0.3)
+    axes[1].set_title('Average Spectrum (peaks annotated)'); axes[1].grid(True, alpha=0.3)
 
     ft = librosa.frames_to_time(np.arange(len(centroid)), sr=sr)
     axes[2].plot(ft, centroid, label='Centroid', alpha=0.8)
@@ -267,13 +376,11 @@ def analyze(wav_path, out_dir=None):
     axes[3].set_xlabel('s'); axes[3].set_ylabel('RMS')
     axes[3].set_title(f'RMS Envelope (Tempo: {tempo:.1f} BPM)'); axes[3].legend(); axes[3].grid(True, alpha=0.3)
 
-    # NEW: Spectral flux
     axes[4].plot(times[:len(flux_norm)], flux_norm, color='purple', alpha=0.8)
     for ot in onset_times: axes[4].axvline(ot, color='orange', alpha=0.3, linewidth=0.5)
     axes[4].set_xlabel('s'); axes[4].set_ylabel('Flux')
     axes[4].set_title('Spectral Flux + Onsets'); axes[4].grid(True, alpha=0.3)
 
-    # NEW: Beat-aligned features
     if len(beat_rms_norm) > 0:
         bx = np.arange(len(beat_rms_norm))
         ax_rms = axes[5]
@@ -294,6 +401,23 @@ def analyze(wav_path, out_dir=None):
                      transform=axes[5].transAxes, fontsize=14)
         axes[5].set_title('Beat-Aligned Features')
 
+    # NEW: Harmonic structure
+    if len(peaks) > 1 and harmonic_info.get('fundamental_hz', 0) > 20:
+        f0 = harmonic_info['fundamental_hz']
+        ax7 = axes[6]
+        ax7.semilogx(freqs[freqs>0], 20*np.log10(avg_spec[freqs>0]+1e-10), linewidth=0.5, alpha=0.5, color='gray')
+        # Mark harmonics
+        for mult in range(1, 16):
+            hf = f0 * mult
+            if hf > 20000: break
+            ax7.axvline(hf, color='green', alpha=0.4, linewidth=1, linestyle='--')
+            ax7.text(hf, ax7.get_ylim()[1]-2, f'{mult}x', fontsize=6, color='green', alpha=0.7)
+        ax7.set_xlim(20, 20000); ax7.set_xlabel('Hz'); ax7.set_ylabel('dB')
+        ax7.set_title(f'Harmonic Series (f0={f0:.0f}Hz, ratio={harmonic_info.get("harmonic_ratio",0):.2f})')
+        ax7.grid(True, alpha=0.3)
+    else:
+        axes[6].set_title('Harmonic Structure (N/A)')
+
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, 'spectral_analysis.png'), dpi=150, bbox_inches='tight')
     plt.close()
@@ -304,8 +428,10 @@ def analyze(wav_path, out_dir=None):
     print(f"  Top notes: {top_notes}")
     print(f"  Peaks: {summary['spectral_peaks'][:5]}")
     print(f"  Dominant: {summary['dominant_band']}")
+    print(f"  Harmonic: {harmonic_info.get('fundamental_note','?')} f0={harmonic_info.get('fundamental_hz','?')}Hz ratio={harmonic_info.get('harmonic_ratio','?')} sat={harmonic_info.get('saturation_level','?')}")
+    print(f"  Filter: resonance={'yes' if filter_info['has_resonance'] else 'no'} sweep={'yes' if filter_info['filter_sweep_detected'] else 'no'} CV={filter_info['centroid_variation_cv']}")
+    print(f"  Delay: {delay_info.get('delay_character','?')} tail={delay_info.get('avg_reverb_tail_s','?')}s feedback≈{delay_info.get('estimated_feedback','?')}")
     print(f"  Onset interval: {summary['temporal']['onset_interval_mean_s']:.3f}s ± {summary['temporal']['onset_interval_std_s']:.3f}s (CV={summary['temporal']['onset_interval_cv']:.2f})")
-    print(f"  Spectral flux: {summary['temporal']['spectral_flux_mean']:.3f} ± {summary['temporal']['spectral_flux_std']:.3f}")
     return summary
 
 

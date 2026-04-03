@@ -1,6 +1,6 @@
-# Audio → TidalCycles 频谱模仿
+# Audio → TidalCycles 频谱模仿 (v2)
 
-分析音频文件的频谱特征，生成 TidalCycles 代码来模仿目标音频，并计算频谱相似度。
+分析音频文件的频谱特征（频域 + 时域 + 谐波），生成 TidalCycles 代码来模仿目标音频，并计算多维相似度。
 
 ## 触发条件
 
@@ -33,180 +33,221 @@ ffmpeg -y -i input.mp4 -vn -acodec pcm_s16le -ar 44100 -ac 1 output.wav
 
 统一输出为 44100Hz mono WAV。
 
-### 2. 深度频谱分析
+### 2. 深度分析（v2 扩展）
 
-运行 Python 分析脚本，提取以下特征：
+运行 `analyze.py`，提取以下特征：
 
-#### 必须提取的数据
-| 特征 | 用途 | 方法 |
-|------|------|------|
-| **BPM / 节拍** | 设置 `setcps` | `librosa.beat.beat_track` |
-| **频谱峰值频率** | 确定音高 / note 参数 | `scipy.signal.find_peaks` on avg spectrum |
-| **频带能量分布** | 11 个频段的 dB 值 | 分频段计算 STFT 能量 |
-| **频谱质心** | 评估整体亮度 | `librosa.feature.spectral_centroid` |
-| **Chroma 音调** | 确定和弦/音阶 | `librosa.feature.chroma_cqt` |
-| **MFCC 倒谱系数** | 音色特征 | `librosa.feature.mfcc` |
-| **Onset 起音** | 节奏密度 | `librosa.onset.onset_detect` |
-| **RMS 包络** | 动态变化 | `librosa.feature.rms` |
+#### 频域特征
+| 特征 | 用途 |
+|------|------|
+| BPM / 节拍 | 设置 `setcps` |
+| 频谱峰值频率 | 确定音高 / note 参数 |
+| 11 频带能量分布 | 轨道频段分配 |
+| 频谱质心 | 整体亮度 |
+| Chroma 音调 | 和弦/音阶 |
+| MFCC 倒谱系数 | 音色特征 |
 
-#### 频带划分（11 段）
-```
-sub_20_40     20-40 Hz      极低频
-sub_40_60     40-60 Hz      Sub-bass
-bass_60_100   60-100 Hz     Bass 基频
-bass_100_200  100-200 Hz    Bass 泛音
-lowmid_200_400  200-400 Hz   低中频
-mid_400_800   400-800 Hz    中频
-mid_800_1600  800-1600 Hz   中高频
-upper_1600_3200  1600-3200 Hz 上中频
-pres_3200_6400  3200-6400 Hz 临场感
-bril_6400_12800  6400-12800 Hz 明亮度
-air_12800_20000  12800-20000 Hz 空气感
-```
+#### 时域特征（v2 新增）
+| 特征 | 用途 |
+|------|------|
+| Onset interval histogram | 节奏模式签名 |
+| Spectral flux | 时变音色演化 |
+| Beat-aligned RMS/centroid | 逐拍能量/亮度动态 |
+| Onset density | 起音密度分布 |
+| Temporal centroid | 能量时间分布 |
+
+#### 谐波特征（v2 新增）
+| 特征 | 用途 |
+|------|------|
+| Harmonic ratio | 谐波能量占比 → 饱和程度 |
+| Saturation ratio | 高频/低频能量比 → 过载类型 |
+| Resonance peaks | 共振滤波器检测 |
+| Filter sweep | CV 变化 → LFO 调制检测 |
+
+#### 延迟特征（v2 新增）
+| 特征 | 用途 |
+|------|------|
+| Decay rate | 衰减速率 → feedback 值 |
+| Reverb tail | 混响时长 |
+| Delay character | dub/short/medium → 延迟风格 |
 
 #### 导出文件
 所有数据导出到 `<工作目录>/spectral_data/`：
-- `full_spectrum.csv` — 完整时频矩阵
-- `avg_spectrum.csv` — 平均频谱
+- `summary.json` — 汇总 JSON（含 v2 新增字段）
 - `band_energy.csv` — 11 频段能量
 - `spectral_features.csv` — 质心/滚降/带宽时序
 - `mfcc.csv` — MFCC 系数
-- `beats.csv` — 节拍时间点
-- `rms_envelope.csv` — RMS 包络
 - `chroma.csv` — 12 音级能量
-- `summary.json` — 汇总 JSON
-- `spectral_analysis.png` — 可视化图表
+- `spectral_flux.csv` — 频谱通量
+- `beat_energy.csv` — 逐拍能量/质心
+- `onset_density.csv` — 起音密度
+- `avg_spectrum.csv` — 平均频谱
+- `spectral_analysis.png` — 7 面板可视化
 
 ### 3. 生成 TidalCycles 代码
 
-根据分析结果，生成 `.tidal` 文件。关键映射规则：
+v2 支持两种参数格式：
 
-#### 节拍
+#### v2 格式：信号链（推荐）
+
+信号链架构更适合需要音色塑造的音乐（dub techno、ambient、industrial 等）：
+
+```json
+{
+  "_bpm": 123,
+  "chains": [
+    {
+      "source": {"notes": ["g2", "a#2", "d3"], "synth": "supersaw", "detune": 1.006},
+      "filter": {"lpf": 350, "resonance": 0.75, "lfo_rate": 0.12, "lfo_depth": 0.8},
+      "saturate": {"type": "tape", "drive": 2.8},
+      "delay": {"time": 0.366, "feedback": 0.65, "lpf": 1800, "mix": 0.45},
+      "reverb": {"size": 0.7, "damp": 0.4, "mix": 0.3},
+      "pattern": {"speed": 1, "interval": 1.0, "degrade": 0.08, "sustain": 0.2, "attack": 0.003, "release": 0.1},
+      "gain": 0.85
+    }
+  ]
+}
 ```
-原始 BPM → setcps (BPM/60/4)
+
+每个 chain 是一条完整的信号处理链路：
 ```
-- 如果 BPM 检测不准（如 ambient 无明显节拍），使用 60-120 的合理值
-- 对于 half-time 风格，仍用实际 BPM，节奏靠 pattern 控制
+source → filter → saturate → delay → reverb → output
+```
 
-#### 音高 → Note
-- 取频谱峰值频率，转换为音名：`librosa.hz_to_note(freq)`
-- 主峰值 → kick/bass 的 note
-- 次峰值 → 和弦/旋律的 note
-- 结合 chroma 确认调性
+#### v1 格式：轨道（向后兼容）
 
-#### 频带能量 → 轨道分配
-| 频段能量特征 | 对应 SuperDirt 轨道 | 关键参数 |
-|-------------|-------------------|---------|
-| sub_bass 主导 | d1 kick + d2 sub-bass | lpf 100-200, gain 0.7-0.9 |
-| bass 主导 | d3 bass layer | lpf 200-600, supersaw/superhex |
-| mid 有能量 | d4 chord stabs | lpf 800-1800, delay |
-| presence 有能量 | d5/d6 高频元素 | lpf 2000-5000 |
-| air 有能量 | d7 noise/hats | hpf 4000+, superwhite |
+```json
+{
+  "_bpm": 120,
+  "orbits": [
+    {
+      "notes": ["g2", "a#2"], "synth": "supersaw", "gain": 0.8,
+      "lpf": 200, "sustain": 0.15,
+      "saturation": 2.0, "sattype": "tape",
+      "delay": 0.4, "delaytime": 0.366, "delayfeedback": 0.7
+    }
+  ]
+}
+```
+
+#### 滤波器参数
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `lpf` | Hz | 低通截止频率 |
+| `hpf` | Hz | 高通截止频率 |
+| `resonance` | 0-0.99 | 共振量（dub techno 核心参数） |
+| `lfo_rate` | Hz | LFO 调制截止频率的速度 |
+| `lfo_depth` | 0-1 | LFO 调制深度 |
+
+#### 饱和参数
+
+| 类型 | 特征 | 适用场景 |
+|------|------|---------|
+| `tape` | 偶次谐波，温暖 | dub techno, ambient |
+| `tube` | 奇次谐波，厚重 | industrial, noise |
+| `wavefolder` | 极端泛音，金属感 | experimental |
+
+#### 延迟参数
+
+| 参数 | 说明 |
+|------|------|
+| `time` | 延迟时间（秒） |
+| `feedback` | 反馈量 0-0.95（dub 用 0.5-0.8） |
+| `lpf` | 每次重复的 LPF 截止（越低越暗） |
+| `mix` | 干湿比 0-1 |
+
+dub delay 的核心：**每次回声通过 LPF 变暗**，模拟磁带延迟。
 
 #### 合成器选择
-| SuperDirt 合成器 | 音色特征 | 适用场景 |
-|-----------------|---------|---------|
-| `superhex` | 纯正弦波，无泛音 | kick, sub-bass, 纯低频 |
-| `supersaw` | 失谐锯齿波，丰富泛音 | bass, pad, 需要谐波的元素 |
-| `superfm` | FM 合成，金属感 | 和弦 stabs, 铃声质感 |
-| `superwhite` | 白噪声 | 纹理, hi-hat, 大气 |
+| 合成器 | 音色特征 | 适用场景 |
+|--------|---------|---------|
+| `sine` | 纯净，无泛音 | sub-bass, 简单元素 |
+| `supersaw` | 失谐锯齿，丰富泛音 | chords, pads, bass |
+| `superfm` | FM 合成，金属感 | stabs, 铃声质感 |
+| `noise` | 随机噪声 | 纹理, hi-hat |
 
-**重要**: `superhex` 几乎没有谐波，如果目标音频在中高频有能量，必须用 `supersaw` 或 `superfm`。
+#### 音色映射规则
+| 频带能量特征 | 合成器选择 | 关键参数 |
+|-------------|-----------|---------|
+| sub_bass 主导 | sine / supersaw | lpf 100-200 |
+| bass 主导 + 中高频能量 | supersaw + saturation | lpf 200-600, drive 2-3 |
+| presence/bril 有能量 | 必须用 supersaw 或 saturation 生成泛音 | — |
+| 有共振峰值 | resonance > 0.5 | — |
+| centroid 随时间变化大 | lfo_rate > 0.1 | — |
+| 长衰减尾音 | delay feedback > 0.5, reverb mix > 0.2 | — |
 
-#### 滤波器映射
-- 频谱滚降频率 → `lpf` 截止频率
-- 频谱质心 → 整体亮度参考
-- 如果低频主导且滚降低 → 整体 lpf 偏低 (600-1200)
-- 如果有 presence/brilliance 能量 → 保持 lpf > 2000
+### 4. 相似度计算（v2 扩展到 10 指标）
 
-#### 效果器
-- **Delay**: dub techno 风格用 `delay 0.5-0.8`, `delaytime (1/4)` 或 `(3/16)`
-- **Reverb**: 大气风格用 `room 0.6-0.9`, `sz 0.7-0.9`
-- **Degrade**: 密集节奏用 `degradeBy 0.3-0.6` 稀疏化
+#### 方法：合成对比法
 
-### 4. 频谱相似度计算
+不估算，实际合成再对比。
 
-#### 方法：合成对比法（非估算）
+#### 相似度指标（10 项加权）
 
-**核心原则**: 不要凭经验估算 TidalCycles 输出，而是用 Python 合成 SuperDirt 的预期输出，然后进行真实的频谱对比。
-
-步骤：
-1. 根据 TidalCycles 代码中的合成器参数，用 Python 合成等效音频
-2. 对合成音频做相同的频谱分析
-3. 计算两个音频的真实相似度
-
-#### 合成映射
-| SuperDirt | Python 等效 |
-|-----------|------------|
-| superhex | `np.sin(2*np.pi*freq*t)` |
-| supersaw | 多个 detuned sine + 谐波 |
-| superfm | `np.sin(2πft + I*np.sin(2πf_m*t))` |
-| superwhite | `np.random.randn()` |
-| lpf | `scipy.signal.butter` low-pass |
-| hpf | `scipy.signal.butter` high-pass |
-| delay | 延迟叠加 |
-| gain | 乘法 |
-| sustain/attack/release | 包络 |
-
-#### 相似度指标（5 项加权）
-| 指标 | 权重 | 方法 |
+**频域（32%）**
+| 指标 | 权重 | 说明 |
 |------|------|------|
-| Band Energy Cosine | 35% | 11 频段线性能量的余弦相似度 |
-| Spectral Centroid | 20% | 1 - \|orig - tidal\| / orig |
-| Band Correlation | 15% | dB 向量的 Pearson 相关系数 |
-| MFCC Similarity | 15% | 1 - \|\|m1-m2\|\| / (\|\|m1\|\|+\|\|m2\|\|) |
-| RMS Correlation | 15% | RMS 包络的时间相关 |
+| Band Cosine | 10% | 11 频段能量余弦相似度 |
+| Band Correlation | 8% | dB 向量 Pearson 相关 |
+| MFCC | 7% | 倒谱系数距离 |
+| Centroid | 7% | 频谱重心相似度 |
+
+**时域（48%）**
+| 指标 | 权重 | 说明 |
+|------|------|------|
+| Onset Pattern | 15% | 起音间隔分布 + 密度 + 强度包络 |
+| Temporal Envelope | 10% | 时间能量分布形状 |
+| Beat Structure | 15% | 逐拍能量 + 逐拍质心 + 动态对比度 |
+| RMS Correlation | 8% | RMS 包络相关 |
+
+**谐波/延迟（20%）**
+| 指标 | 权重 | 说明 |
+|------|------|------|
+| Harmonic | 10% | 饱和度 + 基频 + 泛音数量 + 高频相关 |
+| Delay Tail | 10% | 衰减包络相关 + 衰减速率相似度 |
 
 #### 迭代优化
-如果相似度 < 40% 或某频段差异 > 10 dB：
-1. 定位最大差异频段
-2. 检查对应的 TidalCycles 轨道参数
-3. 调整 gain / lpf / 合成器选择
-4. 重新合成对比
-5. 最多迭代 3-5 轮
+如果某指标 < 30%：
+- Harmonic 低 → 调整 saturate drive 或换 synth
+- Delay Tail 低 → 调整 delay feedback/mix
+- Onset Pattern 低 → 调整 degrade/interval/speed
+- Band 差异 > 15dB → 调整对应轨道的 lpf/gain
 
 ### 5. 输出文件
 
 ```
-temp/
-├── audio_source.wav          # 转换后的音频
-├── spectral_data/            # 频谱分析数据
-│   ├── summary.json
-│   ├── band_energy.csv
-│   ├── spectral_analysis.png
-│   └── ...
-├── audio_tidal.tidal         # TidalCycles 代码
-├── tidal_synthesis.wav       # Python 合成的对比音频
-└── similarity_results.json   # 相似度结果
+<out_dir>/
+├── spectral_data/            # 分析数据
+│   ├── summary.json          # 汇总（含 v2 字段）
+│   ├── spectral_analysis.png # 7 面板可视化
+│   └── *.csv                 # 详细数据
+├── tidal_params.json         # 生成的参数
+├── tidal_synthesis.wav       # Python 合成对比音频
+└── similarity.json           # 10 维相似度结果
 ```
 
 ## 常见问题
 
-### Q: 相似度估算很高但听起来完全不像？
+### Q: Dub techno 为什么高频差距大？
 
-A: 之前的"估算"方法是用分析值直接比较分析值，存在循环论证。**必须用合成对比法**——实际生成音频再比较频谱。
+A: Dub techno 的核心音色来自 **和弦 → 共振 LPF → 磁带饱和 → 延迟** 信号链。饱和会产生高次谐波。如果没有 saturate 模块，合成器的高频能量会严重不足（差 20-30 dB）。
 
-### Q: SuperDirt 的 superhex 为什么缺少中高频？
+### Q: 和弦和单音的区别？
 
-A: `superhex` 是纯正弦波，没有谐波。如果目标音频在 800-3200 Hz 有明显能量，
-   必须用 `supersaw`（泛音丰富）或 `superfm`，不能只用 `superhex`。
+A: v2 支持 `notes: ["g2", "a#2", "d3"]` 多音合成。多个音符叠加会产生丰富的频谱内容和拍频，比单音更有层次感。dub techno 的 filtered chords 必须用和弦模式。
 
-### Q: Kick 的音高偏了怎么办？
+### Q: Delay 的 lpf 参数是什么？
 
-A: pitch sweep 起始频率会影响频谱峰值位置。如果目标峰值在 65 Hz，
-   sweep 应从 80-100 Hz 开始（不要从 150 Hz），衰减目标设为精确频率。
+A: 经典磁带延迟的特征：**每次回声比上一次更暗**。`delay.lpf` 控制每次重复时的低通截止频率，且每次重复会自动衰减（×0.85）。feedback 越高、lpf 越低 = 越 "dub"。
 
-### Q: 频段差异 > 15 dB 怎么调？
+### Q: 相似度多少算合格？
 
-A: 常见原因和修复：
-   - sub_20_40/sub_40_60 过高 → 检查是否有 C1 sub drone，去掉或降低
-   - mid_800_1600 过低 → 换用 supersaw/superfm，提高 lpf
-   - upper_1600_3200 过低 → 添加高频 shimmer 轨道，降低 hpf
-   - brilliance 过高 → 降低 noise gain，提高 hpf
+A: ≥20% 合格（形态匹配），≥50% 良好，≥70% 优秀。由于合成器模型和真实音源有本质差异，>80% 极难达到。
 
 ## 注意事项
 
-- 网络受限时无法下载外部音频，需用户提供文件或改用 Python 合成目标音频
-- TidalCycles 代码需要 SuperDirt 音色库才能播放，本 skill 不负责音频渲染
-- 相似度 ≥ 20% 即为合格（频谱形态匹配），≥ 50% 为良好，≥ 70% 为优秀
-- 每次迭代调整不宜过大（gain ±0.1, lpf ±200 Hz）
+- 网络受限时无法下载外部音频，需用户提供文件
+- v1 格式（orbits）仍然支持，自动检测
+- 每次迭代调整不宜过大：gain ±0.1, lpf ±200 Hz, drive ±0.5
+- saturation drive > 4.0 可能产生过多失真
