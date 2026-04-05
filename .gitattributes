@@ -1,1 +1,2 @@
 manga/sbr_pdfs/*.pdf filter=lfs diff=lfs merge=lfs -text
+manga/Steel_Ball_Run_ch1-80.pdf filter=lfs diff=lfs merge=lfs -text
