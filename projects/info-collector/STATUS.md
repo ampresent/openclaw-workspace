@@ -12,7 +12,8 @@
 | finance-market-weekly | 市场周报 | 每周 | ⏸️ 未启用 | - | - |
 | music-jazz-shanghai | 上海爵士演出 | 每周 | ✅ 已启用 | - | 有 cron job |
 | music-new-releases | 新碟推荐 | 每月 | ⏸️ 未启用 | - | - |
-| travel-deals | 机票酒店优惠 | 按需 | ⏸️ 未启用 | - | - |
+| travel-deals | 机票酒店优惠 | 按需 | 🗑️ 已删除 | - | - |
+| airline-passes | 航空公司套票 | 每周 | ⏸️ 未启用 | - | 替代 travel-deals |
 | ai-papers-arxiv | ArXiv AI 论文 | 每周 | ⏸️ 未启用 | - | - |
 | ai-courses-update | AI 课程更新 | 每月 | ⏸️ 未启用 | - | - |
 | project-status-weekly | 项目周报 | 每周 | ⏸️ 未启用 | - | - |
