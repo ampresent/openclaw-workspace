@@ -6,3 +6,4 @@
 | 💰 投资分析 | `projects/investment/` | 活跃 |
 | 📋 日常事务 | `projects/daily-affairs/` | 活跃 |
 | 💡 灵感收集 | `projects/inspiration/` | 活跃 |
+| 🧠 AI 技术学习 | `projects/ai-study/` | 刚创建 |
