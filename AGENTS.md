@@ -15,6 +15,7 @@ Before doing anything else:
 3. Read `memory/YYYY-MM-DD.md` (today + yesterday) for recent context
 4. **If in MAIN SESSION** (direct chat with your human): Also read `MEMORY.md`
 5. **检查待办事项** — 如果有未完成的任务，主动继续执行或汇报进度
+6. **检查今日待复习** — 读 `memory/learning-list.json`，筛选 `nextReview <= 今天` 且 `status == active` 的条目，有则主动提醒用户复习
 
 Don't ask permission. Just do it.
 
