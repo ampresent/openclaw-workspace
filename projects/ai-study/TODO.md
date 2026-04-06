@@ -31,6 +31,7 @@
 - [ ] 优化器演进（SGD → Adam → AdamW）
 - [ ] 正则化技术
 
-## 🎓 Coursera 课程
+## 🎓 Coursera / 大学课程
 
-- [ ] 待确认具体课程
+- [ ] UCSD CSE 234 — 待确认课程内容
+- [ ] UCSD DSC 291 — 待确认课程内容
