@@ -1,0 +1,53 @@
+graph TD
+    MATH["🧮 数学工具箱<br/>按需查阅"]
+    BACKPROP["⚡ 反向传播<br/>与优化器"]
+    RNN["🔄 RNN/LSTM<br/>了解演进"]
+    ATTN["⭐ Attention<br/>机制"]
+    TF["⭐⭐ Transformer<br/>核心架构"]
+    TOKEN["🔤 分词器 BPE"]
+    POS["📍 位置编码<br/>RoPE / ALiBi"]
+    BERT["📖 BERT<br/>双向编码"]
+    GPT["📖 GPT<br/>自回归"]
+    PRETRAIN["🏋️ 预训练<br/>Scaling Laws"]
+    SFT["📝 SFT<br/>指令微调"]
+    ALIGN["🎯 对齐<br/>RLHF / DPO"]
+    KV["⚡ KV Cache"]
+    FLASH["⚡ Flash Attention"]
+    QUANT["📦 量化<br/>INT8/INT4"]
+    RAG["🔍 RAG<br/>检索增强"]
+    AGENT["🤖 Agent<br/>ReAct/工具调用"]
+    MOE["🔀 MoE<br/>混合专家"]
+
+    MATH -.->|按需| ATTN
+    MATH -.->|按需| BACKPROP
+    BACKPROP --> RNN
+    RNN --> ATTN
+    ATTN --> TF
+    TF --> BERT
+    TF --> GPT
+    TF --> TOKEN
+    TF --> POS
+    BERT --> PRETRAIN
+    GPT --> PRETRAIN
+    GPT --> SFT
+    SFT --> ALIGN
+    GPT --> KV
+    KV --> FLASH
+    FLASH --> QUANT
+    GPT --> RAG
+    ALIGN --> AGENT
+    RAG --> AGENT
+    PRETRAIN --> MOE
+    QUANT --> AGENT
+
+    classDef core fill:#fff3e0,stroke:#e65100,stroke-width:3px
+    classDef entry fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef advanced fill:#fce4ec,stroke:#c62828,stroke-width:2px
+    classDef optional fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px,stroke-dasharray: 5 5
+    classDef tool fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
+
+    class TF core
+    class ATTN,GPT entry
+    class ALIGN,AGENT,QUANT,FLASH advanced
+    class MOE optional
+    class MATH,TOKEN,POS tool

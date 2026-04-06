@@ -1,183 +1,136 @@
-# LLM（大语言模型）学习路线
+# LLM 散点式学习地图
 
-> 创建时间：2026-04-06
+> 核心思路：每个节点是一个独立可切入的知识单元，节点之间的连线表示「如果卡住了，可能需要先了解 X」，而不是「必须先学完 X」。
 
-## 总览
-
-```
-阶段一          阶段二              阶段三                  阶段四
-基础数学  →  深度学习  →  NLP + Transformer  →  LLM 专题
-(2-3 周)    (3-4 周)       (5-6 周)            (持续深入)
-
-已有传统 ML 基础，跳过 ML 入门阶段。
-```
-
----
-
-## 阶段一：数学基础（2-4 周）
-
-| 主题 | 推荐资源 | 备注 |
-|------|----------|------|
-| 线性代数 | MIT 18.06（Gilbert Strang） | 矩阵运算、特征值分解、SVD |
-| 概率论与统计 | MIT 6.041 或 Stanford CS 109 | 贝叶斯、MLE、常见分布 |
-| 微积分与优化 | 3Blue1Brown 微积分系列 | 梯度、链式法则（反向传播必备） |
-
-**目标**：能读懂 ML 论文里的数学符号，能手推梯度下降。
-
----
-
-## 阶段二：机器学习基础（4-6 周）
-
-| 课程 | 内容 | 资源 |
-|------|------|------|
-| **CS 229**（Stanford） | 监督学习、无监督学习、EM、PCA、SVM | https://cs229.stanford.edu |
-| Coursera ML Specialization | Andrew Ng 的入门版，偏实操 | https://www.coursera.org/specializations/machine-learning-introduction |
-
-**关键知识点**：
-- 线性/逻辑回归
-- 决策树、随机森林、XGBoost
-- 聚类、降维（PCA）
-- 偏差-方差权衡、正则化
-- 梯度下降及其变种（SGD、Adam）
-
-**目标**：理解「模型训练」的完整流程，能用 sklearn 跑通一个 ML pipeline。
-
----
-
-## 阶段三：深度学习（4-6 周）
-
-| 课程 | 内容 | 资源 |
-|------|------|------|
-| **CS 230**（Stanford） | 神经网络、CNN、RNN、调参 | https://www.coursera.org/specializations/deep-learning |
-| **MIT 6.S191** | 快速入门深度学习（2 周集中课程） | http://introtodeeplearning.com |
-| **CMU 11-785** | 深度学习，偏工程实现 | https://deeplearning.cs.cmu.edu |
-
-**关键知识点**：
-- 前向传播 & 反向传播
-- 激活函数（ReLU、GELU、SiLU）
-- BatchNorm、LayerNorm、Dropout
-- CNN 基础（为理解 Vision Transformer 做铺垫）
-- RNN / LSTM / GRU（理解序列建模的演进）
-- PyTorch 基础操作
-
-**目标**：能用 PyTorch 从零实现一个多层感知机和简单 CNN。
-
----
-
-## 阶段四：NLP + Transformer（6-8 周）⭐ 核心阶段
-
-| 课程 | 内容 | 资源 |
-|------|------|------|
-| **CS 224n**（Stanford） | NLP 基础、Word2Vec、RNN → Transformer、预训练模型 | https://web.stanford.edu/class/cs224n/ |
-
-**关键知识点（按顺序）**：
-
-1. **NLP 基础**
-   - 词向量：Word2Vec、GloVe
-   - 语言模型：N-gram → 神经语言模型
-   - 序列到序列：Encoder-Decoder
-
-2. **Attention 机制**
-   - Bahdanau Attention（2014）
-   - Luong Attention
-   - Self-Attention
-
-3. **Transformer 架构** ⭐⭐⭐
-   - 论文精读：Attention Is All You Need (2017)
-   - Multi-Head Attention
-   - 位置编码（Sinusoidal → RoPE → ALiBi）
-   - Layer Normalization（Pre-Norm vs Post-Norm）
-   - Feed-Forward Network
-   - 残差连接
-
-4. **预训练语言模型**
-   - BERT（双向编码器）
-   - GPT 系列（自回归解码器）
-   - T5（Encoder-Decoder）
-
-**目标**：
-- 能手写一个简化版 Transformer
-- 能读懂 BERT 和 GPT-2 的源码
-- 理解 tokenization（BPE、WordPiece、SentencePiece）
-
----
-
-## 阶段五：LLM 专题（持续深入）⭐⭐ 最终目标
-
-### 5.1 从零构建语言模型
-
-| 资源 | 内容 | 链接 |
-|------|------|------|
-| **CS 336**（Stanford, 2025 Spring） | 从零构建语言模型：分词、训练、Scaling Laws、推理优化 | https://stanford-cs336.github.io |
-| **nanoGPT**（Andrej Karpathy） | 用最简代码实现 GPT 训练 | https://github.com/karpathy/nanoGPT |
-| **llm.c**（Andrej Karpathy） | 用纯 C 实现 GPT-2 训练 | https://github.com/karpathy/llm.c |
-
-**CS 336 课程大纲**（2025 Spring）：
-1. 课程概述与分词（Tokenization）
-2. Transformer 架构实现
-3. 训练基础设施（分布式训练）
-4. Scaling Laws
-5. 数据处理与清洗
-6. 推理优化（KV Cache、Flash Attention、量化）
-7. 对齐（RLHF、DPO）
-
-### 5.2 LLM 核心技术深入
-
-| 主题 | 关键论文/资源 |
-|------|--------------|
-| **分词器** | BPE (Sennrich 2016)、SentencePiece、Tiktoken |
-| **位置编码** | RoPE (Su 2021)、ALiBi (Press 2022) |
-| **注意力优化** | Flash Attention (Dao 2022)、MQA、GQA |
-| **训练优化** | Mixed Precision Training、ZeRO、FSDP、DeepSpeed |
-| **Scaling Laws** | Kaplan et al. 2020、Chinchilla (Hoffmann 2022) |
-| **MoE** | Switch Transformer (Fedus 2021)、Mixtral |
-| **推理优化** | KV Cache、Speculative Decoding、vLLM、GGUF/GGML 量化 |
-| **对齐** | InstructGPT/RLHF (Ouyang 2022)、DPO (Rafailov 2023)、RLAIF |
-
-### 5.3 Agent（基于 LLM 的智能体）
-
-| 主题 | 关键资源 |
-|------|---------|
-| **ReAct** | Yao et al. 2022 — 推理+行动框架 |
-| **Tool Use** | Toolformer (Schick 2023)、Function Calling |
-| **规划** | Chain-of-Thought、Tree-of-Thought |
-| **记忆** | RAG（检索增强生成）、向量数据库 |
-| **框架** | LangChain、LlamaIndex、AutoGPT |
-
----
-
-## 推荐学习顺序（精简版）
+## 知识图谱
 
 ```
-Week 1-3:   数学基础补齐（线性代数重点：矩阵分解、SVD；概率论重点：贝叶斯、MLE）
-Week 4-7:   深度学习（CS 230 或 MIT 6.S191 快速版 + PyTorch 实操）
-Week 8-13:  CS 224n NLP（重点：Transformer、BERT、GPT）
-Week 14-20: CS 336 从零构建 LLM（或跟 nanoGPT + llm.c 实践）
-Week 21+:   深入专题（Scaling Laws、推理优化、Agent）
+                              ┌─────────────┐
+                              │  🧮 数学工具  │
+                              │ 线代·概率·优化 │
+                              └──────┬──────┘
+                                     │ (按需查阅)
+                    ┌────────────────┼────────────────┐
+                    ▼                ▼                ▼
+             ┌──────────┐    ┌──────────┐    ┌──────────┐
+             │ 反向传播  │    │ Attention │    │ 概率图模型│
+             │ 与优化器  │    │  机制原理  │    │  (可选)   │
+             └────┬─────┘    └────┬─────┘    └──────────┘
+                  │               │
+                  ▼               ▼
+             ┌──────────┐   ┌──────────────────────────┐
+             │  RNN/LSTM │   │     ⭐ Transformer        │
+             │  (了解演进) │   │  可直接从这里开始！        │
+             └──────────┘   └─────────┬───────────────┘
+                                       │
+                  ┌────────────┬───────┴───────┬────────────┐
+                  ▼            ▼               ▼            ▼
+           ┌──────────┐ ┌──────────┐  ┌──────────────┐ ┌──────────┐
+           │  BERT    │ │   GPT    │  │  位置编码     │ │  分词器   │
+           │ 双向编码  │ │ 自回归   │  │ RoPE/ALiBi  │ │  BPE    │
+           └────┬─────┘ └────┬─────┘  └──────────────┘ └──────────┘
+                │            │
+                │            ▼
+                │     ┌──────────────┐
+                │     │  预训练 & SFT │
+                │     │  Scaling Laws│
+                │     └──────┬───────┘
+                │            │
+                │     ┌──────┴──────────────────────┐
+                ▼     ▼                              ▼
+         ┌──────────┐ ┌──────────────┐      ┌──────────────┐
+         │  RAG     │ │  对齐         │      │  推理优化     │
+         │ 检索增强  │ │ RLHF / DPO   │      │ KV Cache     │
+         └──────────┘ └──────────────┘      │ Flash Attn   │
+                                            │ 量化         │
+                  ┌─────────────┐           └──────────────┘
+                  │  🤖 Agent    │
+                  │ ReAct/工具调用│ ◄──── 以上所有都可能是前置
+                  │ 规划/记忆    │
+                  └─────────────┘
 ```
 
----
+## 散点入口（从哪里开始都行）
 
-## 实践项目（建议边学边做）
+### 入口 A：从 Transformer 直接切入
+- 精读 **Attention Is All You Need**，遇到不懂的数学再回头查
+- 跟着 **The Annotated Transformer** 手写一遍
+- 优势：直击核心，最快建立 LLM 全局视野
 
-1. **Week 4-7**：用 PyTorch 实现 MNIST / CIFAR-10 分类器
-2. **Week 8-13**：从零实现一个简化版 Transformer（参考 The Annotated Transformer）
-3. **Week 14-20**：用 nanoGPT 训练一个小型 GPT（在莎士比亚数据集上）
-4. **Week 21+**：实现一个简单的 RAG 系统或 Agent
+### 入口 B：从一个 LLM 实现切入
+- 直接跑 **nanoGPT**（Karpathy），边跑边理解每个模块
+- 或者跑 **LLaMA** 的开源实现（如 llama.cpp）
+- 优势：动手优先，从代码反推理论
 
----
+### 入口 C：从一个具体问题切入
+- 「为什么 GPT 能生成连贯文本？」→ 追到自回归语言模型
+- 「为什么长文本效果变差？」→ 追到位置编码 + 注意力机制
+- 「为什么推理这么慢？」→ 追到 KV Cache + 量化
+- 优势：带着问题学，目标感强
 
-## 必读论文清单
+### 入口 D：从一篇论文切入
+- 随便挑一篇感兴趣的核心论文（见下方清单）
+- 读不懂的部分就是你需要补充的节点
+- 优势：研究驱动，最接近真实科研
 
-| # | 论文 | 年份 | 核心贡献 |
-|---|------|------|---------|
-| 1 | Attention Is All You Need | 2017 | Transformer 架构 |
-| 2 | BERT: Pre-training of Deep Bidirectional Transformers | 2018 | 预训练+微调范式 |
-| 3 | Language Models are Few-Shot Learners (GPT-3) | 2020 | In-context Learning |
-| 4 | Training Language Models to Follow Instructions (InstructGPT) | 2022 | RLHF 对齐 |
-| 5 | Scaling Laws for Neural Language Models | 2020 | Scaling Laws |
-| 6 | FlashAttention: Fast and Memory-Efficient Attention | 2022 | 注意力优化 |
-| 7 | LLaMA: Open and Efficient Foundation LLMs | 2023 | 开源 LLM 标杆 |
-| 8 | Direct Preference Optimization (DPO) | 2023 | RLHF 替代方案 |
-| 9 | Retrieval-Augmented Generation (RAG) | 2020 | 检索增强 |
-| 10 | ReAct: Synergizing Reasoning and Acting | 2022 | Agent 框架 |
+## 节点索引（按主题分组，非学习顺序）
+
+### 🧮 数学工具箱（按需查阅，不用系统学）
+| 节点 | 什么时候需要 | 推荐资源 |
+|------|-------------|----------|
+| 矩阵分解（SVD/特征值） | 理解 Attention、位置编码、PCA | 3Blue1Brown 线代系列 |
+| 梯度与链式法则 | 理解反向传播 | 同上 |
+| 贝叶斯定理 | 理解概率语言模型、DPO | MIT 6.041 |
+| 交叉熵/KL 散度 | 理解损失函数 | 任何 ML 教材 |
+| 凸优化基础 | 理解训练动态 | Boyd 的 Convex Optimization |
+| 信息论基础 | 理解熵、困惑度（Perplexity） | Cover & Thomas |
+
+### ⚡ 核心节点
+| 节点 | 关键内容 | 直接资源 |
+|------|----------|----------|
+| **反向传播** | 链式法则、计算图、自动微分 | CS 231n Lecture 4 |
+| **Attention 机制** | Q/K/V、Scaled Dot-Product、Multi-Head | Attention Is All You Need §3 |
+| **Transformer 架构** | 完整架构、编码器/解码器 | 同上 + The Annotated Transformer |
+| **分词器 (BPE)** | Byte Pair Encoding、词表构建 | CS 336 Lecture 1 + SentencePiece |
+| **位置编码** | Sinusoidal → RoPE → ALiBi | Su et al. 2021 (RoPE 论文) |
+| **BERT** | 双向编码、MLM + NSP、微调范式 | Devlin et al. 2018 |
+| **GPT** | 自回归解码、Next Token Prediction | Radford et al. 2018/2019 |
+| **预训练** | 无监督预训练 + 有监督微调 | CS 224n Lecture 8-10 |
+| **Scaling Laws** | Loss ∝ N^(-α), D^(-β), C^(-γ) | Kaplan et al. 2020 |
+| **RLHF/DPO** | 奖励模型 + PPO / 直接偏好优化 | Ouyang 2022, Rafailov 2023 |
+| **KV Cache** | 推理时缓存 K/V 矩阵 | 任何 LLM 推理优化博客 |
+| **Flash Attention** | IO-aware 注意力计算 | Dao et al. 2022 |
+| **量化** | INT8/INT4、GGUF、GPTQ | 任何 LLM 量化教程 |
+| **RAG** | 检索 + 生成 | Lewis et al. 2020 |
+| **Agent** | ReAct、工具调用、规划 | Yao et al. 2022 |
+
+### 🔬 扩展节点（可选）
+| 节点 | 关键内容 |
+|------|----------|
+| MoE (Mixture of Experts) | Switch Transformer, Mixtral |
+| Speculative Decoding | 小模型猜测 + 大模型验证 |
+| Long Context | 长上下文技术（Ring Attention 等） |
+| 多模态 | Vision-Language Models |
+| Mamba / SSM | Transformer 之外的架构选择 |
+
+## 推荐的散点学习策略
+
+**每周做一件事**：挑一个你此刻最感兴趣的节点，深入搞清楚，然后自然扩散到相邻节点。
+
+**记录你的探索路径**：每学完一个节点，记录你从哪个节点跳过来的、遇到了什么问题、又跳去了哪个节点。这个路径本身就是你独特的知识结构。
+
+**定期回顾全局**：每两周看一次这个知识图谱，看看哪些节点已经覆盖了，哪些还是空白，按兴趣填补。
+
+## 资源汇总
+
+| 类型 | 资源 | 链接 |
+|------|------|------|
+| 论文精读 | Attention Is All You Need | https://arxiv.org/abs/1706.03762 |
+| 代码实践 | nanoGPT | https://github.com/karpathy/nanoGPT |
+| 代码实践 | llm.c | https://github.com/karpathy/llm.c |
+| 课程 | CS 224n | https://web.stanford.edu/class/cs224n/ |
+| 课程 | CS 336 | https://stanford-cs336.github.io |
+| 课程 | MIT 6.S191 | http://introtodeeplearning.com |
+| 课程 | CS 230 | https://www.coursera.org/specializations/deep-learning |
+| 可视化 | The Illustrated Transformer | https://jalammar.github.io/illustrated-transformer/ |
+| 可视化 | The Annotated Transformer | https://nlp.seas.harvard.edu/annotated-transformer/ |
