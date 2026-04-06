@@ -17,6 +17,7 @@
 info-collector/
 ├── README.md            ← 本文件（使用说明）
 ├── COLLECTION-LIST.md   ← 收集任务列表（核心配置）
+├── SEARCH-GUIDE.md      ← 搜索经验与技巧（踩坑记录）
 ├── STATUS.md            ← 收集状态跟踪
 ├── collected/           ← 收集结果存放
 │   ├── <任务ID>/
