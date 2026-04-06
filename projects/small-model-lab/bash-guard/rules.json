@@ -47,6 +47,12 @@
       "name": "禁止格式化磁盘",
       "description": "禁止执行 mkfs, fdisk, dd if=... of=/dev/ 等磁盘格式化操作",
       "severity": "critical"
+    },
+    {
+      "id": "R009",
+      "name": "高危命令需审批",
+      "description": "severity 为 critical 或 high 的命令被拦截时，必须填写审批人姓名才能继续执行，否则一律禁止",
+      "severity": "critical"
     }
   ]
 }

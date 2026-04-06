@@ -143,6 +143,45 @@ def check_command(command: str, rules: list[dict], quiet: bool = False) -> dict:
 
 
 # ── CLI ─────────────────────────────────────────────
+def require_approval(command: str, result: dict) -> str | None:
+    """
+    高危命令审批流程。
+    返回审批人姓名，或 None 表示取消。
+    """
+    print()
+    print("   ╔══════════════════════════════════════╗")
+    print("   ║  ⚠️  该命令被判定为高危操作           ║")
+    print("   ║  必须填写审批人姓名才能继续           ║")
+    print("   ╚══════════════════════════════════════╝")
+    print()
+
+    approver = input("   请输入审批人姓名（留空则取消）: ").strip()
+
+    if not approver:
+        print("   ❌ 未填写审批人，已取消")
+        return None
+
+    confirm = input(f"   确认已经过 [{approver}] 的同意？(yes/NO): ").strip().lower()
+    if confirm != "yes":
+        print("   ❌ 已取消")
+        return None
+
+    # 记录审批日志
+    log_entry = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "command": command,
+        "rule_id": result.get("rule_id"),
+        "reason": result.get("reason"),
+        "approver": approver,
+    }
+    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "approval-log.jsonl")
+    with open(log_path, "a") as f:
+        f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+
+    print(f"   📝 审批已记录: [{approver}] 同意执行")
+    return approver
+
+
 def cmd_check(args):
     """检查单条命令"""
     rules = load_rules(args.rules)
@@ -160,12 +199,11 @@ def cmd_check(args):
             print(f"   命令: {args.command}")
             print(f"   耗时: {result['elapsed_ms']}ms")
             if args.confirm:
-                resp = input("   确认要执行吗？(yes/NO): ").strip().lower()
-                if resp == "yes":
-                    print("   ⚠️ 用户确认执行...")
+                approver = require_approval(args.command, result)
+                if approver:
+                    print(f"   ⚠️ 经 [{approver}] 审批通过，执行中...")
                     os.system(args.command)
                 else:
-                    print("   ✅ 已取消")
                     sys.exit(1)
             else:
                 sys.exit(1)
