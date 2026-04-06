@@ -5,9 +5,11 @@
 ## 总览
 
 ```
-阶段一          阶段二          阶段三           阶段四          阶段五
-基础数学  →  机器学习基础  →  深度学习  →  NLP+Transformer  →  LLM 专题
-(2-4 周)     (4-6 周)       (4-6 周)     (6-8 周)         (持续深入)
+阶段一          阶段二              阶段三                  阶段四
+基础数学  →  深度学习  →  NLP + Transformer  →  LLM 专题
+(2-3 周)    (3-4 周)       (5-6 周)            (持续深入)
+
+已有传统 ML 基础，跳过 ML 入门阶段。
 ```
 
 ---
@@ -147,23 +149,21 @@
 ## 推荐学习顺序（精简版）
 
 ```
-Week 1-3:   MIT 18.06 线性代数（挑重点看）+ Python/Pytorch 刷熟
-Week 4-8:   CS 229 机器学习（或 Coursera ML Specialization）
-Week 9-13:  CS 230 深度学习（或 MIT 6.S191 快速版）
-Week 14-21: CS 224n NLP（重点：Transformer、BERT、GPT）
-Week 22-28: CS 336 从零构建 LLM（或跟 nanoGPT + llm.c 实践）
-Week 29+:   深入专题（Scaling Laws、推理优化、Agent）
+Week 1-3:   数学基础补齐（线性代数重点：矩阵分解、SVD；概率论重点：贝叶斯、MLE）
+Week 4-7:   深度学习（CS 230 或 MIT 6.S191 快速版 + PyTorch 实操）
+Week 8-13:  CS 224n NLP（重点：Transformer、BERT、GPT）
+Week 14-20: CS 336 从零构建 LLM（或跟 nanoGPT + llm.c 实践）
+Week 21+:   深入专题（Scaling Laws、推理优化、Agent）
 ```
 
 ---
 
 ## 实践项目（建议边学边做）
 
-1. **Week 4-8**：用 sklearn 实现一个完整的 ML pipeline
-2. **Week 9-13**：用 PyTorch 实现 MNIST 分类器
-3. **Week 14-21**：从零实现一个简化版 Transformer（参考 The Annotated Transformer）
-4. **Week 22-28**：用 nanoGPT 训练一个小型 GPT（在莎士比亚数据集上）
-5. **Week 29+**：实现一个简单的 RAG 系统或 Agent
+1. **Week 4-7**：用 PyTorch 实现 MNIST / CIFAR-10 分类器
+2. **Week 8-13**：从零实现一个简化版 Transformer（参考 The Annotated Transformer）
+3. **Week 14-20**：用 nanoGPT 训练一个小型 GPT（在莎士比亚数据集上）
+4. **Week 21+**：实现一个简单的 RAG 系统或 Agent
 
 ---
 
