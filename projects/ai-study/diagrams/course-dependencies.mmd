@@ -1,0 +1,63 @@
+graph TD
+    %% 基础层
+    LA["📐 MIT 18.06 线性代数"]
+    PROB["🎲 概率论与统计"]
+    PY["🐍 Python 编程"]
+    ALGO["⚡ 算法与数据结构"]
+
+    %% 第一层 AI 课程
+    CS229["📚 CS 229 机器学习<br/><i>Stanford · Andrew Ng</i>"]
+    MIT6034["🤖 MIT 6.034 人工智能"]
+    CMU601["📊 CMU 10-601 机器学习入门"]
+
+    %% 第二层方向课
+    CS231n["👁️ CS 231n 计算机视觉<br/><i>Stanford · CNN</i>"]
+    CS224n["💬 CS 224n NLP<br/><i>Stanford · 深度学习+NLP</i>"]
+    CS230["🧠 CS 230 深度学习<br/><i>Stanford · Coursera</i>"]
+    CS221["🎯 CS 221 AI 原理与技术<br/><i>Stanford</i>"]
+    MIT6S191["🔬 MIT 6.S191 深度学习导论"]
+    CMU11785["🏗️ CMU 11-785 深度学习"]
+
+    %% 第三层高级课
+    CS336["📝 CS 336 Language Modeling<br/><i>Stanford · 从零构建 LM</i>"]
+    CS234["🎮 CS 234 强化学习<br/><i>Stanford</i>"]
+    CS285["🕹️ CS 285 深度强化学习<br/><i>UC Berkeley</i>"]
+    CS236["🎨 CS 236 深度生成模型<br/><i>Stanford</i>"]
+    CS228["🕸️ CS 228 概率图模型<br/><i>Stanford</i>"]
+    CMU701["🎓 CMU 10-701 机器学习 PhD"]
+
+    %% 基础 → 第一层
+    LA --> CS229
+    PROB --> CS229
+    PY --> CS229
+    LA --> MIT6034
+    PROB --> CMU601
+
+    %% 第一层 → 第二层
+    CS229 --> CS231n
+    CS229 --> CS224n
+    CS229 --> CS230
+    CS229 --> CS221
+    CS229 --> CMU11785
+    MIT6034 --> CS221
+
+    %% 第二层 → 第三层
+    CS224n --> CS336
+    CS231n --> CS236
+    CS224n --> CS236
+    CS229 --> CS234
+    CS221 --> CS234
+    CS234 --> CS285
+    CS229 --> CS228
+    CS229 --> CMU701
+
+    %% 样式
+    classDef base fill:#e8f5e9,stroke:#2e7d32
+    classDef level1 fill:#e3f2fd,stroke:#1565c0
+    classDef level2 fill:#fff3e0,stroke:#e65100
+    classDef level3 fill:#fce4ec,stroke:#c62828
+
+    class LA,PROB,PY,ALGO base
+    class CS229,MIT6034,CMU601 level1
+    class CS231n,CS224n,CS230,CS221,MIT6S191,CMU11785 level2
+    class CS336,CS234,CS285,CS236,CS228,CMU701 level3
