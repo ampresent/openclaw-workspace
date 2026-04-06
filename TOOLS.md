@@ -4,7 +4,7 @@ Skills 定义工具怎么用，这个文件记录你自己的环境细节。
 
 ---
 
-## 已安装 Skills（23 个）
+## 已安装 Skills（24 个）
 
 Skill 文档在 `skills/<name>/SKILL.md`。
 
@@ -38,6 +38,9 @@ Skill 文档在 `skills/<name>/SKILL.md`。
 ### 工具类
 - 📚 weread-upload — 上传电子书到微信读书
 - 📖 z-library — Z-Library 电子书搜索下载
+
+### 学习 & 记忆
+- 🧠 spaced-repetition — 艾宾浩斯记忆曲线复习管理（学习列表 + 关联文件 + 定时提醒）
 
 ### 项目管理
 - 📋 long-project-manager — 长期项目管理
