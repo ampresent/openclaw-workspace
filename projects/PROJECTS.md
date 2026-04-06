@@ -7,3 +7,4 @@
 | 📋 日常事务 | `projects/daily-affairs/` | 活跃 |
 | 💡 灵感收集 | `projects/inspiration/` | 活跃 |
 | 🧠 AI 技术学习 | `projects/ai-study/` | 刚创建 |
+| 📡 信息收集管理器 | `projects/info-collector/` | 刚创建 |
