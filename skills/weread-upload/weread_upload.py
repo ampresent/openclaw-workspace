@@ -26,6 +26,26 @@ def check_file(file_path: str) -> dict:
     return {'valid': True, 'name': path.name, 'size': path.stat().st_size, 'ext': ext}
 
 
+def _upload_qr_to_hosting(file_path: str) -> str | None:
+    """上传二维码到 litterbox.catbox.moe（72小时临时图床），返回 URL 或 None"""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ['curl', '-s', '--max-time', '10',
+             '-F', 'reqtype=fileupload',
+             '-F', 'time=72h',
+             '-F', f'fileToUpload=@{file_path}',
+             'https://litterbox.catbox.moe/resources/internals/api.php'],
+            capture_output=True, text=True, timeout=15
+        )
+        url = result.stdout.strip()
+        if url.startswith('http'):
+            return url
+    except Exception:
+        pass
+    return None
+
+
 async def ensure_logged_in(ctx, page) -> bool:
     """确保已登录，未登录则显示二维码等待扫码"""
     # 尝试加载已保存的 cookies
@@ -68,7 +88,12 @@ async def ensure_logged_in(ctx, page) -> bool:
     if not qr_saved:
         await page.screenshot(path='/tmp/weread-qr.png')
 
-    print("📱 二维码已保存到 /tmp/weread-qr.png")
+    # 上传二维码到图床，方便远程扫码
+    qr_url = _upload_qr_to_hosting('/tmp/weread-qr.png')
+    if qr_url:
+        print(f"📱 二维码链接：{qr_url}")
+    else:
+        print("📱 二维码已保存到 /tmp/weread-qr.png（图床上传失败，仅本地可用）")
     print("⏳ 请用手机微信扫描二维码（最多 180 秒）...")
 
     # 等待扫码
