@@ -13,7 +13,7 @@
 
 ### 1. 读取收藏数据
 
-从 `/home/admin/openclaw/workspace/douban-music-4428030.csv` 中读取所有 5 星专辑。
+从 `projects/music-recommender/douban-music-collect.csv` 中读取所有 5 星专辑。
 
 ### 2. 随机选择种子专辑
 
@@ -103,5 +103,5 @@
 
 ## 文件位置
 
-- **收藏数据**: `/home/admin/openclaw/workspace/douban-music-4428030.csv`
-- **推荐输出**: `/home/admin/openclaw/workspace/music-analysis/recommendation_{YYYY-MM-DD}.md`
+- **收藏数据**: `projects/music-recommender/douban-music-collect.csv`
+- **推荐输出**: `projects/music-recommender/music-analysis/recommendation_{YYYY-MM-DD}.md`

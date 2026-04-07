@@ -62,6 +62,7 @@ tmp/
 # 数据文件（可能包含敏感信息）
 data/
 *.csv
+!projects/music-recommender/*.csv
 *.xlsx
 
 # 脚本中的敏感脚本
