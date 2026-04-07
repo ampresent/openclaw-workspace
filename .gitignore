@@ -91,3 +91,4 @@ LOG_*.md
 *.mkv
 *.avi
 *.mov
+.git-credentials
