@@ -154,7 +154,7 @@ ssh -i bootc-key -p 2222 -o StrictHostKeyChecking=no root@127.0.0.1
 - [x] 杀掉旧 QEMU（带 -snapshot）
 - [x] 重启 QEMU（去掉 -snapshot）— PID 275823
 - [x] SSH 连通性验证 — Fedora 41 正常运行
-- [x] 发现 staged 丢失，重新执行 `bootc switch` — 进行中
+- [x] 发现 staged 丢失，重新执行 `bootc switch` — 进行中（PID 1270, Deploying...）
 - [ ] 等 switch 完成
 - [ ] reboot 验证 Fedora 42 升级
 
