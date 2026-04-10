@@ -1,0 +1,14 @@
+# 项目索引
+
+| 项目 | 路径 | 状态 |
+|------|------|------|
+| 🎹 钢琴练习 | `projects/piano-practice/` | 大七和弦入门中 |
+| 💰 投资分析 | `projects/investment/` | 活跃 |
+| 📋 日常事务 | `projects/daily-affairs/` | 活跃 |
+| 💡 灵感收集 | `projects/inspiration/` | 活跃 |
+| 🧠 AI 技术学习 | `projects/ai-study/` | 刚创建 |
+| 📡 信息收集管理器 | `projects/info-collector/` | 刚创建 |
+| 🧪 小模型实验 | `projects/small-model-lab/` | Gemma 3 1B 验证完成 |
+| 🎭 Mock Backend | `projects/mock-backend/` | GDB 拦截 + e1000 网卡 mock |
+| 🏗️ [runb](projects/runb/) | 轻量 OCI 容器运行时 | Phase 1 调研 |
+| 🐧 Bootable Container | `projects/bootable-container/` | bootc + QEMU 实验 |

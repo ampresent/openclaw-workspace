@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "intervals": [1, 2, 4, 7, 15, 30, 60, 90],
+  "items": [
+    {
+      "id": "2026-04-06-emotional-awareness",
+      "topic": "情绪觉察与表达",
+      "description": "感受自己的情绪，找到不开心的根源，练习表达不满。分四阶段：觉察→定位→表达→习惯。",
+      "relatedLinks": [
+        "memory/learning/emotional-awareness.md"
+      ],
+      "addedAt": "2026-04-06T19:04:00+08:00",
+      "reviewCount": 0,
+      "nextReview": "2026-04-07",
+      "history": [],
+      "status": "active"
+    }
+  ]
+}

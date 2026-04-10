@@ -1,0 +1,1 @@
+{"timestamp": "2026-04-06 18:48:07", "command": "rm -rf /tmp/test", "rule_id": "UNKNOWN", "reason": "禁止删除根目录: 禁止对根目录 / 或系统关键目录执行删除操作", "approver": "张三"}

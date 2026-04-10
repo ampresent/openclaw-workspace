@@ -1,0 +1,133 @@
+# ============================================================
+# runb + runb-tui  —  Combined Docker Image
+# ============================================================
+#
+# 构建:
+#   docker build -t runb-all -f Dockerfile.runb-all .
+#
+# 运行:
+#   docker run --privileged -it runb-all
+#
+# 功能:
+#   1. 构建 runb (Rust, ~1.3MB 二进制)
+#   2. 构建 runb-tui (Node.js/Ink)
+#   3. 打包为单一镜像，直接启动 TUI
+#
+# --privileged 是必须的，因为 runb 使用 chroot() 和 mount()
+# ============================================================
+
+# ── Stage 1: Build runb (Rust) ──────────────────────────────
+FROM rust:1.85-bookworm AS builder-rust
+
+WORKDIR /build/runb
+COPY projects/runb/Cargo.toml projects/runb/Cargo.lock* ./
+COPY projects/runb/src/ src/
+
+RUN cargo build --release --target x86_64-unknown-linux-gnu \
+    && strip target/x86_64-unknown-linux-gnu/release/runb
+
+# ── Stage 2: Build runb-tui (Node.js) ───────────────────────
+FROM node:22-bookworm AS builder-node
+
+WORKDIR /build/runb-tui
+COPY projects/runb-tui/package.json projects/runb-tui/package-lock.json* ./
+RUN npm ci --ignore-scripts 2>/dev/null || npm install
+
+COPY projects/runb-tui/tsconfig.json ./
+COPY projects/runb-tui/src/ src/
+
+RUN npx tsc \
+    && npm prune --omit=dev
+
+# ── Stage 3: Runtime ────────────────────────────────────────
+FROM rockylinux:10 AS runtime
+
+# Install Node.js 22 LTS
+RUN dnf install -y \
+        https://rpm.nodesource.com/pub_22.x/nodistro/repo/nodesource-release-nodistro-1.noarch.rpm \
+    && dnf module enable -y nodejs:22 \
+    && dnf install -y nodejs bash tar gzip \
+    && dnf clean all
+
+# ── runb binary ──
+COPY --from=builder-rust \
+    /build/runb/target/x86_64-unknown-linux-gnu/release/runb \
+    /usr/local/bin/runb
+
+# ── runb-tui ──
+COPY --from=builder-node /build/runb-tui/dist/ /opt/runb-tui/dist/
+COPY --from=builder-node /build/runb-tui/node_modules/ /opt/runb-tui/node_modules/
+COPY projects/runb-tui/package.json /opt/runb-tui/
+
+# ── 测试用 rootfs ──
+RUN mkdir -p /test-rootfs/{bin,usr/bin,proc,dev,etc,home,var} \
+    && cp /bin/sh /test-rootfs/bin/sh \
+    && cp /bin/busybox /test-rootfs/bin/busybox 2>/dev/null || true \
+    && echo "name=runb-test" > /test-rootfs/etc/os-release
+
+# ── 演示用 OCI bundle ──
+RUN mkdir -p /bundles/nginx /bundles/redis /data/{home,var} \
+    && cat > /bundles/nginx/config.json << 'EOF'
+{
+  "ociVersion": "1.0.2",
+  "root": { "path": "/test-rootfs" },
+  "process": {
+    "terminal": false,
+    "args": ["/bin/sh", "-c", "echo nginx running; sleep 3600"],
+    "env": ["PATH=/bin:/usr/bin", "HOME=/home", "SERVICE=nginx"],
+    "cwd": "/"
+  },
+  "mounts": [],
+  "linux": {}
+}
+EOF
+    && cat > /bundles/nginx/runb.toml << 'EOF'
+[overlay]
+links = [
+    { host = "/data/home", container = "/home" },
+    { host = "/data/var",  container = "/var" },
+]
+EOF
+    && cat > /bundles/redis/config.json << 'EOF'
+{
+  "ociVersion": "1.0.2",
+  "root": { "path": "/test-rootfs" },
+  "process": {
+    "terminal": false,
+    "args": ["/bin/sh", "-c", "echo redis running; sleep 3600"],
+    "env": ["PATH=/bin:/usr/bin", "HOME=/", "SERVICE=redis"],
+    "cwd": "/"
+  },
+  "mounts": [],
+  "linux": {}
+}
+EOF
+    && echo "user_data_persistent" > /data/home/user.json
+
+# Wrapper script
+RUN printf '#!/bin/sh\ncd /opt/runb-tui && exec node dist/index.js "$@"\n' \
+    > /usr/local/bin/runb-tui \
+    && chmod +x /usr/local/bin/runb-tui
+
+# ── 入口脚本：自动创建演示容器 ──
+RUN cat > /entrypoint.sh << 'SCRIPT'
+#!/bin/bash
+set -e
+echo "╔══════════════════════════════════════════════╗"
+echo "║  runb + runb-tui  (Docker)                   ║"
+echo "║  Lightweight OCI Runtime with TUI Manager    ║"
+echo "╚══════════════════════════════════════════════╝"
+echo ""
+
+# 预创建演示容器
+runb create nginx --bundle /bundles/nginx 2>/dev/null && echo "  ✓ Created: nginx" || true
+runb create redis --bundle /bundles/redis 2>/dev/null && echo "  ✓ Created: redis" || true
+
+echo ""
+echo "  启动 TUI..."
+echo ""
+exec runb-tui
+SCRIPT
+    && chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

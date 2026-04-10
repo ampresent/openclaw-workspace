@@ -1,0 +1,54 @@
+graph LR
+    subgraph Phase1["阶段一：数学基础 (2-4周)"]
+        LA["📐 MIT 18.06<br/>线性代数"]
+        PROB["🎲 概率论<br/>统计基础"]
+        CALC["📈 微积分<br/>优化基础"]
+    end
+
+    subgraph Phase2["阶段二：机器学习 (4-6周)"]
+        CS229["📚 CS 229<br/>机器学习"]
+        SKLEARN["🔧 sklearn<br/>实操"]
+    end
+
+    subgraph Phase3["阶段三：深度学习 (4-6周)"]
+        CS230["🧠 CS 230<br/>深度学习"]
+        PYTORCH["🔥 PyTorch<br/>实操"]
+    end
+
+    subgraph Phase4["阶段四：NLP + Transformer (6-8周) ⭐"]
+        CS224n["💬 CS 224n<br/>NLP"]
+        TF["⚡ Transformer<br/>精读论文"]
+        BERTGPT["📖 BERT / GPT<br/>预训练模型"]
+    end
+
+    subgraph Phase5["阶段五：LLM 专题 (持续) ⭐⭐"]
+        CS336["🏗️ CS 336<br/>从零构建 LM"]
+        NANO["🎯 nanoGPT<br/>llm.c 实践"]
+        ADV["🔬 专题深入<br/>Scaling / 推理优化<br/>RLHF / Agent"]
+    end
+
+    LA --> CS229
+    PROB --> CS229
+    CALC --> CS229
+    CS229 --> CS230
+    CS229 --> SKLEARN
+    CS230 --> CS224n
+    CS230 --> PYTORCH
+    CS224n --> TF
+    TF --> BERTGPT
+    BERTGPT --> CS336
+    BERTGPT --> NANO
+    CS336 --> ADV
+    NANO --> ADV
+
+    classDef phase1 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef phase2 fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef phase3 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef phase4 fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef phase5 fill:#fce4ec,stroke:#c62828,stroke-width:2px
+
+    class LA,PROB,CALC phase1
+    class CS229,SKLEARN phase2
+    class CS230,PYTORCH phase3
+    class CS224n,TF,BERTGPT phase4
+    class CS336,NANO,ADV phase5

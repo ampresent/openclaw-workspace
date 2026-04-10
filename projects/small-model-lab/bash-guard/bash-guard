@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# bash-guard wrapper — 直接用作 bash 命令的前置检查
+# 用法: bash-guard check "rm -rf /tmp"
+# 或者: bash-guard check --confirm "some_command"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec python3 "$SCRIPT_DIR/bash-guard.py" "$@"

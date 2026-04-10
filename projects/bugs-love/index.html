@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>爱情虫</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a2e; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+canvas { display: block; }
+#start-btn {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  padding: 16px 48px; font-size: 24px; background: #e94560; color: white;
+  border: none; border-radius: 8px; cursor: pointer; font-family: sans-serif;
+  z-index: 10;
+}
+#start-btn:hover { background: #c73e54; }
+#instructions {
+  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+  color: #aaa; font-size: 14px; font-family: sans-serif; z-index: 10;
+  text-align: center;
+}
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<button id="start-btn">开始</button>
+<div id="instructions" class="hidden">按住 空格 瘪 → 松开 胀 | 鼠标左右移动控制位置</div>
+<canvas id="game"></canvas>
+<script src="audio-engine.js"></script>
+<script src="game-engine.js"></script>
+<script src="renderer.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

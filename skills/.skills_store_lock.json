@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "skills": {
+    "long-project-manager": {
+      "name": "Long Project Manager",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=long-project-manager",
+      "source": "skillhub",
+      "version": "1.0.0"
+    },
+    "mermaid": {
+      "name": "Mermaid Diagrams",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=mermaid",
+      "source": "skillhub",
+      "version": "1.0.0"
+    },
+    "resume-assistant": {
+      "name": "Resume Assistant",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=resume-assistant",
+      "source": "skillhub",
+      "version": "1.0.6"
+    },
+    "fund-query": {
+      "name": "场外基金查询",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=fund-query",
+      "source": "skillhub",
+      "version": "1.0.0"
+    },
+    "proactive-agent": {
+      "name": "Proactive Agent",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=proactive-agent",
+      "source": "skillhub",
+      "version": "3.1.0"
+    },
+    "health-score-pro": {
+      "name": "Health Score Pro",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=health-score-pro",
+      "source": "skillhub",
+      "version": "1.4.6"
+    }
+  }
+}

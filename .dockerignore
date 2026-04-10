@@ -1,0 +1,24 @@
+# ── Excluded from Docker context ──
+node_modules
+dist
+.git
+*.cast
+*.gif
+.git-credentials
+memory/
+docs/
+skills/
+projects/*/node_modules
+projects/*/dist
+projects/ai-study
+projects/bugs-love
+projects/daily-affairs
+projects/info-collector
+projects/inspiration
+projects/investment
+projects/mock-backend
+projects/music-recommender
+projects/piano-practice
+projects/resume
+projects/small-model-lab
+scripts/

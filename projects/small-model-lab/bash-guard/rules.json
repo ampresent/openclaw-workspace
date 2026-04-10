@@ -1,0 +1,58 @@
+{
+  "rules": [
+    {
+      "id": "R001",
+      "name": "禁止删除根目录",
+      "description": "禁止对根目录 / 或系统关键目录执行删除操作",
+      "severity": "critical"
+    },
+    {
+      "id": "R002",
+      "name": "禁止危险的 rm 命令",
+      "description": "禁止使用 rm -rf 或 rm -r 对任何目录执行递归强制删除",
+      "severity": "critical"
+    },
+    {
+      "id": "R003",
+      "name": "禁止 chmod 777",
+      "description": "禁止使用 chmod 777 或 chmod 0777 设置过于宽松的权限",
+      "severity": "high"
+    },
+    {
+      "id": "R004",
+      "name": "禁止修改系统关键文件",
+      "description": "禁止直接编辑 /etc/passwd, /etc/shadow, /etc/sudoers 等系统文件",
+      "severity": "critical"
+    },
+    {
+      "id": "R005",
+      "name": "禁止关闭防火墙",
+      "description": "禁止执行 ufw disable, iptables -F, systemctl stop firewalld 等操作",
+      "severity": "high"
+    },
+    {
+      "id": "R006",
+      "name": "禁止下载并执行",
+      "description": "禁止 curl/wget 下载后管道直接执行（如 curl xxx | bash）",
+      "severity": "high"
+    },
+    {
+      "id": "R007",
+      "name": "禁止 fork 炸弹",
+      "description": "禁止执行 :(){ :|:& };: 或类似的 fork 炸弹",
+      "severity": "critical"
+    },
+    {
+      "id": "R008",
+      "name": "禁止格式化磁盘",
+      "description": "禁止执行 mkfs, fdisk, dd if=... of=/dev/ 等磁盘格式化操作",
+      "severity": "critical"
+    },
+    {
+      "id": "R009",
+      "name": "高危命令需审批",
+      "description": "severity 为 critical 或 high 的命令被拦截时，必须填写审批人姓名才能继续执行，否则一律禁止",
+      "severity": "critical"
+    }
+  ]
+}
