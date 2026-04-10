@@ -144,13 +144,13 @@ ssh -i bootc-key -p 2222 -o StrictHostKeyChecking=no root@127.0.0.1
   - booted: `localhost/my-bootc-fedora:v3` (Fedora 41)
   - staged: `registry.fedoraproject.org/fedora-bootc:42`
 
-### ⚠️ 下一步：reboot 验证
+### Reboot 验证进度
 
-当前 QEMU 使用 `-snapshot` 参数，reboot 会丢弃所有写入（包括 staged 镜像）。需要：
-1. 杀掉当前 QEMU 进程
-2. 用 **去掉 `-snapshot`** 的命令重启 QEMU
-3. SSH 进 VM 执行 `reboot`
-4. 验证 `bootc status` 显示 Fedora 42 已 boot
+- [x] 杀掉旧 QEMU（带 -snapshot）
+- [x] 重启 QEMU（去掉 -snapshot）— PID 275823
+- [x] SSH 连通性验证 — Fedora 41 正常运行
+- [ ] 执行 reboot
+- [ ] 验证 Fedora 42 升级成功
 
 ---
 
