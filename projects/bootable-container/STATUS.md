@@ -2,7 +2,7 @@
 
 > **用途**：下次 session 继续工作时，读此文件即可了解全部上下文，无需重复探索。
 
-## 最后更新：2026-04-10 13:37
+## 最后更新：2026-04-10 16:42
 
 ---
 
@@ -93,12 +93,21 @@ Fedora 41 (v3) → bootc switch → Fedora 42 → bootc rollback → Fedora 41 (
 - **rollback**: `registry.fedoraproject.org/fedora-bootc:42` (Fedora 42)
 - 可随时 `bootc switch` 回 Fedora 42
 
+### PoC 进展（按 PLAN.md 顺序）
+
+| 编号 | 方向 | 状态 | 交付物 |
+|------|------|------|--------|
+| E | 生产可行性评估 | ✅ 完成 | `PRODUCTION-FEASIBILITY.md` |
+| F | 自建 bootc 镜像 | ⏳ 下一步 | `docs/bootc-image-from-scratch.md` |
+| A | Drift Detection | 待做 | `scripts/drift-check.sh` |
+| B | Ring 部署 | 待做 | `scripts/ring-deploy.sh` |
+| C | CI/CD | 待做 | `.github/workflows/build-image.yml` |
+
 ### 待办
 
 | 任务 | 状态 |
 |------|------|
 | EL10 系镜像构建 | ❌ 阻塞（quay.io 国内不可访问，无替代源） |
-| 生产可行性评估 | 待做 |
 
 ---
 
