@@ -2,7 +2,7 @@
 
 > **用途**：下次 session 继续工作时，读此文件即可了解全部上下文，无需重复探索。
 
-## 最后更新：2026-04-10 11:26
+## 最后更新：2026-04-10 13:37
 
 ---
 
@@ -40,6 +40,7 @@ python3 ssh-cmd.py "你想执行的命令"
 | podman | 5.8.0 | `/usr/bin/podman` |
 | qemu-kvm | 10.1.0 | `/usr/libexec/qemu-kvm` |
 | rpm-ostree | 2026.1 | `/usr/bin/rpm-ostree` |
+| guestfs-tools | 1.54.0 | `/usr/bin/virt-customize` |
 | OpenSSL | 3.5.5 | `/usr/bin/openssl` |
 
 **⚠️ 重要**：bootc 依赖 OpenSSL 3.5.5+，安装后必须 `dnf update openssl openssl-libs`。
@@ -50,61 +51,54 @@ python3 ssh-cmd.py "你想执行的命令"
 
 | 镜像 | 大小 | 状态 |
 |------|------|------|
-| `registry.fedoraproject.org/fedora-bootc:41` | 1.86GB | ✅ 可用于构建 qcow2 |
-| `registry.fedoraproject.org/fedora-bootc:42` | 1.88GB | ✅ 最新 |
+| `registry.fedoraproject.org/fedora-bootc:41` | 1.86GB | ✅ rollback 镜像 |
+| `registry.fedoraproject.org/fedora-bootc:42` | 1.88GB | ✅ 当前 booted |
 | `localhost/my-bootc-fedora:v2` | ~1.94GB | ✅ 自定义构建（含 sshd 修复） |
-| `localhost/my-bootc:latest` | 351MB | ✅ CentOS 8 基础（旧版） |
+| `localhost/my-bootc-fedora:v3` | ~1.94GB | ✅ 含 sshd 修复 + SSH key 注入 |
 
 ---
 
 ## 已生成产物
 
-| 文件 | 大小 | 位置 | 镜像版本 |
-|------|------|------|----------|
-| `bootc-fedora-41-qcow2-x86_64.qcow2` | ~1.2GB | 远程 `/tmp/bootc-output/` | v3 (含 SSH key)
+| 文件 | 大小 | 位置 |
+|------|------|------|
+| `bootc-fedora-41-qcow2-x86_64.qcow2` | 2.9GB | 远程 `/tmp/bootc-output/` |
 
 ---
 
 ## 完成进度
 
-### Phase 1: 环境准备 ✅ 全部完成
+### Phase 1: 环境准备 ✅
+### Phase 2: 自定义 bootc 镜像 ✅
+### Phase 3: 磁盘镜像生成 ✅
+### Phase 4: QEMU 启动验证 ✅
+### Phase 5: bootc 生命周期验证 ✅
 
-所有工具已安装，基础镜像已拉取。
+已验证的完整生命周期：
 
-### Phase 2: 构建自定义 bootc 镜像 ✅ 完成 (v2)
+| 操作 | 状态 | 详情 |
+|------|------|------|
+| `bootc switch` | ✅ | Fedora 41 (v3) → Fedora 42，65 层 / 1GB / ~19 分钟 |
+| `bootc reboot` | ✅ | Fedora 42 启动成功 |
+| `bootc rollback` | ✅ | Fedora 42 → Fedora 41 (v3)，reboot 后生效 |
+| `bootc update --check` | ✅ | 机制正常，当前无新版本 |
 
-- Fedora bootc 41 基础
-- Containerfile 含 sshd drop-in 密码认证配置
-- SSH key 公钥注入（`bootc-key.pub`）
-- `podman build -t localhost/my-bootc-fedora:v2`
-
-### Phase 3: 生成磁盘镜像 ✅ 完成
-
-**已解决的关键问题**：`image-builder` 的 cobra/pflag 库对含 `/` 和 `:` 的 flag 值解析有 bug。
-
-```bash
-# ❌ 错误 — cobra 会把 / 或 : 后面的部分解析为独立的 positional arg
-image-builder build qcow2 --bootc-ref localhost/my-bootc-fedora:v2
-
-# ✅ 正确 — 给整个 flag=value 加双引号保护
-image-builder build qcow2 "--bootc-ref=localhost/my-bootc-fedora:v2" "--bootc-default-fs=ext4" --output-dir /tmp/bootc-output
+**升级回滚完整循环**：
+```
+Fedora 41 (v3) → bootc switch → Fedora 42 → bootc rollback → Fedora 41 (v3)
 ```
 
-### Phase 4: QEMU 启动验证 ✅ 基本完成
+当前 VM 状态（2026-04-10 13:37）：
+- **booted**: `localhost/my-bootc-fedora:v3` (Fedora 41)
+- **rollback**: `registry.fedoraproject.org/fedora-bootc:42` (Fedora 42)
+- 可随时 `bootc switch` 回 Fedora 42
 
-**已解决**：
-- ✅ QEMU UEFI 固件加载（OVMF pflash 方案）
-- ✅ Fedora 41 完整引导到 login prompt
-- ✅ SSH 服务启动
-- ✅ qcow2 重新生成（v3 镜像，含 sshd 修复 + SSH key 注入）
-- ✅ **SSH key 认证登录成功**（PAM 密码认证在 ostree 布局下不可用，key 认证绕过）
-- ✅ `bootc status` 验证 — 确认 VM 运行 `localhost/my-bootc-fedora:v3`
-- ✅ `bootc switch` 到 Fedora 42 完成 — staged 镜像已就绪，待 reboot 激活
+### 待办
 
-### Phase 5: 进阶探索 ❌ 未开始
-
-- bootc update 测试（等待 switch 完成）
-- EL10 系镜像构建
+| 任务 | 状态 |
+|------|------|
+| EL10 系镜像构建 | ❌ 阻塞（quay.io 国内不可访问，无替代源） |
+| 生产可行性评估 | 待做 |
 
 ---
 
@@ -113,10 +107,11 @@ image-builder build qcow2 "--bootc-ref=localhost/my-bootc-fedora:v2" "--bootc-de
 | 问题 | 根因 | 修复 |
 |------|------|------|
 | image-builder 报 `accepts 1 arg(s), received 2` | cobra/pflag 对含 `/` 和 `:` 的值解析错误 | 给 `--flag=value` 加双引号 |
-| sshd_config sed 不生效 | Fedora bootc 用 drop-in 覆盖主配置 | 在 `sshd_config.d/` 创建 `02-password-auth.conf` |
-| SSH 密码登录 `PAM:bad_ident` | ostree 布局下 PAM 兼容性问题 | SSH key 认证（Containerfile 注入公钥，私钥上传到远程 `/tmp/bootc-key`） | ✅ 已修复 |
-| virt-customize 无法修改 ostree 镜像 | libguestfs 不识别 ostree OS | 所有定制必须在 Containerfile 中完成 |
+| sshd_config sed 不生效 | Fedora bootc 用 drop-in 覆盖主配置 | `sshd_config.d/02-password-auth.conf` |
+| SSH 密码登录 `PAM:bad_ident` | ostree 布局下 PAM 兼容性问题 | SSH key 认证绕过 |
+| virt-customize 无法修改 ostree 镜像 | libguestfs 不识别 ostree OS | 所有定制在 Containerfile 中完成 |
 | quay.io 国内不可访问 | 网络限制 | 用 `registry.fedoraproject.org` 替代 |
+| `-snapshot` 导致 switch 数据丢失 | QEMU snapshot 模式丢弃写入 | 持久化操作必须去掉 `-snapshot` |
 
 ---
 
@@ -126,50 +121,21 @@ image-builder build qcow2 "--bootc-ref=localhost/my-bootc-fedora:v2" "--bootc-de
 公钥已注入镜像（Containerfile COPY bootc-key.pub → authorized_keys）
 
 ```bash
-# 从远程宿主机 SSH 到 VM
 ssh -i bootc-key -p 2222 -o StrictHostKeyChecking=no root@127.0.0.1
 ```
 
 ---
 
-## 最新进展 (2026-04-10 12:13)
+## 已知限制
 
-### bootc switch 到 Fedora 42 — 成功 ✅
-
-- `bootc switch registry.fedoraproject.org/fedora-bootc:42` 完成
-- 65 层 / 1.0 GB，部署耗时约 19 分钟（QEMU 用户态网络）
-- Fedora 42.20260409.0 已 staged，待 reboot 激活
-- **当前 VM 状态**：
-  - booted: `localhost/my-bootc-fedora:v3` (Fedora 41)
-  - staged: `registry.fedoraproject.org/fedora-bootc:42`
-
-### ⚠️ 重要发现：-snapshot 导致 switch 数据丢失
-
-之前所有 QEMU 操作（包括 bootc switch）都带 `-snapshot`，写入未持久化到 qcow2。
-重新执行 bootc switch（本次 QEMU 无 -snapshot）。
-
-### Reboot 验证进度
-
-- [x] 杀掉旧 QEMU（带 -snapshot）
-- [x] 重启 QEMU（去掉 -snapshot）— PID 275823
-- [x] SSH 连通性验证 — Fedora 41 正常运行
-- [x] 发现 staged 丢失，重新执行 `bootc switch`
-- [x] bootc switch 完成 — Fedora 42.20260409.0 staged ✅（Deploy 4 分钟）
-- [x] **reboot 成功 — Fedora 42 (Adams) 已启动** ✅🎉
+| 问题 | 影响 | 状态 |
+|------|------|------|
+| quay.io 国内不可访问 | 无法拉取 centos-bootc | 用 Fedora 源绕过 |
+| EL10 基础镜像不可用 | 无法构建 RHEL10 系 bootc | 阻塞 |
+| Fedora bootc sshd 默认禁用密码登录 | chpasswd 设了密码仍无法 SSH | Containerfile 中 drop-in 修复 |
+| ostree 布局下 virt-customize 不可用 | 无法事后修改镜像 | 所有定制必须在 Containerfile 中完成 |
+| QEMU TCG 性能差 | bootc switch ~19 分钟 | 仅影响测试环境，生产用 KVM/裸机 |
 
 ---
 
-## 下次继续时的检查清单
-
-1. [x] SSH 连通性测试
-2. [x] 检查远程机器状态：镜像、qcow2 文件是否还在
-3. [x] 用 SSH key 登录 VM 验证成功
-4. [x] 在 VM 内执行 `bootc status` 确认 bootc 状态
-5. [x] 等 `bootc switch` 完成（Fedora 42 staged ✅）
-6. [x] **重启 QEMU（去掉 -snapshot）→ reboot VM → Fedora 42 升级验证成功** ✅
-7. [ ] 测试 bootc update 流程（pull 新镜像 → reboot → 验证）
-8. [ ] 更新文档并 commit + push
-
----
-
-*更新: 2026-04-10 12:13*
+*更新: 2026-04-10 13:37*

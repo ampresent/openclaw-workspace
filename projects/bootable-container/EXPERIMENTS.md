@@ -271,3 +271,42 @@ Gateway 重启后新 session 启动，从 STATUS.md/EXPERIMENTS.md 恢复项目�
 
 ---
 *记录: 2026-04-10 12:55*
+
+## 2026-04-10 13:31-13:37 — bootc update 检查 + rollback 验证
+
+### bootc update --check — 机制验证 ✅
+- 命令：`bootc update --check`
+- 结果：`No changes in: docker://registry.fedoraproject.org/fedora-bootc:42`
+- 当前 booted 镜像已是最新，无可用更新
+- **结论**：update 机制正常工作
+
+### bootc rollback — 完整回滚验证 ✅
+
+**操作流程**：
+1. 执行 `bootc rollback` → `Next boot: rollback deployment`
+2. reboot VM（约 90 秒，QEMU TCG）
+3. SSH 验证：已回退到 Fedora 41 (my-bootc-fedora:v3)
+
+**rollback 后状态**：
+- booted: `localhost/my-bootc-fedora:v3` (Fedora 41.20251120.0)
+- rollback: `registry.fedoraproject.org/fedora-bootc:42` (Fedora 42.20260409.0)
+
+**关键发现**：
+- rollback 后之前的 booted 自动成为新的 rollback 目标
+- 可反复 rollback/switch 形成双版本跷跷板切换
+- rollback 是 boot 级操作，reboot 后生效
+
+### 完整升级/回滚循环
+```
+Fedora 41 (v3) → bootc switch → reboot → Fedora 42
+  → bootc rollback → reboot → Fedora 41 (v3)
+```
+
+**Phase 5 全部完成**：
+- ✅ bootc switch（跨版本升级）
+- ✅ bootc reboot（新版本激活）
+- ✅ bootc rollback（一键回滚）
+- ✅ bootc update --check（更新检查）
+
+---
+*记录: 2026-04-10 13:37*

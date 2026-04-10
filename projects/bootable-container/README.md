@@ -200,6 +200,23 @@ bootc qcow2 使用 ostree 不可变文件系统，分区结构：
 | 镜像格式 | qcow2 / raw 直接构建 | OCI → qcow2 两步转换 |
 | 可复现性 | 低（状态漂移） | 高（不可变文件系统） |
 
+## 已验证的 bootc 生命周期
+
+本项目已完整验证以下操作：
+
+| 操作 | 耗时 (QEMU TCG) | 结果 |
+|------|-----------------|------|
+| `podman build` 自定义镜像 | ~2 分钟 | ✅ |
+| `image-builder build qcow2` | ~100 秒 | ✅ |
+| QEMU UEFI 启动 | ~90 秒 | ✅ |
+| SSH key 认证 | 即时 | ✅ |
+| `bootc switch` (跨大版本) | ~19 分钟 | ✅ |
+| `bootc reboot` (新版本激活) | ~90 秒 | ✅ |
+| `bootc rollback` (回滚) | ~90 秒 | ✅ |
+| `bootc update --check` | 即时 | ✅ |
+
+完整循环：`Fedora 41 → switch → Fedora 42 → rollback → Fedora 41`
+
 ## 已知限制
 
 | 问题 | 影响 | 状态 |
@@ -230,4 +247,4 @@ projects/bootable-container/
 - [Fedora bootc 镜像](https://registry.fedoraproject.org/repo/fedora-bootc)
 
 ---
-*创建: 2026-04-09 | 更新: 2026-04-10 02:05*
+*创建: 2026-04-09 | 更新: 2026-04-10 13:37*

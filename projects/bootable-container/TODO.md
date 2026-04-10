@@ -36,8 +36,11 @@
 
 ## Phase 5: 进阶探索
 
+- [x] bootc switch — Fedora 41 → 42，65 层 / ~19 分钟
+- [x] bootc reboot — Fedora 42 激活成功
+- [x] bootc rollback — Fedora 42 → 41 回滚成功
+- [x] bootc update --check — 机制验证，当前无新版本
 - [ ] 对比 bootc vs 传统 ISO 安装的 workflow
-
 - [ ] 评估生产可行性（国内镜像源限制）
 - [ ] 尝试构建 EL10 系 bootc 镜像（CentOS Stream 10 / Rocky 10）
 - [ ] 优化镜像传输速度（考虑宿主机内部 registry 或 virtio-9p）
@@ -52,4 +55,4 @@
 | EL10 基础镜像不可用 | 无法构建 RHEL10 系 bootc 镜像 | 待调研 |
 
 ---
-*创建: 2026-04-09 | 更新: 2026-04-10 00:40*
+*创建: 2026-04-09 | 更新: 2026-04-10 13:37*
