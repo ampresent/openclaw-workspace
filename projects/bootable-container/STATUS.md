@@ -156,7 +156,7 @@ ssh -i bootc-key -p 2222 -o StrictHostKeyChecking=no root@127.0.0.1
 - [x] SSH 连通性验证 — Fedora 41 正常运行
 - [x] 发现 staged 丢失，重新执行 `bootc switch`
 - [x] bootc switch 完成 — Fedora 42.20260409.0 staged ✅（Deploy 4 分钟）
-- [ ] reboot 验证 Fedora 42 升级
+- [x] **reboot 成功 — Fedora 42 (Adams) 已启动** ✅🎉
 
 ---
 
@@ -167,7 +167,7 @@ ssh -i bootc-key -p 2222 -o StrictHostKeyChecking=no root@127.0.0.1
 3. [x] 用 SSH key 登录 VM 验证成功
 4. [x] 在 VM 内执行 `bootc status` 确认 bootc 状态
 5. [x] 等 `bootc switch` 完成（Fedora 42 staged ✅）
-6. [ ] 重启 QEMU（去掉 -snapshot）→ reboot VM → 验证 Fedora 42 升级
+6. [x] **重启 QEMU（去掉 -snapshot）→ reboot VM → Fedora 42 升级验证成功** ✅
 7. [ ] 测试 bootc update 流程（pull 新镜像 → reboot → 验证）
 8. [ ] 探索 runb 集成可能性
 9. [ ] 更新文档并 commit + push

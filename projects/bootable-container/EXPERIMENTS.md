@@ -241,3 +241,33 @@ Gateway 重启后新 session 启动，从 STATUS.md/EXPERIMENTS.md 恢复项目�
 
 ---
 *记录: 2026-04-10 12:13*
+
+## 2026-04-10 12:06-12:55 — Reboot 验证 + Fedora 42 升级成功
+
+### 关键发现：-snapshot 导致数据丢失
+- 之前所有 QEMU 操作（包括 bootc switch）都带 `-snapshot`，写入到 overlay 文件而非 qcow2
+- 杀掉 QEMU 后 overlay 丢弃，staged Fedora 42 镜像丢失
+- **教训**：需要持久化的操作必须在无 -snapshot 的 QEMU 中执行
+
+### 修复过程
+1. 杀掉旧 QEMU（PID 267962，带 -snapshot）
+2. 重启 QEMU（PID 275823，无 -snapshot）
+3. SSH 验证：staged=null，仅 Fedora 41
+4. 重新执行 `bootc switch registry.fedoraproject.org/fedora-bootc:42`
+   - 层已缓存（"No changes"），直接 Deploy
+   - Deploy 耗时 4 分钟（QEMU TCG）
+5. reboot VM → Fedora 42 (Adams) 启动成功 ✅
+   - bootc status: booted=fedora-bootc:42, version=42.20260409.0
+   - os-release: Fedora Linux 42 (Adams)
+
+### Phase 5 完成
+- bootc switch: ✅
+- bootc reboot: ✅
+- Fedora 41 → 42 原子升级验证通过
+
+### 待探索
+- bootc update（pull 更新版本 → reboot）
+- runb 集成
+
+---
+*记录: 2026-04-10 12:55*
