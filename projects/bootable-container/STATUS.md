@@ -104,7 +104,6 @@ image-builder build qcow2 "--bootc-ref=localhost/my-bootc-fedora:v2" "--bootc-de
 ### Phase 5: 进阶探索 ❌ 未开始
 
 - bootc update 测试（等待 switch 完成）
-- runb 集成探索
 - EL10 系镜像构建
 
 ---
@@ -169,8 +168,7 @@ ssh -i bootc-key -p 2222 -o StrictHostKeyChecking=no root@127.0.0.1
 5. [x] 等 `bootc switch` 完成（Fedora 42 staged ✅）
 6. [x] **重启 QEMU（去掉 -snapshot）→ reboot VM → Fedora 42 升级验证成功** ✅
 7. [ ] 测试 bootc update 流程（pull 新镜像 → reboot → 验证）
-8. [ ] 探索 runb 集成可能性
-9. [ ] 更新文档并 commit + push
+8. [ ] 更新文档并 commit + push
 
 ---
 

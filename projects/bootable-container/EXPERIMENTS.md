@@ -267,7 +267,7 @@ Gateway 重启后新 session 启动，从 STATUS.md/EXPERIMENTS.md 恢复项目�
 
 ### 待探索
 - bootc update（pull 更新版本 → reboot）
-- runb 集成
+
 
 ---
 *记录: 2026-04-10 12:55*

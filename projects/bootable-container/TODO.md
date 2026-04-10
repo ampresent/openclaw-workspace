@@ -37,7 +37,7 @@
 ## Phase 5: 进阶探索
 
 - [ ] 对比 bootc vs 传统 ISO 安装的 workflow
-- [ ] 探索 bootc 与 runb 的结合可能性
+
 - [ ] 评估生产可行性（国内镜像源限制）
 - [ ] 尝试构建 EL10 系 bootc 镜像（CentOS Stream 10 / Rocky 10）
 - [ ] 优化镜像传输速度（考虑宿主机内部 registry 或 virtio-9p）
