@@ -144,13 +144,19 @@ ssh -i bootc-key -p 2222 -o StrictHostKeyChecking=no root@127.0.0.1
   - booted: `localhost/my-bootc-fedora:v3` (Fedora 41)
   - staged: `registry.fedoraproject.org/fedora-bootc:42`
 
+### ⚠️ 重要发现：-snapshot 导致 switch 数据丢失
+
+之前所有 QEMU 操作（包括 bootc switch）都带 `-snapshot`，写入未持久化到 qcow2。
+重新执行 bootc switch（本次 QEMU 无 -snapshot）。
+
 ### Reboot 验证进度
 
 - [x] 杀掉旧 QEMU（带 -snapshot）
 - [x] 重启 QEMU（去掉 -snapshot）— PID 275823
 - [x] SSH 连通性验证 — Fedora 41 正常运行
-- [ ] 执行 reboot
-- [ ] 验证 Fedora 42 升级成功
+- [x] 发现 staged 丢失，重新执行 `bootc switch` — 进行中
+- [ ] 等 switch 完成
+- [ ] reboot 验证 Fedora 42 升级
 
 ---
 
