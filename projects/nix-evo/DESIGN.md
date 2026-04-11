@@ -336,16 +336,17 @@ evolution-os 的文档保留在 `projects/evolution-os/` 作为参考。
 
 ### 包含
 
-- [ ] nix-evo-agent：HTTP API 服务 + 6 个诊断/执行端点
-- [ ] nix-evo MCP Server：stdio transport，将 MCP tool 调用翻译为 agent API
-- [ ] system_snapshot：systemctl 状态 + 磁盘/内存 + 最近失败服务
-- [ ] service_logs：journalctl 封装
-- [ ] config_read：读 /etc/nixos/ 配置文件
-- [ ] config_validate：nixos-rebuild dry-build + 摘要解析 + 风险评估
-- [ ] config_apply：nixos-rebuild switch + generation 记录
-- [ ] rollback_list / rollback_apply：generation 管理
-- [ ] hosts.toml：多主机连接配置
-- [ ] SSH 隧道：远程访问 agent API
+- [x] nix-evo-agent：HTTP API 服务 + 8 个诊断/执行端点
+- [x] nix-evo MCP Server：stdio transport，将 MCP tool 调用翻译为 agent API
+- [x] system_snapshot：systemctl 状态 + 磁盘/内存 + 最近失败服务
+- [x] service_logs：journalctl 封装
+- [x] config_read：读 /etc/nixos/ 配置文件
+- [x] config_validate：nixos-rebuild dry-build + 摘要解析 + 风险评估
+- [x] config_apply：nixos-rebuild switch + generation 记录
+- [x] rollback_list / rollback_apply：generation 管理
+- [x] hosts.toml：多主机连接配置
+- [x] 认证：可选 Bearer token
+- [ ] SSH 隧道：远程访问 agent API（用户自行建立）
 
 ### 不包含（v0.2+）
 
