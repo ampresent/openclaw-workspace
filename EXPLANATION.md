@@ -471,3 +471,278 @@ Discovers the actual network topology of running services by parsing `ss` and `/
 | `/api/mesh/topology` | GET | Service mesh map |
 | `/api/config/diff` | POST | Config diff (v1) |
 | `/api/deps` | GET | Dep graph (v1) |
+
+---
+
+# Experimental V3 Features
+
+## Feature 13: Nix Expression Interpreter (in-process)
+
+**File:** `evo/src/nix_eval.rs`
+
+A complete Nix expression parser and evaluator implemented entirely in Rust — no `nix eval` subprocess needed. This is a **subset** interpreter designed for syntax checking, config previews, and IDE integration.
+
+**Supported Nix constructs:**
+- Literals: integers, floats, booleans, null, strings
+- Data structures: attrsets `{}`, lists `[]`
+- Let bindings: `let x = 1; y = x + 2; in y`
+- Conditionals: `if true then "yes" else "no"`
+- Attribute access: `s.a.b`, `s.${expr}`, with `or` default
+- Binary operators: `+`, `-`, `*`, `/`, `==`, `!=`, `&&`, `||`, `++` (concat), `//` (merge)
+- With/inherit statements
+- Lambda definitions and application
+- Nested attribute paths: `services.nginx.enable = true`
+
+**Architecture:**
+- `Lexer` → tokenizes input with comment support (`// line`, `/* block */`)
+- `Parser` → recursive descent parser producing AST (`NixExpr` enum)
+- `Evaluator` → evaluates AST with scoped environment (`HashMap<String, NixValue>`)
+- 7 unit tests covering: arithmetic, let-bindings, attrsets, if/else, attribute selection, list concatenation
+
+**Endpoints:**
+- `GET /api/nix/check?expression=...` — parse only, return AST
+- `GET /api/nix/eval?expression=...` — parse + evaluate, return value
+
+---
+
+## Feature 14: Multi-Language Support Engine
+
+**File:** `evo/src/i18n.rs`
+
+Translates common NixOS error messages and `nixos-rebuild dry-build` output to user's language. Uses pattern matching against a built-in dictionary of error templates.
+
+**Supported languages:**
+| Language | Code | Error Patterns | Build Messages |
+|----------|------|---------------|----------------|
+| 简体中文 | zh-CN | 15 | 14 |
+| 日本語 | ja-JP | 10 | 10 |
+| Deutsch | de-DE | 9 | 9 |
+| Français | fr-FR | 9 | 9 |
+
+**Translated error categories:**
+- Attribute not found (most common Nix error)
+- Infinite recursion
+- Syntax errors
+- File not found
+- Package collisions
+- Hash mismatches
+- Network errors
+- Permission denied
+- Out of memory
+- Build failures
+
+**Endpoints:**
+- `POST /api/i18n/translate` — translate an error message or build output
+- `GET /api/i18n/languages` — list supported languages with coverage stats
+
+---
+
+## Feature 15: Security Scanner
+
+**Files:** `evo/src/security.rs` + `evo/static/security.html`
+
+Comprehensive security audit of NixOS configuration. Scans for 8 categories of issues and produces a scored report.
+
+**Scan categories:**
+1. **Firewall** — enabled/disabled, port rules, default policy
+2. **Open Ports** — detects dangerous ports (FTP, Telnet, Redis, MySQL, MongoDB, etc.), 0.0.0.0 bindings
+3. **SSH** — root login, password auth, key-based auth
+4. **Authentication** — empty/weak passwords, passwordless sudo
+5. **Services** — Docker root mode, NFS exports, web server TLS, mail security
+6. **Packages** — Nix store size, known vulnerable package patterns
+7. **File Permissions** — world-writable files in /etc, config file modes
+8. **Kernel** — MAC frameworks (AppArmor/SELinux), IP forwarding
+
+**Scoring:** 100 minus penalties per finding (Critical: -20, High: -10, Medium: -5, Low: -2), clamped to 0-100.
+
+**Endpoints:**
+- `GET /api/security/scan?config_path=...` — full scan report
+- `GET /api/security/score` — quick score only
+
+**UI:** `/security` — dark-themed dashboard with circular score gauge, category filters, finding cards with line hints and recommendations.
+
+---
+
+## Feature 16: Interactive Config Builder (WebSocket)
+
+**Files:** `evo/src/config_builder.rs` + `evo/static/builder.html`
+
+WebSocket-based wizard that guides users through building a NixOS configuration step by step. Uses a state machine per connection.
+
+**State machine:**
+1. **Welcome** — connection established, send service list
+2. **Select Services** — choose from 10 built-in services
+3. **Configure Ports** — adjust port assignments
+4. **Set Options** — configure service-specific options
+5. **Review** — preview generated configuration.nix
+6. **Done** — apply or start over
+
+**Built-in services (10):**
+| Service | Category | Default Ports |
+|---------|----------|---------------|
+| nginx | Web Server | 80, 443 |
+| postgresql | Database | 5432 |
+| redis | Cache | 6379 |
+| openssh | Remote Access | 22 |
+| grafana | Monitoring | 3000 |
+| prometheus | Monitoring | 9090 |
+| docker | Virtualization | — |
+| caddy | Web Server | 80, 443 |
+| fail2ban | Security | — |
+| mysql | Database | 3306 |
+
+Each service has configurable options (bool/string/select types) with defaults.
+
+**Endpoint:** `WS /api/config-builder/ws`
+**UI:** `/builder` — step-by-step wizard with service cards, port editing, option forms, syntax-highlighted preview.
+
+---
+
+## Feature 17: Capacity Planning
+
+**File:** `evo/src/capacity.rs`
+
+Analyzes historical and current resource usage to predict when disk/memory will be exhausted and recommends allocation changes.
+
+**What it analyzes:**
+- **Disk:** Mount point usage (from `df`), Nix store size, `nix-collect-garbage --dry-run` savings estimate
+- **Memory:** From `/proc/meminfo` — total, used, available, swap usage
+- **CPU:** Core count (from `nproc`), load averages (from `/proc/loadavg`), per-core load
+
+**Risk levels:** Low / Medium / High / Critical with configurable thresholds:
+- Disk: 70% → Medium, 85% → High, 95% → Critical
+- Memory: 70% → Medium, 85% → High, 95% → Critical
+- CPU: 0.8 per-core → Medium, 1.5 → High, 2.0 → Critical
+
+**Recommendation engine:** Generates actionable suggestions based on risk levels, with estimated savings.
+
+**Endpoint:** `GET /api/capacity/forecast?include_recommendations=true`
+
+---
+
+## Feature 18: GitOps Bridge
+
+**File:** `evo/src/gitops.rs`
+
+Git-based configuration management with webhook support. Watches a git repo for NixOS config changes and can auto-pull, validate, and deploy.
+
+**Workflow:**
+1. Configure repo URL, branch, config path via `POST /api/gitops/configure`
+2. Set up webhook pointing to `POST /api/gitops/webhook` (GitHub/Gitea format)
+3. On push: auto-pull → validate (`nix-instantiate --parse`) → optionally deploy (`nixos-rebuild switch`)
+4. Track current commit, pending commits, deploy history
+
+**Deploy state machine:** Idle → Pulling → Validating → Deploying → Success/Failed
+
+**Endpoints:**
+- `POST /api/gitops/webhook` — receive push events
+- `GET /api/gitops/status` — current state, commits, deploy history
+- `POST /api/gitops/configure` — set repo and branch
+- `POST /api/gitops/deploy` — manual trigger
+
+---
+
+## Feature 19: Plugin System
+
+**File:** `evo/src/plugin.rs`
+
+Dynamic plugin loading via shared libraries (.so/.dylib). Plugins are discovered by scanning `~/.nix-evo/plugins/`.
+
+**Plugin C ABI (required exports):**
+```c
+const char* nix_evo_plugin_init();                          // return plugin name
+const char* nix_evo_plugin_version();                       // return version string
+const char* nix_evo_plugin_handle_request(                  // handle API request
+    const char* method, const char* path, const char* body);
+const char* nix_evo_plugin_health_check();                  // return "ok" or error
+void nix_evo_plugin_cleanup();                              // free resources
+```
+
+**Features:**
+- Auto-discovery on startup and on-demand via API
+- Plugin manifest support (.json alongside .so for metadata)
+- Health checking for all loaded plugins
+- Request routing by plugin name
+- Graceful error handling for failed plugins
+
+**Endpoints:**
+- `GET /api/plugins` — list all discovered plugins with status
+- `GET /api/plugins/health` — health check all loaded plugins
+
+---
+
+## Feature 20: MCP Server V3 Tools
+
+**File:** `mcp-server/src/experimental-v3.ts`
+
+Eight new MCP tools wrapping all V3 features:
+
+| Tool | Description | Agent Endpoint |
+|------|-------------|----------------|
+| `nix_eval_check` | Syntax check Nix expression | `GET /api/nix/check` |
+| `nix_eval_run` | Evaluate Nix expression | `GET /api/nix/eval` |
+| `i18n_translate` | Translate error messages | `GET /api/i18n/translate` |
+| `security_scan` | Security audit | `GET /api/security/scan` |
+| `config_builder_status` | Config builder info | WS /api/config-builder/ws |
+| `capacity_forecast` | Resource forecasting | `GET /api/capacity/forecast` |
+| `gitops_status` | GitOps state | `GET /api/gitops/status` |
+| `plugins_list` | Plugin system status | `GET /api/plugins` |
+
+All tools return human-readable formatted text + raw JSON via `structuredContent`.
+
+---
+
+## New API Endpoints Summary (V1 + V2 + V3)
+
+| Endpoint | Method | Feature |
+|----------|--------|---------|
+| `/api/dashboard/ws` | WebSocket | Live Dashboard |
+| `/dashboard` | GET | Dashboard HTML |
+| `/api/audit` | GET | Audit log query |
+| `/api/audit/stats` | GET | Audit statistics |
+| `/api/healer/status` | GET | Healer status |
+| `/api/flake/convert` | POST | Flake conversion |
+| `/api/cluster/deploy` | POST | Cluster deploy |
+| `/api/cluster/status` | GET | Cluster status |
+| `/api/cluster/nodes` | POST/GET | Add/remove nodes |
+| `/api/marketplace/search` | GET | Package search |
+| `/api/marketplace/info` | GET | Package details |
+| `/api/deps/graph` | GET | Dependency graph |
+| `/api/deps/graph/analyze` | POST | Inline config analysis |
+| `/api/timeline` | GET | Generation timeline |
+| `/api/timeline/compare` | GET | Compare generations |
+| `/api/advisor/recommend` | POST | Smart rollback |
+| `/api/advisor/status` | GET | Advisor quick status |
+| `/metrics` | GET | Prometheus metrics |
+| `/deps` | GET | Deps graph UI |
+| `/timeline` | GET | Timeline UI |
+| **`/api/nix/eval`** | **GET** | **Nix expression eval** |
+| **`/api/nix/check`** | **GET** | **Nix syntax check** |
+| **`/api/i18n/translate`** | **GET** | **Translate messages** |
+| **`/api/i18n/languages`** | **GET** | **Supported languages** |
+| **`/api/security/scan`** | **GET** | **Security scan** |
+| **`/api/security/score`** | **GET** | **Security score** |
+| **`/api/config-builder/ws`** | **WS** | **Config builder** |
+| **`/api/capacity/forecast`** | **GET** | **Capacity planning** |
+| **`/api/gitops/status`** | **GET** | **GitOps state** |
+| **`/api/gitops/configure`** | **POST** | **GitOps config** |
+| **`/api/gitops/deploy`** | **POST** | **GitOps deploy** |
+| **`/api/gitops/webhook`** | **POST** | **Webhook receiver** |
+| **`/api/plugins`** | **GET** | **Plugin list** |
+| **`/api/plugins/health`** | **GET** | **Plugin health** |
+| **`/security`** | **GET** | **Security UI** |
+| **`/builder`** | **GET** | **Config builder UI** |
+
+---
+
+## Architecture Notes (V3)
+
+- Nix interpreter is pure Rust — no subprocess calls, runs in <1ms for simple expressions
+- i18n uses pattern matching against error templates — extensible by adding more patterns
+- Security scanner reads `/proc`, runs `ss` and `nix-store` — Linux-specific, matches NixOS target
+- Config builder uses `tokio::sync::broadcast` for multi-client WebSocket coordination
+- Capacity planner reads `/proc/meminfo`, `/proc/loadavg`, `df` — zero external dependencies
+- GitOps uses `OnceLock` for global state, file-based git operations
+- Plugin system defines C ABI for interop — supports .so/.dylib on Linux/macOS
+- All V3 features follow the existing axum + tokio patterns from V1/V2
+- MCP V3 tools include both human-readable formatting and `structuredContent` for AI agent consumption
