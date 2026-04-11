@@ -6,6 +6,7 @@ pub mod generation_diff;
 pub mod config_validate;
 pub mod config_apply;
 pub mod rollback;
+pub mod conda_handlers;
 
 use axum::extract::{Query, State};
 use serde::Deserialize;
@@ -44,7 +45,7 @@ pub async fn run_cmd(cmd: &str, args: &[&str]) -> Result<String, AppError> {
 /// App state type alias for handlers
 pub type AppStateRef = State<Arc<AppState>>;
 
-/// Helper: read generation descriptions from /nix/var/nix/profiles/
+/// Helper: read generation descriptions
 pub fn read_generation_description(gen_num: u64) -> String {
     let desc_path = format!(
         "/nix/var/nix/profiles/system-{}-link/nix-evo-description",

@@ -2,9 +2,13 @@ pub mod config;
 pub mod cmd;
 pub mod error;
 pub mod auth;
+pub mod conda;
+pub mod conda_diag;
+pub mod hybrid;
+pub mod conda_lock;
 
 use axum::{
-    routing::{get, post},
+    routing::{get, post, delete},
     Router,
 };
 use std::sync::Arc;
@@ -22,7 +26,6 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Logging
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env()
@@ -30,14 +33,13 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    // CLI args
     let config = Config::from_args();
     let addr = config.bind_addr();
     let has_token = config.api_token.is_some();
 
     let state = Arc::new(AppState { config });
 
-    // API routes (require auth if token is set)
+    // Core NixOS API routes
     let api_routes = Router::new()
         .route("/snapshot", get(system_snapshot::handle))
         .route("/logs", get(service_logs::handle))
@@ -47,9 +49,24 @@ async fn main() -> anyhow::Result<()> {
         .route("/config/validate", post(config_validate::handle))
         .route("/config/apply", post(config_apply::handle))
         .route("/rollback", post(rollback::handle))
+        // Conda environment management routes
+        .route("/conda/envs", get(conda_handlers::list_envs_handler))
+        .route("/conda/packages", get(conda_handlers::list_packages_handler))
+        .route("/conda/create", post(conda_handlers::create_env_handler))
+        .route("/conda/install", post(conda_handlers::install_handler))
+        .route("/conda/remove", post(conda_handlers::remove_handler))
+        .route("/conda/export", get(conda_handlers::export_handler))
+        .route("/conda/create-from-yml", post(conda_handlers::create_from_yml_handler))
+        .route("/conda/envs/:name", delete(conda_handlers::remove_env_handler))
+        // Conda diagnostics routes
+        .route("/conda/diag", get(conda_diag::diag_handler))
+        .route("/conda/drift", get(conda_diag::drift_handler))
+        // Hybrid NixOS+conda view
+        .route("/hybrid/snapshot", get(hybrid::snapshot_handler))
+        // conda-lock routes
+        .route("/conda/lock", post(conda_lock::lock_handler))
         .with_state(state.clone());
 
-    // Apply auth middleware to API routes if token is configured
     let api_routes = if has_token {
         api_routes.layer(axum::middleware::from_fn_with_state(
             state.clone(),
