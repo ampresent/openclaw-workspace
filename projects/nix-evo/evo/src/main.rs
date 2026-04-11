@@ -23,6 +23,10 @@ pub mod deps;
 pub mod timeline;
 pub mod advisor;
 pub mod metrics;
+pub mod chaos;
+pub mod drift;
+pub mod optimizer;
+pub mod mesh;
 
 use axum::{
     routing::{get, post},
@@ -108,6 +112,16 @@ async fn main() -> anyhow::Result<()> {
         // Experimental v2: Smart Rollback Advisor
         .route("/advisor/recommend", post(advisor::handle_recommend))
         .route("/advisor/status", get(advisor::handle_status))
+        // Experimental v3: Chaos Monkey
+        .route("/chaos/scenarios", get(chaos::handle_scenarios))
+        .route("/chaos/run", post(chaos::handle_run))
+        .route("/chaos/status", get(chaos::handle_chaos_status))
+        // Experimental v3: Drift Detector
+        .route("/drift/scan", get(drift::handle_scan))
+        // Experimental v3: Config Optimizer
+        .route("/optimizer/analyze", get(optimizer::handle_analyze))
+        // Experimental v3: Service Mesh
+        .route("/mesh/topology", get(mesh::handle_topology))
         .with_state(state.clone());
 
     // Apply auth middleware to API routes if token is configured
