@@ -98,6 +98,9 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let app = Router::new()
+        // Conda health dashboard
+        .route("/dashboard/conda", get(|| async { axum::response::Html(include_str!("../static/conda-dashboard.html")) }))
+
         .nest("/api", api_routes)
         .route("/health", get(|| async { "ok" }))
         .layer(CorsLayer::permissive())
