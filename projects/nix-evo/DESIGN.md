@@ -1,214 +1,357 @@
 # nix-evo 设计文档
 
-> GitOps for NixOS — AI agent 改 Git 仓库，机器自动 pull + rebuild。
+> NixOS 的人话接口 — 让不懂 Nix 的人通过 AI 安全地管理 NixOS 服务器。
 
 ## 一、项目定位
 
-nix-evo 是 AI Agent 的 NixOS 操作层。它不自己写 Nix 代码，而是让会写 Nix 的 AI（Claude Code、Cursor、Codex 等）能安全地管理 NixOS 系统。
+nix-evo 是 Claude Code 等 AI Agent 与 NixOS 服务器之间的桥梁层。它不自己写 Nix 代码，也不强加 GitOps 工作流，而是让 AI agent 能安全地**诊断问题、预览变更、执行修复、一键回滚**。
 
-核心理念：**配置在 Git 里，机器来拉取。** 开发者或 AI 修改 Git 仓库中的 NixOS 配置，NixOS 主机上的 agent 检测变更后自动 pull + rebuild。
+### 核心场景
+
+用户服务器出了问题，在本地打开 Claude Code，用自然语言描述问题（如"nginx 502 了"），Claude Code 通过 nix-evo 读取服务器状态、定位问题、生成修复方案、dry-run 验证、安全执行。
 
 ### 目标用户
 
-- **服务器运维**：需要可控的更新、审计变更、一键回滚
-- **AI 研究者**：需要 AI 能程序化地理解和修改系统环境
+- **不懂 Nix 的服务器运维**：知道服务器有问题，但不想学 Nix 语言
+- **AI 研究者**：需要 AI 能程序化地理解和修改远程系统环境
 
-### 与 NixOS 的关系
+### 核心价值
 
-nix-evo 不替代 NixOS，而是补全 NixOS 缺失的"运维交互层"。NixOS 解决了"系统是什么"（声明式配置、原子回滚），nix-evo 解决"谁来管理配置变更的生命周期"。
+> nix-evo 不是 GitOps 工具，是 NixOS 的"人话接口"。
 
 ## 二、架构
 
 ```
-AI Agent / 开发者
+用户 ("nginx 502 了")
     │
-    │ 修改 Git 仓库
     ▼
-┌──────────────────────┐
-│  Git 仓库 (唯一真相源) │
-│  configuration.nix    │
-│  flake.nix / flake.lock│
-│  modules/             │
-└──────────┬───────────┘
-           │
-           │ git pull (检测变更)
-           │
-┌──────────▼───────────┐
-│  nix-evo-agent        │  ← 跑在 NixOS 主机上
-│                       │
-│  1. git pull          │
-│  2. nixos-rebuild     │
-│     dry-run           │
-│  3. 通知用户变更内容   │
-│  4. 用户确认 → switch │
-│  5. generation 快照   │
-└──────────────────────┘
+Claude Code (AI Agent, 本地运行)
+    │
+    │ MCP stdio (JSON-RPC 2.0)
+    │
+nix-evo MCP Server (本地运行, 作为桥)
+    │
+    │ HTTP / SSH
+    │
+nix-evo-agent (NixOS 服务器上)
+    │
+    ▼
+NixOS 系统 (configuration.nix + nixpkgs)
 ```
 
-### 关键设计原则
+### 组件
 
-1. **Pull, not Push**：主机主动拉取，不接受远程推送。减少攻击面，符合最小权限原则。
-2. **Git 是唯一真相源**：系统状态由 Git 仓库的 commit hash 唯一确定。
-3. **变更需确认**：agent 检测到变更后先 dry-run 展示 diff，用户确认后才 apply（可配置为自动 apply）。
-4. **原子回滚**：每次 apply 生成 NixOS generation，回滚 = `nixos-rebuild switch --rollback` 或 `git revert`。
+| 组件 | 运行位置 | 职责 |
+|------|----------|------|
+| nix-evo-agent | NixOS 服务器 | 执行诊断命令、apply/rollback 操作 |
+| nix-evo MCP Server | 用户本地 | 翻译 MCP 协议 → agent API，生成摘要和风险评估 |
 
-## 三、组件设计
+nix-evo **不包含 AI**。AI 能力由 Claude Code 等外部 agent 提供。
 
-### 3.1 nix-evo-agent（NixOS 主机端）
+## 三、MCP Tools（给 Claude Code 的接口）
 
-跑在 NixOS 主机上的后台服务，负责拉取和应用配置变更。
+### 3.1 诊断阶段
 
-#### 命令接口
+#### `system_snapshot`
 
-```bash
-# 初始化：关联 Git 仓库
-nix-evo-agent init --repo <git-url> [--branch main] [--auto-apply]
+第一步必须调的工具，获取服务器全局状态。
 
-# 开始监听（前台/后台）
-nix-evo-agent watch [--interval 60]   # 轮询间隔，默认 60 秒
-
-# 手动触发
-nix-evo-agent apply                   # pull + dry-run + switch
-nix-evo-agent apply --dry-run         # 只 dry-run，不实际执行
-nix-evo-agent apply --auto            # 跳过确认，直接 switch
-
-# 回滚
-nix-evo-agent rollback                # 回滚到上一个 generation
-nix-evo-agent rollback --to <gen>     # 回滚到指定 generation
-nix-evo-agent rollback --git          # git revert + apply
-
-# 状态
-nix-evo-agent status                  # 当前 generation、上次同步、待应用变更
+```json
+{
+  "name": "system_snapshot",
+  "description": "获取 NixOS 服务器的全局状态快照",
+  "parameters": {
+    "host": "服务器标识 (在 hosts.toml 中定义)"
+  },
+  "returns": {
+    "hostname": "string",
+    "nixos_version": "string",
+    "kernel": "string",
+    "uptime": "string",
+    "services": [
+      {"name": "nginx.service", "active": "active", "sub": "running", "description": "A high performance web server"}
+    ],
+    "disk": [
+      {"mount": "/", "used_pct": 45}
+    ],
+    "memory": {"total": "16GB", "used": "8GB", "available": "8GB"},
+    "recent_failures": [
+      {"unit": "phpfpm.service", "since": "2h ago", "log_excerpt": "Failed to start PHP FastCGI Process Manager"}
+    ]
+  }
+}
 ```
 
-#### 工作流程
+#### `service_logs`
 
-```
-watch 循环 (每 N 秒):
-  1. git fetch origin
-  2. 比较本地 HEAD vs origin/<branch>
-  3. 有差异？
-     ├─ 否 → 跳过
-     └─ 是 → git pull
-              nixos-rebuild dry-build
-              输出变更 diff（包变化、服务变化、配置变化）
-              写入待应用队列
-  4. 如果 auto-apply: 直接 nixos-rebuild switch
-     否则: 等待用户手动 apply
-```
+定向深挖某个服务的日志。
 
-#### 状态存储
-
-```
-/etc/nixos/                    # Git 仓库工作目录
-/var/lib/nix-evo/
-  state.json                   # agent 状态（上次同步时间、当前 generation 等）
-  queue/                       # 待应用变更队列
+```json
+{
+  "name": "service_logs",
+  "parameters": {
+    "host": "string",
+    "unit": "服务名，如 nginx.service",
+    "lines": 50
+  },
+  "returns": {
+    "logs": ["log line 1", "log line 2", "..."]
+  }
+}
 ```
 
-### 3.2 nix-evo CLI（管理端，可选）
+#### `config_read`
 
-给运维人员和 AI agent 的管理接口。可以远程操作（通过 SSH 查询 agent 状态），也可以本机直接操作。
+读取当前 NixOS 配置源码。
 
-```bash
-nix-evo status [host]          # 查看主机状态
-nix-evo diff [host]            # 本地仓库 vs 远程实际状态
-nix-evo apply [host]           # 触发远程 agent 执行 apply
-nix-evo rollback [host]        # 触发远程回滚
+```json
+{
+  "name": "config_read",
+  "parameters": {
+    "host": "string",
+    "path": "可选，指定文件路径，默认 configuration.nix"
+  },
+  "returns": {
+    "content": "Nix 源码字符串",
+    "path": "文件绝对路径"
+  }
+}
 ```
 
-### 3.3 MCP Server（AI Agent 接口）
+#### `package_info`
 
-nix-evo 同时作为 MCP server 运行，给 AI agent 提供工具调用接口。
+查询已安装包的详细信息。
 
-| Tool | 参数 | 返回 |
-|------|------|------|
-| `system_status` | host | 硬件、内核、服务、generation 信息 |
-| `config_get` | host, path? | configuration.nix 或指定模块内容 |
-| `config_diff` | host | 待应用变更的 diff |
-| `config_apply` | host, message? | commit + push + 触发 apply，返回结果 |
-| `rollback_list` | host | generation 历史列表 |
-| `rollback_apply` | host, target | 回滚到指定 generation |
-
-MCP transport: **stdio**（JSON-RPC 2.0）
-
-## 四、Git 仓库结构
-
-```
-nixos-config/                  # 每台主机一个仓库（或 monorepo 多主机）
-├── flake.nix                  # Nix flake 入口
-├── flake.lock                 # 锁定 nixpkgs 版本
-├── configuration.nix          # 主配置
-├── hardware-configuration.nix # 硬件配置（自动生成，通常不改）
-├── modules/                   # 自定义模块
-│   ├── monitoring.nix
-│   └── backup.nix
-├── secrets/                   # 加密密钥（agenix/sops-nix）
-│   └── .gitkeep
-└── README.md
+```json
+{
+  "name": "package_info",
+  "parameters": {
+    "host": "string",
+    "name": "包名，如 nginx"
+  },
+  "returns": {
+    "name": "nginx",
+    "version": "1.24.2",
+    "description": "...",
+    "dependencies": ["openssl", "pcre2", "zlib"],
+    "service_unit": "nginx.service"
+  }
+}
 ```
 
-### 多主机管理
+#### `generation_diff`
 
-两种模式，用户自选：
+对比两个 NixOS generation 的差异。
 
-1. **每主机一个仓库**：简单直接，隔离性好
-2. **Monorepo + NixOS profiles**：一个仓库多个 `hosts/<hostname>/` 目录，共享 modules
-
-nix-evo agent 通过 `--repo` 指定仓库，`--host` 指定在 monorepo 中的主机名。
-
-## 五、安全模型
-
-### 信任边界
-
-```
-可信:
-  - Git 仓库内容（由开发者/AI 提交，经过 review）
-  - nix-evo-agent 二进制（由 NixOS 构建系统产出）
-
-不可信:
-  - 任何远程推送（agent 只 pull，不接受 push）
-  - MCP/CLI 输入（所有外部输入需校验）
+```json
+{
+  "name": "generation_diff",
+  "parameters": {
+    "host": "string",
+    "from": "可选，generation 编号，默认上一个",
+    "to": "可选，generation 编号，默认当前"
+  },
+  "returns": {
+    "packages_added": ["new-pkg-1.0"],
+    "packages_removed": ["old-pkg-0.9"],
+    "services_changed": ["nginx.service"],
+    "config_diff": "unified diff 格式"
+  }
+}
 ```
 
-### 关键安全措施
+### 3.2 修复阶段
 
-1. **只出不进**：agent 只做 git pull，不开放任何端口接收外部连接
-2. **变更确认**：默认 dry-run + 人工确认，auto-apply 需显式开启
-3. **签名验证**：Git commit 可选 GPG 签名验证（`--verify-signatures`）
-4. **最小权限**：agent 以 root 运行（nixos-rebuild 需要），但不做任何超出 rebuild 范围的操作
-5. **Secrets 管理**：不处理明文密钥，推荐 agenix/sops-nix 方案
+#### `config_validate`
 
-## 六、v0.1 范围
+预览变更，不执行，只验证。Claude Code 生成修复方案后调用此工具。
 
-### 包含
+```json
+{
+  "name": "config_validate",
+  "parameters": {
+    "host": "string",
+    "config": "新的 NixOS 配置内容（完整或增量）"
+  },
+  "returns": {
+    "valid": true,
+    "dry_run_output": "nixos-rebuild dry-build 原始输出",
+    "summary": {
+      "packages_added": ["php83-1.0"],
+      "packages_removed": [],
+      "services_restart": ["nginx.service"],
+      "services_stop": [],
+      "risk_level": "safe | moderate | dangerous",
+      "risk_reasons": ["涉及防火墙规则变更", "将删除 3 个包"]
+    }
+  }
+}
+```
 
-- [ ] `nix-evo-agent init` — clone 仓库 + 写初始配置
-- [ ] `nix-evo-agent watch` — 轮询 Git remote，检测变更
-- [ ] `nix-evo-agent apply` — pull + dry-run + switch
-- [ ] `nix-evo-agent rollback` — 回滚到上一个 generation
-- [ ] `nix-evo-agent status` — 基本状态展示
-- [ ] MCP server — 6 个 tool 的 stdio 接口
-- [ ] NixOS module — `services.nix-evo-agent` 声明式配置
+**risk_level 判定规则**：
+- **safe**：只添加/修改配置项，不删除包，不改防火墙/磁盘/引导
+- **moderate**：重启核心服务、升级包版本
+- **dangerous**：删除包、改防火墙、改磁盘分区、改引导加载器、改网络配置
 
-### 不包含（v0.2+）
+#### `config_apply`
 
-- webhook 触发（v0.1 只用轮询）
-- nixpkgs 源码级修改
-- 多机编排
-- GUI/TUI 看板
-- 自动测试（nixos-rebuild test 后再 switch）
+确认执行。用户确认后 Claude Code 调用。
 
-## 七、与旧项目 evolution-os 的关系
+```json
+{
+  "name": "config_apply",
+  "parameters": {
+    "host": "string",
+    "config": "NixOS 配置内容",
+    "message": "可选，变更说明，记录到 generation 注释"
+  },
+  "returns": {
+    "success": true,
+    "generation": 43,
+    "summary": "php-fpm 已启用，nginx 已重启，配置已生效",
+    "rollback_command": "nix-evo rollback --to 42"
+  }
+}
+```
 
-nix-evo 是 evolution-os 思路的重新实现。核心变化：
+### 3.3 兜底阶段
+
+#### `rollback_list`
+
+列出可用的 generation。
+
+```json
+{
+  "name": "rollback_list",
+  "parameters": {"host": "string"},
+  "returns": {
+    "current": 43,
+    "generations": [
+      {"number": 43, "date": "2026-04-12 05:30", "description": "启用 php-fpm"},
+      {"number": 42, "date": "2026-04-11 22:00", "description": "初始配置"}
+    ]
+  }
+}
+```
+
+#### `rollback_apply`
+
+回滚到指定 generation。
+
+```json
+{
+  "name": "rollback_apply",
+  "parameters": {
+    "host": "string",
+    "target": "generation 编号，不指定则回滚到上一个"
+  },
+  "returns": {
+    "success": true,
+    "reverted_to": 42,
+    "summary": "已回滚到 generation 42 (2小时前的状态)"
+  }
+}
+```
+
+## 四、nix-evo-agent（服务器端）
+
+跑在 NixOS 服务器上的轻量服务，暴露 HTTP API 供 MCP Server 调用。
+
+### API 端点
+
+| 端点 | 方法 | 对应 MCP Tool |
+|------|------|---------------|
+| `/api/snapshot` | GET | system_snapshot |
+| `/api/logs` | GET | service_logs |
+| `/api/config` | GET | config_read |
+| `/api/package` | GET | package_info |
+| `/api/generations` | GET | generation_diff, rollback_list |
+| `/api/config/validate` | POST | config_validate |
+| `/api/config/apply` | POST | config_apply |
+| `/api/rollback` | POST | rollback_apply |
+
+### 安全
+
+- API 默认只监听 `127.0.0.1`，远程访问需通过 SSH 隧道或 VPN
+- 可选 API token 认证
+- 所有写操作（apply/rollback）需二次确认（agent 端也可配置 auto-approve）
+
+### 实现
+
+- Rust（复用已有经验）
+- HTTP 框架：axum 或 actix-web
+- 系统操作：调用 systemctl、nixos-rebuild、nix-store 等子进程
+
+## 五、典型交互流程
+
+```
+用户: nginx 502 了
+
+Claude Code: [调用 system_snapshot]
+  → 发现 php-fpm.service 状态为 failed
+  → [调用 service_logs("phpfpm.service")]
+  → 发现 php-fpm 配置错误：监听端口与 nginx upstream 不匹配
+
+Claude Code: 我查了一下，php-fpm 服务启动失败了，原因是监听端口配置错误。
+             nginx upstream 指向 9000 端口，但 php-fpm 配置监听的是 9001。
+             我来修复配置。
+
+  [调用 config_read("/etc/nixos/configuration.nix")]
+  [Claude Code 生成修复后的 Nix 配置]
+  [调用 config_validate]
+
+Claude Code: 这个修改会：
+  ✅ 将 php-fpm 监听端口从 9001 改为 9000
+  ✅ 重启 php-fpm 和 nginx 服务
+  风险等级：低（只修改服务配置端口）
+
+要我应用吗？
+
+用户: 确认
+
+Claude Code: [调用 config_apply]
+  → 成功，generation 43
+
+Claude Code: 已完成！php-fpm 端口已修正，两个服务都已重启。
+             nginx 502 应该修复了。如果还有问题，可以回滚到之前的状态。
+```
+
+## 六、与 evolution-os 的关系
+
+nix-evo 是 evolution-os 思路的重新定位。核心变化：
 
 | | evolution-os | nix-evo |
 |---|---|---|
 | 底层 | Rocky Linux (RPM) | NixOS (Nix) |
-| 变更模型 | Patch 栈叠加源码 | Git 仓库声明式配置 |
+| 变更模型 | Patch 栈叠加源码 | NixOS 配置声明式 |
 | AI 接入 | 内置 AI (调 API) | 外部 Agent (MCP) |
-| 部署模式 | CLI push | Agent pull (GitOps) |
-| 回滚 | Tag 快照 | NixOS generation + git revert |
+| 部署模式 | CLI push | Agent API pull |
+| 回滚 | Tag 快照 | NixOS generation |
+| 核心价值 | 源码驱动的元 OS | NixOS 的人话接口 |
+| 目标用户 | 开发者/Hacker | 不懂 Nix 的运维 |
 
-evolution-os 的设计文档和代码保留在 `projects/evolution-os/` 作为参考，不删除。
+evolution-os 的文档保留在 `projects/evolution-os/` 作为参考。
+
+## 七、v0.1 范围
+
+### 包含
+
+- [ ] nix-evo-agent：HTTP API 服务 + 6 个诊断/执行端点
+- [ ] nix-evo MCP Server：stdio transport，将 MCP tool 调用翻译为 agent API
+- [ ] system_snapshot：systemctl 状态 + 磁盘/内存 + 最近失败服务
+- [ ] service_logs：journalctl 封装
+- [ ] config_read：读 /etc/nixos/ 配置文件
+- [ ] config_validate：nixos-rebuild dry-build + 摘要解析 + 风险评估
+- [ ] config_apply：nixos-rebuild switch + generation 记录
+- [ ] rollback_list / rollback_apply：generation 管理
+- [ ] hosts.toml：多主机连接配置
+- [ ] SSH 隧道：远程访问 agent API
+
+### 不包含（v0.2+）
+
+- nixpkgs 源码级修改
+- GUI/TUI 看板
+- webhook 触发
+- 多机编排
+- 自动化测试（nixos-rebuild test 后再 switch）
+- secrets 管理（agenix/sops-nix 集成）

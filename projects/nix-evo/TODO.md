@@ -2,25 +2,28 @@
 
 ## v0.1 — 最小可用
 
-- [ ] `nix-evo-agent` Rust 项目骨架 (Cargo.toml + CLI 框架)
-- [ ] `init` — clone 仓库 + 写 agent 配置
-- [ ] `watch` — 轮询 Git remote 检测变更
-- [ ] `apply` — pull + nixos-rebuild dry-run + switch
-- [ ] `rollback` — 列出 generation + 回滚
-- [ ] `status` — 当前 generation、上次同步时间、待应用变更
-- [ ] MCP server — stdio transport + 6 个 tool
-- [ ] NixOS module — `services.nix-evo-agent` 声明式配置
-- [ ] 文档 + README
+- [ ] nix-evo-agent Rust 项目骨架 (axum HTTP server)
+- [ ] `system_snapshot` — systemctl + 磁盘/内存 + 最近失败服务
+- [ ] `service_logs` — journalctl 封装
+- [ ] `config_read` — 读 /etc/nixos/ 配置文件
+- [ ] `package_info` — nix-store / nix 查询封装
+- [ ] `generation_diff` — nixos-rebuild generations + diff
+- [ ] `config_validate` — nixos-rebuild dry-build + 摘要解析 + 风险评估
+- [ ] `config_apply` — nixos-rebuild switch + generation 记录
+- [ ] `rollback_list` / `rollback_apply` — generation 管理
+- [ ] MCP server — stdio transport, JSON-RPC 2.0
+- [ ] hosts.toml — 多主机连接配置
+- [ ] SSH 隧道 — 远程访问 agent API
 
 ## v0.2 — 增强
 
-- [ ] webhook 触发（GitHub/Gitea webhook）
 - [ ] nixpkgs 源码级修改工具
-- [ ] 自动测试（nixos-rebuild test 后再 switch）
+- [ ] nixos-rebuild test 后再 switch（自动测试）
+- [ ] secrets 管理集成 (agenix/sops-nix)
 - [ ] TUI 看板
 
-## v0.3 — 多机
+## v0.3 — 扩展
 
-- [ ] 多主机编排
-- [ ] Monorepo profiles 支持
-- [ ] 配置模板/共享模块管理
+- [ ] 多机编排
+- [ ] webhook 触发（GitHub/Gitea）
+- [ ] 配置模板/共享模块
