@@ -67,23 +67,28 @@ pub fn run(args: InitArgs, root: Option<&str>) -> Result<()> {
     extract_srpm(&srpm_path, &tmp_build)?;
 
     // Step 3: Copy sources to src/<package>/
-    let sources_dir = tmp_build.join("SOURCES");
-    let specs_tmp = tmp_build.join("SPECS");
-
-    if sources_dir.exists() {
-        copy_dir_contents(&sources_dir, &pkg_dir)?;
+    // Rocky src.rpm extracts flat (no SOURCES/SPECS subdirs) or nested.
+    // Handle both cases: always copy INTO pkg_dir.
+    if tmp_build.join("SOURCES").exists() {
+        copy_dir_contents(&tmp_build.join("SOURCES"), &pkg_dir)?;
+    } else {
+        // Flat extraction: copy everything from tmp_build root
+        copy_dir_contents(&tmp_build, &pkg_dir)?;
     }
 
-    // Step 4: Copy spec file
-    if specs_tmp.exists() {
-        for entry in std::fs::read_dir(&specs_tmp)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.extension().map_or(false, |e| e == "spec") {
-                let dest = specs_dir.join(format!("{}.spec", args.package));
-                std::fs::copy(&path, &dest)?;
-                println!("{} spec: {}", "✓".green(), dest.display());
-            }
+    // Copy spec file
+    let spec_src_dir = if tmp_build.join("SPECS").exists() {
+        tmp_build.join("SPECS")
+    } else {
+        tmp_build.clone()
+    };
+    for entry in std::fs::read_dir(&spec_src_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().map_or(false, |e| e == "spec") {
+            let dest = specs_dir.join(format!("{}.spec", &args.package));
+            std::fs::copy(&path, &dest)?;
+            println!("{} spec: {}", "✓".green(), dest.display());
         }
     }
 
@@ -95,15 +100,30 @@ pub fn run(args: InitArgs, root: Option<&str>) -> Result<()> {
             .output()
             .context("failed to init git in package dir")?;
 
+        // Set local identity (no global config needed)
+        Command::new("git")
+            .args(["config", "user.email", "evo@local"])
+            .current_dir(&pkg_dir)
+            .output()?;
+        Command::new("git")
+            .args(["config", "user.name", "evo"])
+            .current_dir(&pkg_dir)
+            .output()?;
+
         Command::new("git")
             .args(["add", "-A"])
             .current_dir(&pkg_dir)
             .output()?;
 
-        Command::new("git")
+        let commit_out = Command::new("git")
             .args(["commit", "-q", "-m", "initial: upstream source from src.rpm"])
             .current_dir(&pkg_dir)
             .output()?;
+
+        if !commit_out.status.success() {
+            let stderr = String::from_utf8_lossy(&commit_out.stderr);
+            bail!("initial git commit failed: {}", stderr);
+        }
     }
 
     // Cleanup
