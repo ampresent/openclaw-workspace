@@ -8,6 +8,7 @@ pub mod hybrid;
 pub mod conda_lock;
 pub mod venv_bridge;
 pub mod env_sync;
+pub mod env_test;
 
 use axum::{
     routing::{get, post, delete},
@@ -65,14 +66,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/conda/drift", get(conda_diag::drift_handler))
         // Hybrid NixOS+conda view
         .route("/hybrid/snapshot", get(hybrid::snapshot_handler))
-        // conda-lock routes
         // Python virtual environment bridge
+        .route("/python/envs", get(venv_bridge::list_python_envs_handler))
         // Environment sync engine
         .route("/env/sync", post(env_sync::sync_handler))
         .route("/env/export-all", post(env_sync::export_all_handler))
-
-        .route("/python/envs", get(venv_bridge::list_python_envs_handler))
-
+        // Environment testing framework
+        .route("/env/test", post(env_test::test_handler))
+        .route("/env/test/auto", post(env_test::auto_test_handler))
         .route("/conda/lock", post(conda_lock::lock_handler))
         .with_state(state.clone());
 
