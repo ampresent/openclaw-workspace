@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evolution OS — 源码即系统</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+    :root {
+      --bg: #08080c;
+      --bg-card: #0f0f18;
+      --bg-card-hover: #141422;
+      --border: #1a1a2e;
+      --border-accent: #2a2a4e;
+      --text: #e8e6f0;
+      --text-dim: #8888aa;
+      --text-muted: #555570;
+      --accent: #00ff88;
+      --accent-dim: #00cc6a;
+      --accent2: #7c6aff;
+      --accent3: #ff6acc;
+      --glow: rgba(0, 255, 136, 0.15);
+      --glow2: rgba(124, 106, 255, 0.12);
+      --radius: 12px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Space Grotesk', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Animated background */
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background-image:
+        linear-gradient(rgba(0, 255, 136, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 136, 0.02) 1px, transparent 1px);
+      background-size: 80px 80px;
+      pointer-events: none;
+    }
+
+    .bg-glow {
+      position: fixed;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 600px;
+      background: radial-gradient(ellipse, rgba(0, 255, 136, 0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Nav */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(8, 8, 12, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+
+    .nav-logo {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--accent);
+      letter-spacing: -0.5px;
+    }
+
+    .nav-logo span { color: var(--text-dim); font-weight: 400; }
+
+    .nav-links { display: flex; gap: 24px; }
+
+    .nav-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--accent); }
+
+    main { padding-top: 100px; padding-bottom: 60px; }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 60px 0 50px;
+      position: relative;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(0, 255, 136, 0.06);
+      border: 1px solid rgba(0, 255, 136, 0.15);
+      border-radius: 100px;
+      font-size: 0.78rem;
+      color: var(--accent);
+      margin-bottom: 28px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .hero-badge .dot {
+      width: 6px;
+      height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .hero h1 {
+      font-size: 3.2rem;
+      font-weight: 700;
+      letter-spacing: -2px;
+      line-height: 1.15;
+      margin-bottom: 20px;
+    }
+
+    .hero h1 .highlight {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-sub {
+      font-size: 1.15rem;
+      color: var(--text-dim);
+      max-width: 560px;
+      margin: 0 auto 36px;
+      line-height: 1.7;
+    }
+
+    .hero-cta {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+    }
+
+    .btn-primary:hover {
+      background: #33ffaa;
+      box-shadow: 0 0 30px rgba(0, 255, 136, 0.2);
+    }
+
+    .btn-secondary {
+      background: rgba(124, 106, 255, 0.1);
+      color: var(--accent2);
+      border: 1px solid rgba(124, 106, 255, 0.2);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(124, 106, 255, 0.18);
+      border-color: rgba(124, 106, 255, 0.4);
+    }
+
+    /* Terminal demo */
+    .terminal {
+      background: #0c0c14;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 50px 0 60px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .terminal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .terminal-dot.r { background: #ff5f57; }
+    .terminal-dot.y { background: #febc2e; }
+    .terminal-dot.g { background: #28c840; }
+
+    .terminal-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-left: 8px;
+    }
+
+    .terminal-body {
+      padding: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+      overflow-x: auto;
+    }
+
+    .terminal-body .prompt { color: var(--accent); }
+    .terminal-body .cmd { color: var(--text); }
+    .terminal-body .output { color: var(--text-dim); }
+    .terminal-body .ok { color: var(--accent); }
+    .terminal-body .dim { color: var(--text-muted); }
+    .terminal-body .tag { color: var(--accent2); }
+
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 16px;
+      background: var(--accent);
+      animation: blink 1s infinite;
+      vertical-align: text-bottom;
+      margin-left: 2px;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    /* Philosophy */
+    .philosophy {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin: 50px 0;
+    }
+
+    .creed {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      transition: all 0.3s;
+    }
+
+    .creed:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-accent);
+      transform: translateY(-2px);
+    }
+
+    .creed-icon {
+      font-size: 1.6rem;
+      margin-bottom: 14px;
+    }
+
+    .creed h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .creed p {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+
+    /* Architecture */
+    .arch-section {
+      margin: 60px 0;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+
+    .section-sub {
+      color: var(--text-dim);
+      font-size: 0.95rem;
+      margin-bottom: 32px;
+    }
+
+    .arch-layers {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .arch-layer {
+      display: flex;
+      align-items: center;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      transition: all 0.3s;
+    }
+
+    .arch-layer:hover {
+      border-color: var(--border-accent);
+      background: var(--bg-card-hover);
+    }
+
+    .layer-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      min-width: 30px;
+    }
+
+    .layer-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      flex: 1;
+    }
+
+    .layer-desc {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      text-align: right;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Workflow */
+    .workflow {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin: 40px 0;
+    }
+
+    .flow-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .flow-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+    }
+
+    .flow-card.green::before { background: linear-gradient(90deg, var(--accent), transparent); }
+    .flow-card.purple::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+    .flow-card.pink::before { background: linear-gradient(90deg, var(--accent3), transparent); }
+    .flow-card.yellow::before { background: linear-gradient(90deg, #febc2e, transparent); }
+
+    .flow-card h4 {
+      font-size: 0.95rem;
+      margin-bottom: 8px;
+    }
+
+    .flow-card p {
+      font-size: 0.82rem;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+
+    .flow-card code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      background: rgba(0, 255, 136, 0.08);
+      color: var(--accent);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    /* Commands */
+    .commands {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin: 40px 0;
+    }
+
+    .cmd-row {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .cmd-row:last-child { border-bottom: none; }
+
+    .cmd-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--accent);
+      min-width: 200px;
+    }
+
+    .cmd-desc {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 0;
+      margin-top: 60px;
+      text-align: center;
+    }
+
+    footer p {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover { text-decoration: underline; }
+
+    .footer-tagline {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 12px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2.2rem; }
+      .philosophy { grid-template-columns: 1fr; }
+      .workflow { grid-template-columns: 1fr; }
+      .arch-layer { flex-direction: column; align-items: flex-start; gap: 4px; }
+      .layer-desc { text-align: left; }
+      .cmd-row { flex-direction: column; gap: 4px; }
+      .cmd-name { min-width: unset; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+
+  <nav>
+    <div class="container">
+      <div class="nav-logo">evo<span>:~</span></div>
+      <div class="nav-links">
+        <a href="#philosophy">哲学</a>
+        <a href="#architecture">架构</a>
+        <a href="#workflow">工作流</a>
+        <a href="https://github.com/ampresent/openclaw-workspace/tree/main/projects/evolution-os">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <div class="container">
+      <!-- Hero -->
+      <section class="hero">
+        <div class="hero-badge">
+          <span class="dot"></span>
+          v0.2 · 活跃开发中
+        </div>
+        <h1>
+          操作系统，<br>
+          <span class="highlight">应该是活的</span>
+        </h1>
+        <p class="hero-sub">
+          Evolution OS 是一个源码驱动、AI 辅助演进的元操作系统。<br>
+          每一次修改都是对源码树的一次 Commit，每个系统状态都是一个 Git Hash 的编译投影。
+        </p>
+        <div class="hero-cta">
+          <a href="#architecture" class="btn btn-primary">了解架构 →</a>
+          <a href="https://github.com/ampresent/openclaw-workspace/tree/main/projects/evolution-os" class="btn btn-secondary">源码 ↗</a>
+        </div>
+      </section>
+
+      <!-- Terminal Demo -->
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">evo — Evolution OS CLI</span>
+        </div>
+        <div class="terminal-body">
+          <div><span class="prompt">$ </span><span class="cmd">evo init curl</span></div>
+          <div><span class="dim">→ downloading src.rpm for curl...</span></div>
+          <div><span class="dim">→ extracting src.rpm...</span></div>
+          <div><span class="ok">✓ package curl initialized</span> <span class="output">(47 files)</span></div>
+          <br>
+          <div><span class="prompt">$ </span><span class="cmd">echo '# add gif support' >> src/curl/evo-feature.c</span></div>
+          <div><span class="prompt">$ </span><span class="cmd">evo patch create curl -m "gif-output"</span></div>
+          <div><span class="ok">✓ created patches/curl/0001-gif-output.patch</span></div>
+          <br>
+          <div><span class="prompt">$ </span><span class="cmd">evo status</span></div>
+          <div class="output">╔══════════════════════════════════════╗</div>
+          <div class="output">║ <span class="tag">Package</span>    Patches  Files   Dirty ║</div>
+          <div class="output">║ curl            1      48      no  ║</div>
+          <div class="output">╚══════════════════════════════════════╝</div>
+          <br>
+          <div><span class="prompt">$ </span><span class="cmd">evo tag --create stable-0412</span></div>
+          <div><span class="ok">✓ tag stable-0412 created</span></div>
+          <div class="output">  1 packages · HEAD: a6035b0f…</div>
+          <br>
+          <div><span class="prompt">$ </span><span class="cursor"></span></div>
+        </div>
+      </div>
+
+      <!-- Philosophy -->
+      <section id="philosophy">
+        <div class="philosophy">
+          <div class="creed">
+            <div class="creed-icon">🧬</div>
+            <h3>源码即系统</h3>
+            <p>一切皆为源码。系统状态由本地 Git 仓库树和 Patch 栈定义。没有裸二进制，没有黑盒。</p>
+          </div>
+          <div class="creed">
+            <div class="creed-icon">🤖</div>
+            <h3>AI 辅助演进</h3>
+            <p>用户发起意图，Claude Code 修改源码，本地小模型感知分流。命令报错不再是终点，而是进化的起点。</p>
+          </div>
+          <div class="creed">
+            <div class="creed-icon">🔄</div>
+            <h3>自举与自治</h3>
+            <p>基于 Rocky Linux，能编译自身。大部分时间静默进化，仅在需要决策时唤醒用户。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Architecture -->
+      <section id="architecture" class="arch-section">
+        <h2 class="section-title">系统架构</h2>
+        <p class="section-sub">从源码到运行，每一层都透明可控</p>
+
+        <div class="arch-layers">
+          <div class="arch-layer">
+            <span class="layer-num">L5</span>
+            <span class="layer-name">evo CLI</span>
+            <span class="layer-desc">用户交互 · TUI 看板</span>
+          </div>
+          <div class="arch-layer">
+            <span class="layer-num">L4</span>
+            <span class="layer-name">构建调度器</span>
+            <span class="layer-desc">构建队列 · 资源调度</span>
+          </div>
+          <div class="arch-layer">
+            <span class="layer-num">L3</span>
+            <span class="layer-name">AI 集成层</span>
+            <span class="layer-desc">本地小模型 · Claude Code</span>
+          </div>
+          <div class="arch-layer">
+            <span class="layer-num">L2</span>
+            <span class="layer-name">Patch 管理</span>
+            <span class="layer-desc">Patch 栈 · Diff · 冲突检测</span>
+          </div>
+          <div class="arch-layer">
+            <span class="layer-num">L1</span>
+            <span class="layer-name">构建系统</span>
+            <span class="layer-desc">Rocky src.rpm · rpmbuild</span>
+          </div>
+          <div class="arch-layer">
+            <span class="layer-num">L0</span>
+            <span class="layer-name">源码仓库 (Git)</span>
+            <span class="layer-desc">Base 源码 · Patch 栈 · 构建描述</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Workflow -->
+      <section id="workflow" class="arch-section">
+        <h2 class="section-title">工作流</h2>
+        <p class="section-sub">命令错误即开发 — 报错不是终点，是进化的起点</p>
+
+        <div class="workflow">
+          <div class="flow-card green">
+            <h4>📦 初始化</h4>
+            <p>从 Rocky Linux src.rpm 提取源码，自动 git init + 初始 commit。<br><code>evo init vim</code></p>
+          </div>
+          <div class="flow-card purple">
+            <h4>🔧 修改源码</h4>
+            <p>直接编辑 <code>src/</code> 下的文件。修改自动纳入 git 跟踪。</p>
+          </div>
+          <div class="flow-card pink">
+            <h4>📋 生成 Patch</h4>
+            <p>git diff 自动生成标准 Patch，编号入栈。<br><code>evo patch create vim -m "feat"</code></p>
+          </div>
+          <div class="flow-card yellow">
+            <h4>⬆️ 同步上游</h4>
+            <p>下载新 src.rpm，重置 base，自动 re-apply Patch 栈。冲突高亮。<br><code>evo rebase vim</code></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Commands -->
+      <section class="arch-section">
+        <h2 class="section-title">命令速查</h2>
+        <p class="section-sub">evo — 你的系统是一棵活的源码树</p>
+
+        <div class="commands">
+          <div class="cmd-row">
+            <span class="cmd-name">evo init &lt;pkg&gt;</span>
+            <span class="cmd-desc">从 Rocky src.rpm 初始化包源码</span>
+          </div>
+          <div class="cmd-row">
+            <span class="cmd-name">evo status</span>
+            <span class="cmd-desc">TUI 看板 — 包状态、Patch 栈、构建进度</span>
+          </div>
+          <div class="cmd-row">
+            <span class="cmd-name">evo build [pkg]</span>
+            <span class="cmd-desc">rpmbuild / make，自动应用 Patch</span>
+          </div>
+          <div class="cmd-row">
+            <span class="cmd-name">evo patch create/list/drop/show</span>
+            <span class="cmd-desc">Patch 栈管理 — 编号、diff、回滚</span>
+          </div>
+          <div class="cmd-row">
+            <span class="cmd-name">evo rebase [pkg]</span>
+            <span class="cmd-desc">上游同步 — Patch 自动 re-apply + 冲突检测</span>
+          </div>
+          <div class="cmd-row">
+            <span class="cmd-name">evo tag --create &lt;name&gt;</span>
+            <span class="cmd-desc">系统快照 — 记录每个包的 git HEAD + Patch 栈</span>
+          </div>
+          <div class="cmd-row">
+            <span class="cmd-name">evo freeze</span>
+            <span class="cmd-desc">暂停进化 — 退化为只读 Linux</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>
+        Evolution OS —
+        <a href="https://github.com/ampresent/openclaw-workspace/tree/main/projects/evolution-os">GitHub</a>
+      </p>
+      <div class="footer-tagline">
+        "如果一个操作系统像是一个活的、不断修复 Bug 并添加功能的开源项目，它会是什么样？"
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
