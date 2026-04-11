@@ -1115,3 +1115,199 @@ Auto-discover all services and visualize them as an interactive network topology
 - Topology SVG renderer implements force-directed layout with damping
 - All V5 modules use existing axum + tokio + serde + chrono deps — no new Cargo dependencies
 - MCP V5 tools provide 12 new AI agent capabilities across all 6 V5 features
+
+---
+
+# V6 Features — The Strangest Ideas That Might Actually Work (6 features, 19 endpoints, 10 MCP tools, 1 HTML UI)
+
+### Feature 1: 🕰️ Time-Travel Debugging
+
+**File:** `evo/src/timetravel.rs`
+
+Record system state snapshots at intervals and travel back in time. "Show me what the system looked like 3 hours ago."
+
+**How it works:**
+- Captures full system state: services (via systemctl), disk (via df), memory (via free), network (via ip -j addr + ss), packages (via nix-store), config hash
+- Each snapshot gets a unique ID and timestamp
+- `diff()` compares any two snapshots: service status changes, package additions/removals, disk growth, memory delta, port changes, config file modifications
+- `replay()` produces a time-series of frames for a date range — see the system's health trajectory
+
+**Endpoints:**
+- `POST /api/timetravel/snapshot` — Capture a snapshot (with optional label)
+- `GET /api/timetravel/snapshots` — List all snapshots
+- `GET /api/timetravel/diff?from=ID&to=ID` — Compare two snapshots
+- `GET /api/timetravel/replay?from=EPOCH&to=EPOCH&limit=100` — Replay sequence
+
+**MCP Tools:** `timetravel_snapshot`, `timetravel_diff`, `timetravel_replay`
+
+---
+
+### Feature 2: 🎲 Chaos Engineering for NixOS
+
+**File:** `evo/src/chaos.rs` (extended) + `evo/static/chaos.html`
+
+Controlled fault injection to test system resilience. Break things on purpose, measure recovery.
+
+**Predefined scenarios:**
+| Scenario | Action | Risk |
+|----------|--------|------|
+| Service Kill & Recover | `systemctl stop <svc>` | Medium |
+| Network Partition | `iptables DROP` rules | High |
+| Disk Pressure | `dd` fill to 95% | High |
+| CPU Stress | `stress --cpu N` | Low |
+| Config Corruption | Modify config, test drift | Medium |
+
+**New in V6:**
+- `POST /api/chaos/start` — Start from predefined scenario with optional overrides
+- `GET /api/chaos/report` — Resilience score (0-100), experiment history, avg recovery time
+
+**UI:** `/chaos` — Resilience score ring, clickable scenario cards, live experiment log, history table.
+
+**MCP Tools:** `chaos_start`, `chaos_report`
+
+---
+
+### Feature 3: 🧩 Nix Config Pattern Library
+
+**File:** `evo/src/patterns.rs`
+
+Curated collection of 10 common NixOS patterns with explanations, Nix code, and search.
+
+**Patterns included:**
+| Pattern | Category | Difficulty | Security |
+|---------|----------|------------|----------|
+| Nginx Reverse Proxy | WebServer | Beginner | Standard |
+| PostgreSQL Database | Database | Beginner | Standard |
+| Basic Firewall | Security | Beginner | Standard |
+| Docker/Podman Containers | Containers | Intermediate | Standard |
+| Prometheus + Grafana | Monitoring | Intermediate | Standard |
+| Hardened SSH | Security | Advanced | Hardened |
+| WireGuard VPN | Networking | Advanced | Hardened |
+| ZFS Storage Pool | Storage | Expert | Standard |
+| Dev Shell + Direnv | Development | Beginner | Minimal |
+| ACME SSL Certificates | Security | Beginner | Standard |
+
+Each pattern includes: plain-English explanation, ready-to-use Nix config, use cases, tags, and dependency references.
+
+**Endpoints:**
+- `GET /api/patterns?q=...&category=...&difficulty=...&security=...` — Search patterns
+- `GET /api/patterns/:id` — Full pattern with Nix code
+
+**MCP Tools:** `patterns_search`, `patterns_detail`
+
+---
+
+### Feature 4: 🔮 Config Impact Analyzer
+
+**File:** `evo/src/impact.rs`
+
+Before applying a config change, analyze what WILL break. Transitive dependency analysis with BFS traversal.
+
+**How it works:**
+- Built-in dependency graph maps NixOS option relationships (nginx→firewall, SSH→fail2ban, PostgreSQL→dependents, etc.)
+- BFS traversal finds transitive effects — changing nginx port affects firewall, monitoring, and potentially DNS
+- Special case analysis for port changes (detects stale firewall rules)
+- Generates required cascading changes and risk assessment
+
+**Risk levels:** Low (option changes only), Medium (warnings), High (breaking changes detected)
+
+**Endpoint:** `POST /api/impact/analyze`
+
+**MCP Tool:** `impact_analyze`
+
+---
+
+### Feature 5: 🌍 Distributed Config Sync
+
+**File:** `evo/src/dist_sync.rs`
+
+Sync configs across a fleet of NixOS servers with CRDT-inspired conflict resolution.
+
+**How it works:**
+- Version vector causal ordering (node_id → sequence number)
+- Operation log: Set, Delete, Append operations with metadata
+- Last-write-wins conflict detection with conflict reporting
+- Fleet status: node count, in-sync detection, config hash comparison
+
+**Endpoints:**
+- `POST /api/sync/init` — Register a node in the sync group
+- `POST /api/sync/push` — Push config operations from a node
+- `GET /api/sync/status` — Fleet status and sync state
+- `GET /api/sync/config` — Merged config across all nodes
+
+**MCP Tool:** `sync_status`
+
+---
+
+### Feature 6: 📱 Mobile-First API Responses
+
+**File:** `evo/src/mobile.rs`
+
+Ultra-compact JSON for mobile clients. Single-character field names minimize bandwidth.
+
+**Compact format example:**
+```json
+{"h":"myserver","s":"o","u":86400,"m":45.2,"d":62.1,"l":0.85,"f":0,"fs":[],"ts":1712900000,"v":1}
+```
+(s=status: o=ok, w=warning, c=critical; m=memory%, d=disk%, l=load)
+
+**Features:**
+- Push notification alert store with acknowledge/subscribe
+- Offline-first sync protocol with change tracking tokens
+- Alert levels: info, warning, critical
+
+**Endpoints:**
+- `GET /api/mobile/status` — Ultra-compact system status
+- `GET /api/mobile/alerts?unack=true` — Alert list
+- `POST /api/mobile/alerts/ack` — Acknowledge an alert
+- `POST /api/mobile/subscribe` — Subscribe to push notifications
+- `GET /api/mobile/sync?token=...` — Offline sync with change delta
+
+**MCP Tool:** `mobile_status`
+
+---
+
+### Feature 7: MCP Server V6 Tools
+
+**File:** `mcp-server/src/experimental-v6.ts`
+
+10 new MCP tools wrapping all V6 features:
+
+| Tool | Description | Agent Endpoint |
+|------|-------------|----------------|
+| `timetravel_snapshot` | Capture system state | `POST /api/timetravel/snapshot` |
+| `timetravel_diff` | Compare two snapshots | `GET /api/timetravel/diff` |
+| `timetravel_replay` | Replay snapshot sequence | `GET /api/timetravel/replay` |
+| `chaos_start` | Start chaos experiment | `POST /api/chaos/start` |
+| `chaos_report` | Resilience score & history | `GET /api/chaos/report` |
+| `patterns_search` | Search NixOS patterns | `GET /api/patterns` |
+| `patterns_detail` | Pattern with Nix code | `GET /api/patterns/:id` |
+| `impact_analyze` | Predict change impact | `POST /api/impact/analyze` |
+| `sync_status` | Distributed sync status | `GET /api/sync/status` |
+| `mobile_status` | Compact mobile status | `GET /api/mobile/status` |
+
+---
+
+## Version Summary (Updated)
+
+| Version | Features | Endpoints | MCP Tools | HTML UIs |
+|---------|----------|-----------|-----------|----------|
+| V0.1 | 8 core | 8 | 0 | 0 |
+| V1 | 5 | 6 | 4 | 1 |
+| V2 | 6 | 12 | 7 | 3 |
+| V3 | 7 | 14 | 8 | 2 |
+| V4 | 7 | 11 | 6 | 3 |
+| V5 | 6 | 20 | 12 | 1 |
+| **V6** | **6** | **19** | **10** | **1** |
+| **Total** | **45** | **~90** | **47** | **11** |
+
+## Architecture Notes (V6)
+
+- Timetravel uses `OnceLock<TimeTravelEngine>` with `RwLock<Vec<Snapshot>>` for thread-safe snapshot storage (max 1000, FIFO eviction)
+- Chaos extends existing `ChaosEngine` with scenario-based start and aggregate reporting
+- Patterns are compile-time built-in (no database) — 10 patterns with full Nix code, searchable by query/category/difficulty/security
+- Impact analyzer uses BFS over a hand-coded dependency graph — covers nginx, PostgreSQL, SSH, firewall, DNS, kernel, users, state version
+- Dist sync uses version vectors for causal ordering — last-write-wins with conflict reporting
+- Mobile API uses single-char JSON keys to minimize bandwidth (typical response: ~150 bytes)
+- All V6 modules use existing Cargo.toml deps — no new dependencies
+- MCP V6 tools provide human-readable formatted text + structuredContent for all 10 tools
