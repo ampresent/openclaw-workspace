@@ -59,6 +59,7 @@ pub struct PackageStatus {
     pub modified: bool,
 }
 
+#[allow(dead_code)]
 pub fn load_config(root: &Path) -> Result<EvoConfig> {
     let config_path = root.join(".evo").join("config.toml");
     if config_path.exists() {

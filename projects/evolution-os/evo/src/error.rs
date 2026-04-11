@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum EvoError {
     /// Package not found in source tree
