@@ -3,14 +3,15 @@
   "version": "0.1.0",
   "type": "module",
   "description": "MCP Server for nix-evo — NixOS management via AI agents",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "smol-toml": "^1.0.0"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

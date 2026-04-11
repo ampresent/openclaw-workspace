@@ -1,5 +1,16 @@
 # 日志
 
+## 2026-04-12 (续4) — Round 1: Agent robustness
+- 新增 `error.rs`：AppError 枚举，包含 CommandFailed/IoError/Validation/NotFound/Unauthorized/Internal
+- 新增 `auth.rs`：Bearer token 认证中间件，--api-token CLI 参数或 NIX_EVO_TOKEN 环境变量
+- 改进 dry-build 解析：多策略尝试（flake → no-flake → basic → impure）
+- 改进包名提取：从 /nix/store/ 路径中解析哈希前的包名
+- 添加 generation 描述读取：从 nix-evo-description 文件读取
+- 添加配置读取路径校验：防止路径穿越
+- 所有错误消息改为中文
+- 添加单元测试：风险评估 + 包解析
+- main.rs 路由重构：/api 嵌套路由，auth 仅保护 API 端点
+
 ## 2026-04-12 (续3) — 实现 v0.1 骨架
 - nix-evo-agent Rust 项目：axum HTTP server + 6 个端点全部实现
   - system_snapshot, service_logs, config_read, package_info
