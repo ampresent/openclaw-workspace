@@ -1,0 +1,1695 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JazzLab — 爵士练习工作台</title>
+<link rel="stylesheet" href="style.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="app-layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-icon">🎹</span>
+      <h1>JazzLab</h1>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-page="home"><span class="nav-icon">🏠</span><span>首页</span></div>
+      <div class="nav-item" data-page="piano"><span class="nav-icon">🎹</span><span>钢琴</span></div>
+      <div class="nav-item" data-page="chords"><span class="nav-icon">🎵</span><span>和弦</span></div>
+      <div class="nav-item" data-page="scales"><span class="nav-icon">🎼</span><span>音阶</span></div>
+      <div class="nav-item" data-page="guitar"><span class="nav-icon">🎸</span><span>吉他指板</span></div>
+      <div class="nav-separator"></div>
+      <div class="nav-item" data-page="metronome"><span class="nav-icon">🥁</span><span>节拍器</span></div>
+      <div class="nav-item" data-page="ear"><span class="nav-icon">👂</span><span>听音训练</span></div>
+      <div class="nav-item" data-page="standards"><span class="nav-icon">📖</span><span>爵士标准曲</span></div>
+      <div class="nav-separator"></div>
+      <div class="nav-item" data-page="practice"><span class="nav-icon">📝</span><span>练习日志</span></div>
+      <div class="nav-item" data-page="theory"><span class="nav-icon">📚</span><span>乐理指南</span></div>
+      <div class="nav-item" data-page="circle"><span class="nav-icon">⭕</span><span>五度圈</span></div>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+
+    <!-- HOME -->
+    <div class="page active" id="page-home">
+      <div class="hero">
+        <h1>JazzLab</h1>
+        <p>爵士爱好者的全能练习工作台 — 和弦、音阶、节拍器、听音训练、标准曲库</p>
+        <div class="quick-actions">
+          <button class="btn btn-gold btn-lg" onclick="navigateTo('piano')">🎹 开始弹奏</button>
+          <button class="btn btn-lg" onclick="navigateTo('metronome')">🥁 打开节拍器</button>
+          <button class="btn btn-lg" onclick="navigateTo('ear')">👂 听音训练</button>
+        </div>
+      </div>
+      <div class="card-grid">
+        <div class="card" onclick="navigateTo('chords')">
+          <div class="section-title">🎵 和弦库</div>
+          <p style="color:var(--text-dim);font-size:14px">覆盖所有爵士和弦类型：大七、属七、小七、半减、全减、各种alter和弦</p>
+        </div>
+        <div class="card" onclick="navigateTo('scales')">
+          <div class="section-title">🎼 音阶库</div>
+          <p style="color:var(--text-dim);font-size:14px">教会调式、Bebop音阶、减音阶、全音阶、旋律小调体系完整覆盖</p>
+        </div>
+        <div class="card" onclick="navigateTo('standards')">
+          <div class="section-title">📖 标准曲库</div>
+          <p style="color:var(--text-dim);font-size:14px">经典爵士标准曲和弦进行：Autumn Leaves、All The Things You Are、Blue Bossa 等</p>
+        </div>
+        <div class="card" onclick="navigateTo('theory')">
+          <div class="section-title">📚 乐理指南</div>
+          <p style="color:var(--text-dim);font-size:14px">爵士和声核心概念：II-V-I、三全音替代、Voice Leading、Reharmonization</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PIANO -->
+    <div class="page" id="page-piano">
+      <div class="page-title">🎹 互动钢琴</div>
+      <div class="page-subtitle">点击键盘或用电脑键盘弹奏（A-L 排为白键，W-U 排为黑键）</div>
+      <div class="controls-row">
+        <div class="control-group">
+          <span class="control-label">根音</span>
+          <select id="piano-root" onchange="updatePianoHighlight()">
+            <option value="0">C</option><option value="1">C#/Db</option><option value="2">D</option>
+            <option value="3">D#/Eb</option><option value="4">E</option><option value="5">F</option>
+            <option value="6">F#/Gb</option><option value="7">G</option><option value="8">G#/Ab</option>
+            <option value="9">A</option><option value="10">A#/Bb</option><option value="11">B</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <span class="control-label">显示</span>
+          <select id="piano-display" onchange="updatePianoHighlight()">
+            <option value="none">无</option>
+            <option value="chord">和弦</option>
+            <option value="scale">音阶</option>
+          </select>
+        </div>
+        <div class="control-group" id="piano-chord-select" style="display:none">
+          <span class="control-label">和弦类型</span>
+          <select id="piano-chord-type" onchange="updatePianoHighlight()"></select>
+        </div>
+        <div class="control-group" id="piano-scale-select" style="display:none">
+          <span class="control-label">音阶类型</span>
+          <select id="piano-scale-type" onchange="updatePianoHighlight()"></select>
+        </div>
+        <button class="btn" onclick="clearPianoHighlight()">清除高亮</button>
+      </div>
+      <div class="piano-container">
+        <div class="piano" id="piano-keyboard"></div>
+      </div>
+      <div class="info-panel" id="piano-info" style="display:none">
+        <h3 id="piano-info-title"></h3>
+        <div class="formula" id="piano-info-formula"></div>
+        <div class="note-list" id="piano-info-notes"></div>
+      </div>
+    </div>
+
+    <!-- CHORDS -->
+    <div class="page" id="page-chords">
+      <div class="page-title">🎵 和弦库</div>
+      <div class="page-subtitle">浏览所有爵士和弦类型，点击播放试听</div>
+      <div class="controls-row">
+        <div class="control-group">
+          <span class="control-label">根音</span>
+          <select id="chord-root" onchange="updateChordPage()"></select>
+        </div>
+        <div class="control-group">
+          <span class="control-label">分类</span>
+          <select id="chord-category" onchange="updateChordPage()">
+            <option value="all">全部</option>
+            <option value="major">大和弦</option>
+            <option value="dominant">属和弦</option>
+            <option value="minor">小和弦</option>
+            <option value="diminished">减和弦</option>
+            <option value="augmented">增和弦</option>
+            <option value="sus">挂留和弦</option>
+          </select>
+        </div>
+      </div>
+      <div id="chord-list"></div>
+    </div>
+
+    <!-- SCALES -->
+    <div class="page" id="page-scales">
+      <div class="page-title">🎼 音阶库</div>
+      <div class="page-subtitle">探索爵士常用音阶和调式</div>
+      <div class="controls-row">
+        <div class="control-group">
+          <span class="control-label">根音</span>
+          <select id="scale-root" onchange="updateScalePage()"></select>
+        </select>
+        </div>
+        <div class="control-group">
+          <span class="control-label">分类</span>
+          <select id="scale-category" onchange="updateScalePage()">
+            <option value="all">全部</option>
+            <option value="major">大调体系</option>
+            <option value="melodic-minor">旋律小调体系</option>
+            <option value="harmonic-minor">和声小调体系</option>
+            <option value="symmetric">对称音阶</option>
+            <option value="bebop">Bebop 音阶</option>
+          </select>
+        </div>
+      </div>
+      <div id="scale-list"></div>
+    </div>
+
+    <!-- GUITAR -->
+    <div class="page" id="page-guitar">
+      <div class="page-title">🎸 吉他指板</div>
+      <div class="page-subtitle">在指板上可视化和弦与音阶</div>
+      <div class="controls-row">
+        <div class="control-group">
+          <span class="control-label">根音</span>
+          <select id="guitar-root" onchange="updateGuitarFretboard()"></select>
+        </div>
+        <div class="control-group">
+          <span class="control-label">类型</span>
+          <select id="guitar-type" onchange="updateGuitarFretboard()">
+            <option value="chord">和弦</option>
+            <option value="scale">音阶</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <span class="control-label">具体</span>
+          <select id="guitar-item" onchange="updateGuitarFretboard()"></select>
+        </div>
+      </div>
+      <div class="fretboard" id="guitar-fretboard"></div>
+    </div>
+
+    <!-- METRONOME -->
+    <div class="page" id="page-metronome">
+      <div class="page-title">🥁 摇摆节拍器</div>
+      <div class="page-subtitle">支持 Swing Feel 和自定义拍号的爵士节拍器</div>
+      <div class="metronome-display">
+        <div class="bpm-display" id="bpm-display">120</div>
+        <div class="bpm-label">BPM</div>
+        <div class="beat-ring" id="beat-ring"></div>
+        <div style="display:flex;justify-content:center;gap:12px;margin-bottom:24px" id="beat-dots"></div></div>
+        <div style="margin-bottom:24px">
+          <input type="range" class="swing-slider" id="bpm-slider" min="40" max="300" value="120" oninput="setBPM(this.value)">
+        </div>
+        <div class="controls-row" style="justify-content:center">
+          <button class="btn btn-lg btn-gold" id="metro-toggle" onclick="toggleMetronome()">▶ 开始</button>
+          <div class="control-group">
+            <span class="control-label">拍号</span>
+            <select id="time-sig" onchange="updateTimeSignature()">
+              <option value="4">4/4</option>
+              <option value="3">3/4</option>
+              <option value="5">5/4</option>
+              <option value="6">6/8</option>
+              <option value="7">7/8</option>
+              <option value="2">2/4</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <span class="control-label">Swing</span>
+            <select id="swing-amount" onchange="updateSwing()">
+              <option value="0">Straight</option>
+              <option value="0.33">Light</option>
+              <option value="0.5" selected>Medium</option>
+              <option value="0.66">Hard</option>
+              <option value="0.75">Shuffle</option>
+            </select>
+          </div>
+        </div>
+        <div class="controls-row" style="justify-content:center;margin-top:16px">
+          <button class="btn btn-sm" onclick="adjustBPM(-5)">-5</button>
+          <button class="btn btn-sm" onclick="adjustBPM(-1)">-1</button>
+          <button class="btn btn-sm" onclick="tapTempo()">TAP</button>
+          <button class="btn btn-sm" onclick="adjustBPM(1)">+1</button>
+          <button class="btn btn-sm" onclick="adjustBPM(5)">+5</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- EAR TRAINING -->
+    <div class="page" id="page-ear">
+      <div class="page-title">👂 听音训练</div>
+      <div class="page-subtitle">训练你的耳朵识别和弦性质、音程和和弦进行</div>
+      <div class="tab-bar">
+        <div class="tab-item active" data-ear-tab="chord-quality" onclick="switchEarTab('chord-quality')">和弦性质</div>
+        <div class="tab-item" data-ear-tab="intervals" onclick="switchEarTab('intervals')">音程</div>
+        <div class="tab-item" data-ear-tab="progressions" onclick="switchEarTab('progressions')">和弦进行</div>
+        <div class="tab-item" data-ear-tab="ii-v-i-key" onclick="switchEarTab('ii-v-i-key')">II-V-I 辨调</div>
+      </div>
+      <div class="score-display">
+        <div class="score-item"><div class="score-value green" id="ear-correct">0</div><div class="score-label">正确</div></div>
+        <div class="score-item"><div class="score-value red" id="ear-wrong">0</div><div class="score-label">错误</div></div>
+        <div class="score-item"><div class="score-value gold" id="ear-streak">0</div><div class="score-label">连续</div></div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="ear-progress" style="width:0%"></div></div>
+      <div class="ear-prompt" id="ear-prompt">
+        <h2 id="ear-question">点击开始挑战</h2>
+        <p style="color:var(--text-dim);margin-bottom:20px" id="ear-hint"></p>
+        <div class="controls-row" style="justify-content:center;margin-bottom:20px">
+          <button class="btn btn-gold btn-lg" onclick="earNewQuestion()">🎵 播放</button>
+          <button class="btn btn-lg" onclick="earReplay()">🔄 重播</button>
+        </div>
+        <div class="answer-grid" id="ear-answers"></div>
+      </div>
+    </div>
+
+    <!-- STANDARDS -->
+    <div class="page" id="page-standards">
+      <div class="page-title">📖 爵士标准曲库</div>
+      <div class="page-subtitle">经典爵士曲目和弦进行，支持播放和弦声</div>
+      <div class="controls-row">
+        <input type="text" id="standards-search" placeholder="搜索曲目..." oninput="filterStandards()" style="width:250px">
+        <select id="standards-form" onchange="filterStandards()">
+          <option value="all">全部形式</option>
+          <option value="AABA">AABA</option>
+          <option value="ABAC">ABAC</option>
+          <option value="AB">AB</option>
+          <option value="blues">Blues</option>
+        </select>
+      </div>
+      <div id="standards-list"></div>
+      <div class="info-panel" id="standard-detail" style="display:none;margin-top:20px">
+        <h3 id="standard-detail-title"></h3>
+        <div style="color:var(--text-dim);margin-bottom:12px" id="standard-detail-meta"></div>
+        <div class="chord-chart" id="standard-detail-chart"></div>
+        <div style="margin-top:12px">
+          <button class="btn btn-gold" onclick="playStandardChords()">▶ 播放和弦进行</button>
+          <button class="btn" onclick="closeStandardDetail()">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRACTICE JOURNAL -->
+    <div class="page" id="page-practice">
+      <div class="page-title">📝 练习日志</div>
+      <div class="page-subtitle">记录你的练习内容，追踪成长轨迹</div>
+      <div class="timer-display">
+        <div class="timer-time" id="practice-timer">00:00:00</div>
+        <div style="margin-top:16px">
+          <button class="btn btn-gold btn-lg" id="timer-toggle" onclick="togglePracticeTimer()">▶ 开始计时</button>
+          <button class="btn btn-lg" onclick="resetPracticeTimer()">↺ 重置</button>
+        </div>
+      </div>
+      <div class="section-title">✍️ 写练习笔记</div>
+      <div class="controls-row">
+        <div class="control-group">
+          <span class="control-label">练习内容</span>
+          <select id="practice-area">
+            <option>音阶练习</option>
+            <option>和弦练习</option>
+            <option>即兴演奏</option>
+            <option>曲目学习</option>
+            <option>听力训练</option>
+            <option>乐理学习</option>
+            <option>其他</option>
+          </select>
+        </div>
+      </div>
+      <textarea id="practice-note" placeholder="今天练习了什么？有什么收获或困难？"></textarea>
+      <div style="margin-top:10px">
+        <button class="btn btn-gold" onclick="savePracticeNote()">💾 保存笔记</button>
+      </div>
+      <div class="section-title" style="margin-top:28px">📋 练习记录</div>
+      <div id="practice-log"></div>
+    </div>
+
+    <!-- THEORY -->
+    <div class="page" id="page-theory">
+      <div class="page-title">📚 爵士乐理指南</div>
+      <div class="page-subtitle">爵士和声与即兴演奏核心概念</div>
+      <div class="tab-bar">
+        <div class="tab-item active" onclick="showTheorySection('harmony')">和声</div>
+        <div class="tab-item" onclick="showTheorySection('modes')">调式</div>
+        <div class="tab-item" onclick="showTheorySection('voicings')">Voicing</div>
+        <div class="tab-item" onclick="showTheorySection('reharm')">重配和声</div>
+        <div class="tab-item" onclick="showTheorySection('improv')">即兴技巧</div>
+      </div>
+      <div id="theory-content"></div>
+    </div>
+
+    <!-- CIRCLE OF FIFTHS -->
+    <div class="page" id="page-circle">
+      <div class="page-title">⭕ 五度圈</div>
+      <div class="page-subtitle">点击任意调性查看相关和弦进行</div>
+      <div class="circle-of-fifths" id="circle-of-fifths"></div>
+      <div class="info-panel" id="cof-info" style="display:none">
+        <h3 id="cof-title"></h3>
+        <div id="cof-content"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ===================================================================
+// JazzLab - Core Application Engine
+// ===================================================================
+
+// --- Music Theory Data ---
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const NOTE_NAMES_FLAT = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+
+function noteName(n, preferFlat) {
+  const m = ((n % 12) + 12) % 12;
+  return preferFlat ? NOTE_NAMES_FLAT[m] : NOTE_NAMES[m];
+}
+
+function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+function noteToMidi(name, octave) { return NOTE_NAMES.indexOf(name) + (octave + 1) * 12; }
+
+// --- Chord Definitions ---
+const CHORD_TYPES = {
+  // Major family
+  'maj7':    { name: '大七和弦', suffix: 'maj7', intervals: [0,4,7,11], cat: 'major', formula: '1 3 5 7' },
+  'maj9':    { name: '大九和弦', suffix: 'maj9', intervals: [0,4,7,11,14], cat: 'major', formula: '1 3 5 7 9' },
+  'maj13':   { name: '大十三和弦', suffix: 'maj13', intervals: [0,4,7,11,14,21], cat: 'major', formula: '1 3 5 7 9 13' },
+  'maj7#11': { name: '大七升十一', suffix: 'maj7#11', intervals: [0,4,7,11,18], cat: 'major', formula: '1 3 5 7 #11' },
+  '6':       { name: '大六和弦', suffix: '6', intervals: [0,4,7,9], cat: 'major', formula: '1 3 5 6' },
+  '6/9':     { name: '六九和弦', suffix: '6/9', intervals: [0,4,7,9,14], cat: 'major', formula: '1 3 5 6 9' },
+  'add9':    { name: '加九和弦', suffix: 'add9', intervals: [0,4,7,14], cat: 'major', formula: '1 3 5 9' },
+  // Dominant family
+  '7':       { name: '属七和弦', suffix: '7', intervals: [0,4,7,10], cat: 'dominant', formula: '1 3 5 b7' },
+  '9':       { name: '属九和弦', suffix: '9', intervals: [0,4,7,10,14], cat: 'dominant', formula: '1 3 5 b7 9' },
+  '13':      { name: '属十三和弦', suffix: '13', intervals: [0,4,7,10,14,21], cat: 'dominant', formula: '1 3 5 b7 9 13' },
+  '7b9':     { name: '属七降九', suffix: '7b9', intervals: [0,4,7,10,13], cat: 'dominant', formula: '1 3 5 b7 b9' },
+  '7#9':     { name: '属七升九', suffix: '7#9', intervals: [0,4,7,10,15], cat: 'dominant', formula: '1 3 5 b7 #9' },
+  '7b13':    { name: '属七降十三', suffix: '7b13', intervals: [0,4,7,10,20], cat: 'dominant', formula: '1 3 5 b7 b13' },
+  '7#11':    { name: '属七升十一', suffix: '7#11', intervals: [0,4,7,10,18], cat: 'dominant', formula: '1 3 5 b7 #11' },
+  '7alt':    { name: 'Altered属七', suffix: '7alt', intervals: [0,4,10,13,15,20], cat: 'dominant', formula: '1 3 b7 b9 #9 b13' },
+  '7sus4':   { name: '属七挂四', suffix: '7sus4', intervals: [0,5,7,10], cat: 'sus', formula: '1 4 5 b7' },
+  '9sus4':   { name: '属九挂四', suffix: '9sus4', intervals: [0,5,7,10,14], cat: 'sus', formula: '1 4 5 b7 9' },
+  '13sus4':  { name: '属十三挂四', suffix: '13sus4', intervals: [0,5,7,10,14,21], cat: 'sus', formula: '1 4 5 b7 9 13' },
+  'b9sus':   { name: '挂四降九', suffix: '7sus4b9', intervals: [0,5,7,10,13], cat: 'sus', formula: '1 4 5 b7 b9' },
+  // Minor family
+  'm7':      { name: '小七和弦', suffix: 'm7', intervals: [0,3,7,10], cat: 'minor', formula: '1 b3 5 b7' },
+  'm9':      { name: '小九和弦', suffix: 'm9', intervals: [0,3,7,10,14], cat: 'minor', formula: '1 b3 5 b7 9' },
+  'm11':     { name: '小十一和弦', suffix: 'm11', intervals: [0,3,7,10,14,17], cat: 'minor', formula: '1 b3 5 b7 9 11' },
+  'm6':      { name: '小六和弦', suffix: 'm6', intervals: [0,3,7,9], cat: 'minor', formula: '1 b3 5 6' },
+  'm(maj7)': { name: '小大七和弦', suffix: 'm(maj7)', intervals: [0,3,7,11], cat: 'minor', formula: '1 b3 5 7' },
+  'm7b5':    { name: '半减七和弦', suffix: 'm7b5', intervals: [0,3,6,10], cat: 'diminished', formula: '1 b3 b5 b7' },
+  'dim7':    { name: '减七和弦', suffix: 'dim7', intervals: [0,3,6,9], cat: 'diminished', formula: '1 b3 b5 bb7' },
+  // Augmented
+  'aug':     { name: '增和弦', suffix: 'aug', intervals: [0,4,8], cat: 'augmented', formula: '1 3 #5' },
+  'aug7':    { name: '增七和弦', suffix: 'aug7', intervals: [0,4,8,10], cat: 'augmented', formula: '1 3 #5 b7' },
+  // Sus
+  'sus2':    { name: '挂二和弦', suffix: 'sus2', intervals: [0,2,7], cat: 'sus', formula: '1 2 5' },
+  'sus4':    { name: '挂四和弦', suffix: 'sus4', intervals: [0,5,7], cat: 'sus', formula: '1 4 5' },
+};
+
+// --- Scale Definitions ---
+const SCALE_TYPES = {
+  // Major modes
+  'major':       { name: '大调音阶 (Ionian)', intervals: [0,2,4,5,7,9,11], cat: 'major', mode: 'I' },
+  'dorian':      { name: '多利亚调式 (Dorian)', intervals: [0,2,3,5,7,9,10], cat: 'major', mode: 'II' },
+  'phrygian':    { name: '弗里吉亚调式 (Phrygian)', intervals: [0,1,3,5,7,8,10], cat: 'major', mode: 'III' },
+  'lydian':      { name: '利底亚调式 (Lydian)', intervals: [0,2,4,6,7,9,11], cat: 'major', mode: 'IV' },
+  'mixolydian':  { name: '混合利底亚 (Mixolydian)', intervals: [0,2,4,5,7,9,10], cat: 'major', mode: 'V' },
+  'aeolian':     { name: '爱奥利亚调式 (Aeolian)', intervals: [0,2,3,5,7,8,10], cat: 'major', mode: 'VI' },
+  'locrian':     { name: '洛克里亚调式 (Locrian)', intervals: [0,1,3,5,6,8,10], cat: 'major', mode: 'VII' },
+  // Melodic minor modes
+  'mel-minor':     { name: '旋律小调', intervals: [0,2,3,5,7,9,11], cat: 'melodic-minor', mode: 'I' },
+  'dorian-b2':     { name: 'Dorian b2', intervals: [0,1,3,5,7,9,10], cat: 'melodic-minor', mode: 'II' },
+  'lydian-aug':    { name: 'Lydian #5', intervals: [0,2,4,6,8,9,11], cat: 'melodic-minor', mode: 'III' },
+  'lydian-dom':    { name: 'Lydian Dominant', intervals: [0,2,4,6,7,9,10], cat: 'melodic-minor', mode: 'IV' },
+  'mixo-b6':       { name: 'Mixolydian b6', intervals: [0,2,4,5,7,8,10], cat: 'melodic-minor', mode: 'V' },
+  'locrian-nat2':  { name: 'Locrian #2', intervals: [0,2,3,5,6,8,10], cat: 'melodic-minor', mode: 'VI' },
+  'altered':       { name: 'Altered Scale', intervals: [0,1,3,4,6,8,10], cat: 'melodic-minor', mode: 'VII' },
+  // Harmonic minor
+  'harm-minor':    { name: '和声小调', intervals: [0,2,3,5,7,8,11], cat: 'harmonic-minor', mode: 'I' },
+  'harm-minor-5':  { name: 'Phrygian Dominant', intervals: [0,1,4,5,7,8,10], cat: 'harmonic-minor', mode: 'V' },
+  // Symmetric
+  'whole-tone':    { name: '全音阶', intervals: [0,2,4,6,8,10], cat: 'symmetric', formula: 'W W W W W W' },
+  'dim-whole':     { name: '减音阶 (W-H)', intervals: [0,2,3,5,6,8,9,11], cat: 'symmetric', formula: 'W H W H W H W H' },
+  'dim-half':      { name: '减音阶 (H-W)', intervals: [0,1,3,4,6,7,9,10], cat: 'symmetric', formula: 'H W H W H W H W' },
+  // Bebop
+  'bebop-dom':     { name: 'Bebop Dominant', intervals: [0,2,4,5,7,9,10,11], cat: 'bebop', formula: '1 2 3 4 5 6 b7 7' },
+  'bebop-maj':     { name: 'Bebop Major', intervals: [0,2,4,5,7,8,9,11], cat: 'bebop', formula: '1 2 3 4 5 b6 6 7' },
+  'bebop-min':     { name: 'Bebop Minor', intervals: [0,2,3,5,7,8,9,10], cat: 'bebop', formula: '1 2 b3 4 5 b6 6 b7' },
+  'pentatonic':    { name: '五声音阶', intervals: [0,2,4,7,9], cat: 'major', formula: '1 2 3 5 6' },
+  'blues':         { name: '布鲁斯音阶', intervals: [0,3,5,6,7,10], cat: 'bebop', formula: '1 b3 4 b5 5 b7' },
+  'chromatic':     { name: '半音阶', intervals: [0,1,2,3,4,5,6,7,8,9,10,11], cat: 'symmetric', formula: '所有半音' },
+};
+
+// --- Jazz Standards ---
+const STANDARDS = [
+  {
+    title: 'Autumn Leaves', composer: 'Joseph Kosma', key: 'Gm', form: 'AB',
+    tempo: '140', style: 'Medium Swing',
+    chart: `A:\n| Cm7   | F7    | Bbmaj7 | Ebmaj7 |\n| Am7b5 | D7    | Gm     | Gm     |\n\nB:\n| Am7b5 | D7    | Gm     | Gm     |\n| Cm7   | F7    | Bbmaj7 | Ebmaj7 |\n| Am7b5 | D7alt | Gm     | Gm     |`
+  },
+  {
+    title: 'All The Things You Are', composer: 'Jerome Kern', key: 'Ab', form: 'AABA',
+    tempo: '160', style: 'Medium Up Swing',
+    chart: `A:\n| Fm7    | Bbm7   | Eb7    | Abmaj7 |\n| Dbmaj7 | G7     | Cmaj7  | Cmaj7  |\n| Cm7    | Fm7    | Bb7    | Ebmaj7 |\n| Abmaj7 | D7     | Gmaj7  | Gmaj7  |\n\nB:\n| Am7    | D7     | Gmaj7  | Gmaj7  |\n| C#m7   | F#7    | Bmaj7  | Emaj7  |\n| Cm7    | F7     | Bbm7   | Eb7    |\n| Am7b5  | D7alt  | Gm     | Gm     |`
+  },
+  {
+    title: 'Blue Bossa', composer: 'Kenny Dorham', key: 'Cm', form: 'AB',
+    tempo: '150', style: 'Latin',
+    chart: `A:\n| Cm7    | Cm7    | Fm7    | Fm7    |\n| Dm7b5  | G7     | Cm7    | Cm7    |\n\nB:\n| Ebm7   | Ab7    | Dbmaj7 | Dbmaj7 |\n| Dm7b5  | G7     | Cm7    | Cm7    |`
+  },
+  {
+    title: 'Fly Me to the Moon', composer: 'Bart Howard', key: 'C', form: 'AB',
+    tempo: '120', style: 'Medium Swing',
+    chart: `A:\n| Am7    | Dm7    | G7     | Cmaj7  |\n| Fmaj7  | Bm7b5  | E7     | Am7    |\n\nB:\n| Am7    | Dm7    | G7     | Cmaj7  |\n| Fmaj7  | Bm7b5  | E7     | Am7    |\n| Dm7    | G7     | Cmaj7  | Cmaj7  |`
+  },
+  {
+    title: 'Take the A Train', composer: 'Billy Strayhorn', key: 'C', form: 'AABA',
+    tempo: '180', style: 'Up Swing',
+    chart: `A:\n| C6     | C6     | D7     | D7     |\n| Dm7    | G7     | C6     | C6     |\n\nB:\n| D7     | D7     | Dm7    | G7     |\n| C6     | C6     | Dm7    | G7     |`
+  },
+  {
+    title: 'Summertime', composer: 'George Gershwin', key: 'Am', form: 'AB',
+    tempo: '90', style: 'Slow Blues',
+    chart: `A:\n| Am    | Am     | E7    | Am     |\n| Am    | Am     | Dm    | E7     |\n\nB:\n| Am    | C7    | F      | Dm     |\n| Am/E  | E7    | Am     | Am     |`
+  },
+  {
+    title: 'So What', composer: 'Miles Davis', key: 'Dm', form: 'AB',
+    tempo: '136', style: 'Modal',
+    chart: `A (16 bars):\n| Dm7 | Dm7 | Dm7 | Dm7 |\n| Dm7 | Dm7 | Dm7 | Dm7 |\n| Dm7 | Dm7 | Dm7 | Dm7 |\n| Dm7 | Dm7 | Dm7 | Dm7 |\n\nB (8 bars):\n| Ebm7 | Ebm7 | Ebm7 | Ebm7 |\n| Ebm7 | Ebm7 | Ebm7 | Ebm7 |\n\nA (8 bars):\n| Dm7 | Dm7 | Dm7 | Dm7 |\n| Dm7 | Dm7 | Dm7 | Dm7 |`
+  },
+  {
+    title: 'My Funny Valentine', composer: 'Richard Rodgers', key: 'Cm', form: 'AB',
+    tempo: '72', style: 'Ballad',
+    chart: `A:\n| Cm    | Cm(maj7) | Cm7   | F7     |\n| Abmaj7| G7      | Cm    | Cm     |\n\nB:\n| Fm7   | Bb7     | Ebmaj7 | Abmaj7 |\n| Dm7b5 | G7      | Cm     | Cm     |`
+  },
+  {
+    title: 'Impressions', composer: 'John Coltrane', key: 'Dm', form: 'AABA',
+    tempo: '280', style: 'Up Swing',
+    chart: `A (16 bars):\n| Dm7 | Dm7 | Dm7 | Dm7 |\n\nB (8 bars):\n| Ebm7 | Ebm7 | Ebm7 | Ebm7 |\n\nA (8 bars):\n| Dm7 | Dm7 | Dm7 | Dm7 |`
+  },
+  {
+    title: 'Cantaloupe Island', composer: 'Herbie Hancock', key: 'Fm', form: 'AB',
+    tempo: '120', style: 'Funk',
+    chart: `A:\n| Fm7   | Fm7   | Db7   | Db7   |\n| Fm7   | Fm7   | Db7   | Db7   |\n\nB:\n| Dm7   | Dm7   | Dm7   | Dm7   |\n| Fm7   | Fm7   | Db7   | Db7   |`
+  },
+  {
+    title: 'Stella by Starlight', composer: 'Victor Young', key: 'Bb', form: 'AB',
+    tempo: '130', style: 'Medium Swing',
+    chart: `A:\n| Em7b5  | A7     | Cm7    | F7     |\n| Am7b5  | D7     | Fm7    | Bb7    |\n\nB:\n| Ebmaj7 | Ab7    | Dm7b5  | G7     |\n| Cm7    | F7     | Bbmaj7 | Bbmaj7 |`
+  },
+  {
+    title: 'There Will Never Be Another You', composer: 'Harry Warren', key: 'Eb', form: 'AABA',
+    tempo: '140', style: 'Medium Swing',
+    chart: `A:\n| Ebmaj7 | Cm7    | Fm7    | Bb7    |\n| Gm7    | C7     | Fm7    | Bb7    |\n\nB:\n| Ebmaj7 | Cm7    | Fm7    | Bb7    |\n| Ab7    | G7     | Fm7    | Bb7    |\n\nA:\n| Ebmaj7 | Cm7    | Fm7    | Bb7    |\n| Ebmaj7 | Cm7    | Fm7 Bb7| Ebmaj7 |`
+  },
+  {
+    title: 'Body and Soul', composer: 'Johnny Green', key: 'Db', form: 'AABA',
+    tempo: '70', style: 'Ballad',
+    chart: `A:\n| Ebm7  | Ab7   | Dbmaj7 | Bbm7  |\n| Gb7   | Fm7   | B7     | Bbm7  |\n\nB:\n| Am7   | D7    | Gmaj7  | Em7   |\n| Ebm7  | Ab7   | Dbmaj7 | Dbmaj7 |`
+  },
+  {
+    title: 'Night and Day', composer: 'Cole Porter', key: 'Db', form: 'AB',
+    tempo: '160', style: 'Medium Up',
+    chart: `A:\n| Dbmaj7 | Dm7b5 G7 | Cm7    | Cm7    |\n| Cm7    | F7      | Bbm7   | Eb7    |\n\nB:\n| Abmaj7 | Ab7     | Dbmaj7 | Dm7b5 G7 |\n| Cm7    | F7      | Bbm7 Eb7| Abmaj7 |`
+  },
+  {
+    title: 'Satin Doll', composer: 'Duke Ellington', key: 'C', form: 'AB',
+    tempo: '140', style: 'Medium Swing',
+    chart: `A:\n| Dm7    | G7     | Em7    | A7     |\n| Dm7    | G7     | Cmaj7  | Cmaj7  |\n\nB:\n| Dm7    | G7     | Em7    | A7     |\n| Am7    | D7     | G7     | G7     |`
+  },
+  {
+    title: 'Giant Steps', composer: 'John Coltrane', key: 'B', form: 'AABA',
+    tempo: '260', style: 'Up Swing',
+    chart: `A:\n| Bmaj7 | D7  | Gmaj7 | Bb7 |\n| Ebmaj7| Am7 | D7    | Gmaj7|\n| Bb7   | Ebmaj7| Am7 | D7  |\n| Gmaj7 | Bb7 | Ebmaj7| Am7 D7 |\n\nB:\n| Bmaj7 | Bb7 | Ebmaj7| Am7 D7 |\n| Gmaj7 | Bb7 | Ebmaj7| F#7   |\n| Bmaj7 | D7  | Gmaj7 | Bb7   |\n| Ebmaj7| Am7 | D7    | Gmaj7 |`
+  },
+  {
+    title: 'Wave', composer: 'Antonio Carlos Jobim', key: 'D', form: 'AB',
+    tempo: '120', style: 'Bossa Nova',
+    chart: `A:\n| D6     | Em7    | F#m7   | Gmaj7  |\n| A7     | D6     | D6     | D6     |\n\nB:\n| Bm7    | Em7    | A7     | D6     |\n| Bm7    | Em7    | A7     | D6     |`
+  },
+  {
+    title: 'Misty', composer: 'Erroll Garner', key: 'Eb', form: 'AB',
+    tempo: '80', style: 'Ballad',
+    chart: `A:\n| Ebmaj7 | Bbm7  Eb7 | Abmaj7 | Abm7   |\n| Ebmaj7 | Cm7      | Fm7    | Bb7    |\n\nB:\n| Ebmaj7 | Bbm7  Eb7 | Abmaj7 | Abm7   |\n| Ebmaj7 | Cm7   F7 | Bbm7   | Eb7    |\n| Ebmaj7 | Cm7      | Fm7 Bb7| Ebmaj7 |`
+  },
+  {
+    title: 'Scrapple from the Apple', composer: 'Charlie Parker', key: 'F', form: 'AABA',
+    tempo: '200', style: 'Bebop',
+    chart: `A:\n| Fmaj7  | Gm7    | Am7    | Dm7    |\n| Gm7    | C7     | Fmaj7  | C7     |\n\nB:\n| Am7    | D7     | Gm7    | C7     |\n| Am7    | D7     | Gm7    | C7     |`
+  },
+  {
+    title: 'Pent Up House', composer: 'Sonny Rollins', key: 'G', form: 'AB',
+    tempo: '180', style: 'Medium Up Swing',
+    chart: `A:\n| Gmaj7  | Am7 D7 | Gmaj7  | Am7 D7 |\n| Em7    | A7     | Dmaj7  | Dmaj7  |\n\nB:\n| Em7    | A7     | Dmaj7  | Dmaj7  |\n| Am7    | D7     | Gmaj7  | Gmaj7  |`
+  },
+];
+
+// --- Audio Engine ---
+let audioCtx = null;
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playNote(midi, duration = 0.5, type = 'piano', volume = 0.3) {
+  const ctx = ensureAudio();
+  const freq = midiToFreq(midi);
+
+  if (type === 'piano') {
+    // Rich piano sound with multiple oscillators
+    const now = ctx.currentTime;
+    const masterGain = ctx.createGain();
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -24;
+    compressor.ratio.value = 4;
+
+    // Fundamental
+    const osc1 = ctx.createOscillator();
+    const g1 = ctx.createGain();
+    osc1.type = 'triangle';
+    osc1.frequency.value = freq;
+    g1.gain.setValueAtTime(volume, now);
+    g1.gain.exponentialRampToValueAtTime(volume * 0.5, now + duration * 0.3);
+    g1.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    osc1.connect(g1);
+    g1.connect(masterGain);
+
+    // 2nd harmonic (warmth)
+    const osc2 = ctx.createOscillator();
+    const g2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.value = freq * 2;
+    g2.gain.setValueAtTime(volume * 0.3, now);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.8);
+    osc2.connect(g2);
+    g2.connect(masterGain);
+
+    // Slight detuned copy for richness
+    const osc3 = ctx.createOscillator();
+    const g3 = ctx.createGain();
+    osc3.type = 'sine';
+    osc3.frequency.value = freq * 1.002;
+    g3.gain.setValueAtTime(volume * 0.15, now);
+    g3.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.6);
+    osc3.connect(g3);
+    g3.connect(masterGain);
+
+    // Low pass filter
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(4000, now);
+    filter.frequency.exponentialRampToValueAtTime(800, now + duration);
+    filter.Q.value = 0.5;
+
+    masterGain.connect(filter);
+    filter.connect(compressor);
+    compressor.connect(ctx.destination);
+
+    [osc1, osc2, osc3].forEach(o => { o.start(now); o.stop(now + duration + 0.1); });
+  } else {
+    // Fallback simple tone
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+  }
+}
+
+function playChord(rootMidi, intervals, duration = 1.0) {
+  intervals.forEach(iv => {
+    playNote(rootMidi + iv, duration, 'triangle', 0.2);
+  });
+}
+
+function playClick(isAccent) {
+  const ctx = ensureAudio();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = isAccent ? 1200 : 800;
+  gain.gain.setValueAtTime(isAccent ? 0.5 : 0.3, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.05);
+}
+
+// --- Piano Keyboard ---
+let activeNotes = new Set();
+
+function buildPiano() {
+  const piano = document.getElementById('piano-keyboard');
+  piano.innerHTML = '';
+  // Build 2 octaves (C3 to B4 = 24 keys)
+  const startMidi = 48; // C3
+  const numWhite = 14;
+  const whiteKeyWidth = 100 / numWhite;
+
+  // White keys first
+  const whiteNotes = [0,2,4,5,7,9,11];
+  const blackNotes = [1,3,6,8,10];
+  const blackPositions = [0.7, 1.7, 3.7, 4.7, 5.7]; // relative to white key index
+
+  for (let oct = 0; oct < 2; oct++) {
+    whiteNotes.forEach((note, wi) => {
+      const midi = startMidi + oct * 12 + note;
+      const key = document.createElement('div');
+      key.className = 'key key-white';
+      key.style.width = whiteKeyWidth + '%';
+      key.dataset.midi = midi;
+      key.dataset.note = note;
+      const label = document.createElement('span');
+      label.className = 'key-label';
+      label.textContent = NOTE_NAMES[note] + (3 + oct);
+      key.appendChild(label);
+      key.addEventListener('mousedown', () => pianoKeyDown(midi, key));
+      key.addEventListener('mouseup', () => pianoKeyUp(key));
+      key.addEventListener('mouseleave', () => pianoKeyUp(key));
+      piano.appendChild(key);
+    });
+  }
+
+  // Black keys
+  for (let oct = 0; oct < 2; oct++) {
+    blackNotes.forEach((note, bi) => {
+      const midi = startMidi + oct * 12 + note;
+      const key = document.createElement('div');
+      key.className = 'key key-black';
+      const pos = (oct * 7 + blackPositions[bi]) * whiteKeyWidth;
+      key.style.left = pos + '%';
+      key.dataset.midi = midi;
+      key.dataset.note = note;
+      const label = document.createElement('span');
+      label.className = 'key-label';
+      label.textContent = NOTE_NAMES_FLAT[note];
+      key.appendChild(label);
+      key.addEventListener('mousedown', () => pianoKeyDown(midi, key));
+      key.addEventListener('mouseup', () => pianoKeyUp(key));
+      key.addEventListener('mouseleave', () => pianoKeyUp(key));
+      piano.appendChild(key);
+    });
+  }
+}
+
+function pianoKeyDown(midi, keyEl) {
+  ensureAudio();
+  playNote(midi, 1.5, 'triangle', 0.35);
+  keyEl.classList.add('active');
+  activeNotes.add(midi);
+}
+
+function pianoKeyUp(keyEl) {
+  keyEl.classList.remove('active');
+  activeNotes.delete(parseInt(keyEl.dataset.midi));
+}
+
+function updatePianoHighlight() {
+  const display = document.getElementById('piano-display').value;
+  const root = parseInt(document.getElementById('piano-root').value);
+  const infoPanel = document.getElementById('piano-info');
+
+  // Clear all highlights
+  document.querySelectorAll('.key').forEach(k => {
+    k.classList.remove('active');
+    const oldLabel = k.querySelector('.interval-label');
+    if (oldLabel) oldLabel.remove();
+  });
+
+  if (display === 'none') {
+    infoPanel.style.display = 'none';
+    document.getElementById('piano-chord-select').style.display = 'none';
+    document.getElementById('piano-scale-select').style.display = 'none';
+    return;
+  }
+
+  let intervals, name, formula, items;
+
+  if (display === 'chord') {
+    document.getElementById('piano-chord-select').style.display = '';
+    document.getElementById('piano-scale-select').style.display = 'none';
+    const typeKey = document.getElementById('piano-chord-type').value;
+    const ct = CHORD_TYPES[typeKey];
+    intervals = ct.intervals;
+    name = NOTE_NAMES[root] + ct.suffix;
+    formula = ct.formula;
+  } else {
+    document.getElementById('piano-chord-select').style.display = 'none';
+    document.getElementById('piano-scale-select').style.display = '';
+    const typeKey = document.getElementById('piano-scale-type').value;
+    const st = SCALE_TYPES[typeKey];
+    intervals = st.intervals;
+    name = NOTE_NAMES[root] + ' ' + st.name;
+    formula = st.formula || intervals.map((_, i) => i + 1).join(' ');
+  }
+
+  // Highlight matching keys
+  const startMidi = 48;
+  const keys = document.querySelectorAll('.key');
+  keys.forEach(k => {
+    const midi = parseInt(k.dataset.midi);
+    const noteInOctave = ((midi - startMidi) % 12 + 12) % 12;
+    const interval = ((noteInOctave - root) % 12 + 12) % 12;
+    if (intervals.includes(interval)) {
+      k.classList.add('active');
+      if (interval === 0) {
+        const lab = document.createElement('span');
+        lab.className = 'interval-label';
+        lab.textContent = 'R';
+        lab.style.color = '#d4a843';
+        k.appendChild(lab);
+      }
+    }
+  });
+
+  // Show info panel
+  infoPanel.style.display = '';
+  document.getElementById('piano-info-title').textContent = name;
+  document.getElementById('piano-info-formula').textContent = formula;
+  const notesDiv = document.getElementById('piano-info-notes');
+  notesDiv.innerHTML = '';
+  intervals.forEach((iv, i) => {
+    const badge = document.createElement('span');
+    badge.className = 'note-badge' + (iv === 0 ? ' root' : '');
+    badge.textContent = noteName(root + iv);
+    notesDiv.appendChild(badge);
+  });
+
+  // Play the chord/scale
+  playChord(startMidi + 12, intervals, 1.5);
+}
+
+function clearPianoHighlight() {
+  document.getElementById('piano-display').value = 'none';
+  updatePianoHighlight();
+}
+
+// Keyboard mapping
+const KEY_MAP = {
+  'a': 48, 'w': 49, 's': 50, 'e': 51, 'd': 52, 'f': 53, 't': 54,
+  'g': 55, 'y': 56, 'h': 57, 'u': 58, 'j': 59, 'k': 60,
+  'o': 61, 'l': 62, 'p': 63, ';': 64
+};
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  const midi = KEY_MAP[e.key.toLowerCase()];
+  if (midi && !e.repeat) {
+    const keyEl = document.querySelector(`.key[data-midi="${midi}"]`);
+    if (keyEl) pianoKeyDown(midi, keyEl);
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  const midi = KEY_MAP[e.key.toLowerCase()];
+  if (midi) {
+    const keyEl = document.querySelector(`.key[data-midi="${midi}"]`);
+    if (keyEl) pianoKeyUp(keyEl);
+  }
+});
+
+// --- Chord Page ---
+function populateSelect(id, names, flat) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = '';
+  for (let i = 0; i < 12; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = (flat ? NOTE_NAMES_FLAT : NOTE_NAMES)[i];
+    sel.appendChild(opt);
+  }
+}
+
+function updateChordPage() {
+  const root = parseInt(document.getElementById('chord-root').value);
+  const cat = document.getElementById('chord-category').value;
+  const list = document.getElementById('chord-list');
+  list.innerHTML = '';
+
+  Object.entries(CHORD_TYPES).forEach(([key, ct]) => {
+    if (cat !== 'all' && ct.cat !== cat) return;
+    const card = document.createElement('div');
+    card.className = 'info-panel';
+    card.style.cursor = 'pointer';
+    card.style.marginBottom = '12px';
+    const notes = ct.intervals.map(iv => noteName(root + iv));
+    card.innerHTML = `
+      <h3>${NOTE_NAMES[root]}${ct.suffix}</h3>
+      <div class="formula">${ct.name} — ${ct.formula}</div>
+      <div class="note-list">
+        ${notes.map((n, i) => `<span class="note-badge${i===0?' root':''}">${n}</span>`).join('')}
+      </div>
+    `;
+    card.addEventListener('click', () => {
+      playChord(60 + root, ct.intervals, 1.5);
+      // Also highlight on piano if visible
+      document.getElementById('piano-root').value = root;
+      document.getElementById('piano-display').value = 'chord';
+      populatePianoChordSelect();
+      document.getElementById('piano-chord-type').value = key;
+      updatePianoHighlight();
+    });
+    list.appendChild(card);
+  });
+}
+
+// --- Scale Page ---
+function updateScalePage() {
+  const root = parseInt(document.getElementById('scale-root').value);
+  const cat = document.getElementById('scale-category').value;
+  const list = document.getElementById('scale-list');
+  list.innerHTML = '';
+
+  Object.entries(SCALE_TYPES).forEach(([key, st]) => {
+    if (cat !== 'all' && st.cat !== cat) return;
+    const card = document.createElement('div');
+    card.className = 'info-panel';
+    card.style.cursor = 'pointer';
+    card.style.marginBottom = '12px';
+    const notes = st.intervals.map(iv => noteName(root + iv));
+    card.innerHTML = `
+      <h3>${NOTE_NAMES[root]} ${st.name}</h3>
+      <div class="formula">${st.formula || st.mode}</div>
+      <div class="note-list">
+        ${notes.map((n, i) => `<span class="note-badge${i===0?' root':''}">${n}</span>`).join('')}
+      </div>
+    `;
+    card.addEventListener('click', () => {
+      // Play scale ascending
+      st.intervals.forEach((iv, i) => {
+        setTimeout(() => playNote(60 + root + iv, 0.4, 'triangle', 0.3), i * 200);
+      });
+    });
+    list.appendChild(card);
+  });
+}
+
+// --- Guitar Fretboard ---
+const GUITAR_TUNING = [64, 59, 55, 50, 45, 40]; // E4 B3 G3 D3 A2 E2 (high to low)
+const GUITAR_STRING_NAMES = ['E','B','G','D','A','E'];
+const FRET_MARKERS = [3, 5, 7, 9, 12];
+
+function buildGuitarFretboard() {
+  const root = parseInt(document.getElementById('guitar-root').value);
+  const type = document.getElementById('guitar-type').value;
+  const itemKey = document.getElementById('guitar-item').value;
+
+  let intervals;
+  if (type === 'chord') {
+    intervals = CHORD_TYPES[itemKey]?.intervals || [0,4,7,10];
+  } else {
+    intervals = SCALE_TYPES[itemKey]?.intervals || [0,2,4,5,7,9,11];
+  }
+
+  const container = document.getElementById('guitar-fretboard');
+  const numFrets = 15;
+  let html = '<table class="fretboard-table">';
+
+  // Fret numbers row
+  html += '<tr><td class="fret-num" style="width:30px"></td>';
+  for (let f = 0; f <= numFrets; f++) {
+    const isMarker = FRET_MARKERS.includes(f);
+    html += `<td class="fret-num" style="${isMarker ? 'color:var(--gold)' : ''}">${f}</td>`;
+  }
+  html += '</tr>';
+
+  // Strings (high to low)
+  for (let s = 0; s < 6; s++) {
+    html += `<tr><td style="font-size:12px;color:var(--text-dim);text-align:center;padding:0 4px;font-weight:600">${GUITAR_STRING_NAMES[s]}</td>`;
+    for (let f = 0; f <= numFrets; f++) {
+      const openMidi = GUITAR_TUNING[s];
+      const midi = openMidi + f;
+      const noteInOctave = midi % 12;
+      const interval = ((noteInOctave - root) % 12 + 12) % 12;
+      const isRoot = interval === 0 && intervals.includes(0);
+      const isHighlighted = intervals.includes(interval);
+
+      let cls = 'fret-marker';
+      if (isRoot) cls += ' root';
+      else if (isHighlighted) cls += ' highlighted';
+
+      html += `<td class="${cls}" onclick="playNote(${midi}, 0.8)" style="cursor:pointer">`;
+      if (isHighlighted) {
+        html += noteName(noteInOctave);
+      }
+      html += '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</table>';
+  container.innerHTML = html;
+}
+
+function updateGuitarFretboard() {
+  const type = document.getElementById('guitar-type').value;
+  const sel = document.getElementById('guitar-item');
+  sel.innerHTML = '';
+
+  const items = type === 'chord' ? CHORD_TYPES : SCALE_TYPES;
+  Object.entries(items).forEach(([key, item]) => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = item.name;
+    sel.appendChild(opt);
+  });
+
+  buildGuitarFretboard();
+}
+
+// --- Metronome ---
+let metroRunning = false;
+let metroTimer = null;
+let metroBPM = 120;
+let metroBeat = 0;
+let metroBeats = 4;
+let metroSwing = 0.5;
+let tapTimes = [];
+
+function setBPM(bpm) {
+  metroBPM = Math.max(40, Math.min(300, parseInt(bpm)));
+  document.getElementById('bpm-display').textContent = metroBPM;
+  document.getElementById('bpm-slider').value = metroBPM;
+  if (metroRunning) { stopMetronome(); startMetronome(); }
+}
+
+function adjustBPM(delta) { setBPM(metroBPM + delta); }
+
+function toggleMetronome() {
+  if (metroRunning) stopMetronome();
+  else startMetronome();
+}
+
+function startMetronome() {
+  ensureAudio();
+  metroRunning = true;
+  metroBeat = 0;
+  document.getElementById('metro-toggle').textContent = '⏸ 暂停';
+  document.getElementById('metro-toggle').classList.remove('btn-gold');
+  scheduleBeat();
+}
+
+function stopMetronome() {
+  metroRunning = false;
+  clearTimeout(metroTimer);
+  document.getElementById('metro-toggle').textContent = '▶ 开始';
+  document.getElementById('metro-toggle').classList.add('btn-gold');
+  document.querySelectorAll('.beat-indicator').forEach(d => d.classList.remove('on'));
+  document.querySelectorAll('.beat-ring-dot').forEach(d => d.classList.remove('current'));
+}
+
+function scheduleBeat() {
+  if (!metroRunning) return;
+  const isAccent = metroBeat === 0;
+  playClick(isAccent);
+
+  // Update visual dots
+  const dots = document.querySelectorAll('.beat-indicator');
+  dots.forEach(d => d.classList.remove('on'));
+  if (dots[metroBeat]) dots[metroBeat].classList.add('on');
+
+  // Update beat ring
+  const ringDots = document.querySelectorAll('.beat-ring-dot');
+  ringDots.forEach(d => d.classList.remove('current'));
+  const currentRingDot = document.querySelector(`.beat-ring-dot[data-beat="${metroBeat}"]`);
+  if (currentRingDot) currentRingDot.classList.add('current');
+
+  const beatMs = 60000 / metroBPM;
+  // Swing: delay even beats
+  let nextDelay = beatMs;
+  if (metroSwing > 0 && metroBeats >= 2) {
+    if (metroBeat % 2 === 0) {
+      nextDelay = beatMs * (1 + metroSwing * 0.5);
+    } else {
+      nextDelay = beatMs * (1 - metroSwing * 0.5);
+    }
+  }
+
+  metroBeat = (metroBeat + 1) % metroBeats;
+  metroTimer = setTimeout(scheduleBeat, nextDelay);
+}
+
+function updateTimeSignature() {
+  metroBeats = parseInt(document.getElementById('time-sig').value);
+  const dotsContainer = document.getElementById('beat-dots');
+  dotsContainer.innerHTML = '';
+  for (let i = 0; i < metroBeats; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'beat-indicator';
+    dotsContainer.appendChild(dot);
+  }
+  // Build beat ring
+  const ring = document.getElementById('beat-ring');
+  ring.innerHTML = '';
+  const ringR = 85;
+  const cx = 100, cy = 100;
+  for (let i = 0; i < metroBeats; i++) {
+    const angle = (i * 360 / metroBeats - 90) * Math.PI / 180;
+    const d = document.createElement('div');
+    d.className = 'beat-ring-dot' + (i === 0 ? ' accent-dot' : '');
+    d.style.left = (cx + ringR * Math.cos(angle)) + 'px';
+    d.style.top = (cy + ringR * Math.sin(angle)) + 'px';
+    d.dataset.beat = i;
+    ring.appendChild(d);
+  }
+  if (metroRunning) { stopMetronome(); startMetronome(); }
+}
+
+function updateSwing() {
+  metroSwing = parseFloat(document.getElementById('swing-amount').value);
+}
+
+function tapTempo() {
+  const now = Date.now();
+  tapTimes.push(now);
+  if (tapTimes.length > 6) tapTimes.shift();
+  if (tapTimes.length >= 2) {
+    const intervals = [];
+    for (let i = 1; i < tapTimes.length; i++) {
+      intervals.push(tapTimes[i] - tapTimes[i-1]);
+    }
+    const avg = intervals.reduce((a,b) => a+b) / intervals.length;
+    setBPM(Math.round(60000 / avg));
+  }
+  // Reset if too slow
+  setTimeout(() => { if (Date.now() - tapTimes[tapTimes.length-1] > 3000) tapTimes = []; }, 3000);
+}
+
+// --- Ear Training ---
+let earState = { correct: 0, wrong: 0, streak: 0, mode: 'chord-quality', currentAnswer: null };
+
+function switchEarTab(tab) {
+  earState.mode = tab;
+  document.querySelectorAll('[data-ear-tab]').forEach(t => t.classList.remove('active'));
+  document.querySelector(`[data-ear-tab="${tab}"]`).classList.add('active');
+  earState.currentAnswer = null;
+  document.getElementById('ear-answers').innerHTML = '';
+  document.getElementById('ear-question').textContent = '点击开始挑战';
+}
+
+function earNewQuestion() {
+  ensureAudio();
+  const root = Math.floor(Math.random() * 12) + 48; // C3-B3
+  let answer, options;
+
+  if (earState.mode === 'chord-quality') {
+    const types = Object.keys(CHORD_TYPES);
+    const typeKey = types[Math.floor(Math.random() * types.length)];
+    const ct = CHORD_TYPES[typeKey];
+    answer = ct.suffix;
+    playChord(root, ct.intervals, 2);
+
+    // Pick 4-6 options
+    const shuffled = types.sort(() => Math.random() - 0.5).slice(0, 5);
+    if (!shuffled.includes(typeKey)) shuffled[0] = typeKey;
+    options = shuffled.sort(() => Math.random() - 0.5);
+    document.getElementById('ear-question').textContent = '这是什么和弦？';
+    document.getElementById('ear-hint').textContent = '听和弦的性质';
+
+  } else if (earState.mode === 'intervals') {
+    const intervals = [1,2,3,4,5,6,7,8,9,10,11,12];
+    const names = ['小二度','大二度','小三度','大三度','纯四度','三全音','纯五度','小六度','大六度','小七度','大七度','纯八度'];
+    const idx = Math.floor(Math.random() * intervals.length);
+    answer = names[idx];
+    playNote(root, 0.5);
+    setTimeout(() => playNote(root + intervals[idx], 1.0), 600);
+
+    options = names.sort(() => Math.random() - 0.5).slice(0, 6);
+    if (!options.includes(answer)) options[0] = answer;
+    options.sort(() => Math.random() - 0.5);
+    document.getElementById('ear-question').textContent = '这是什么音程？';
+    document.getElementById('ear-hint').textContent = '听两个音的距离';
+
+  } else { // progressions
+    const progs = [
+      { name: 'II-V-I', chords: [{root:0, type:'m7'},{root:7, type:'7'},{root:0, type:'maj7'}] },
+      { name: 'I-VI-II-V', chords: [{root:0, type:'maj7'},{root:9, type:'m7'},{root:2, type:'m7'},{root:7, type:'7'}] },
+      { name: 'I-IV-III-VI', chords: [{root:0, type:'maj7'},{root:5, type:'maj7'},{root:4, type:'m7'},{root:9, type:'7'}] },
+      { name: 'II-V-VI', chords: [{root:2, type:'m7'},{root:7, type:'7'},{root:9, type:'m7'}] },
+      { name: 'I-VII-VI', chords: [{root:0, type:'maj7'},{root:11, type:'m7b5'},{root:9, type:'m7'}] },
+    ];
+    const prog = progs[Math.floor(Math.random() * progs.length)];
+    answer = prog.name;
+    prog.chords.forEach((c, i) => {
+      setTimeout(() => playChord(root + c.root, CHORD_TYPES[c.type].intervals, 1.2), i * 1200);
+    });
+    options = progs.map(p => p.name).sort(() => Math.random() - 0.5);
+    document.getElementById('ear-question').textContent = '这是什么和弦进行？';
+    document.getElementById('ear-hint').textContent = '听和弦的走向';
+  }
+
+  if (earState.mode === 'ii-v-i-key') {
+    // Play a II-V-I in a random key, user identifies the key
+    const keys = [0,1,2,3,4,5,6,7,8,9,10,11];
+    const keyIdx = Math.floor(Math.random() * 12);
+    const keyRoot = keys[keyIdx];
+    answer = NOTE_NAMES[keyRoot];
+    const iiRoot = (keyRoot + 2) % 12;
+    const vRoot = (keyRoot + 7) % 12;
+    playChord(48 + iiRoot, CHORD_TYPES['m7'].intervals, 1.5);
+    setTimeout(() => playChord(48 + vRoot, CHORD_TYPES['7'].intervals, 1.5), 1500);
+    setTimeout(() => playChord(48 + keyRoot, CHORD_TYPES['maj7'].intervals, 2.0), 3000);
+    options = keys.map(k => NOTE_NAMES[k]).sort(() => Math.random() - 0.5);
+    document.getElementById('ear-question').textContent = '这是哪个调的 II-V-I？';
+    document.getElementById('ear-hint').textContent = `听 II(${NOTE_NAMES[iiRoot]}m7) → V(${NOTE_NAMES[vRoot]}7) → I(${NOTE_NAMES[keyRoot]}maj7)`;
+  }
+
+  earState.currentAnswer = answer;
+  renderEarAnswers(options, answer);
+}
+
+function earReplay() {
+  if (earState.currentAnswer) earNewQuestion();
+}
+
+function renderEarAnswers(options, answer) {
+  const grid = document.getElementById('ear-answers');
+  grid.innerHTML = '';
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'answer-btn';
+    btn.textContent = opt;
+    btn.onclick = () => checkEarAnswer(opt, answer, btn);
+    grid.appendChild(btn);
+  });
+}
+
+function checkEarAnswer(selected, correct, btn) {
+  document.querySelectorAll('.answer-btn').forEach(b => b.onclick = null);
+  if (selected === correct) {
+    btn.classList.add('correct');
+    earState.correct++;
+    earState.streak++;
+  } else {
+    btn.classList.add('wrong');
+    earState.wrong++;
+    earState.streak = 0;
+    // Show correct
+    document.querySelectorAll('.answer-btn').forEach(b => {
+      if (b.textContent === correct) b.classList.add('correct');
+    });
+  }
+  updateEarScore();
+  setTimeout(earNewQuestion, 1500);
+}
+
+function updateEarScore() {
+  document.getElementById('ear-correct').textContent = earState.correct;
+  document.getElementById('ear-wrong').textContent = earState.wrong;
+  document.getElementById('ear-streak').textContent = earState.streak;
+  const total = earState.correct + earState.wrong;
+  document.getElementById('ear-progress').style.width = (total > 0 ? (earState.correct / total * 100) : 0) + '%';
+}
+
+// --- Standards ---
+let currentStandard = null;
+
+function renderStandards(standards) {
+  const list = document.getElementById('standards-list');
+  list.innerHTML = '';
+  standards.forEach((s, i) => {
+    const card = document.createElement('div');
+    card.className = 'standard-card';
+    card.innerHTML = `
+      <div>
+        <div class="standard-title">${s.title}</div>
+        <div class="standard-meta">${s.composer} · ${s.style} · ♩=${s.tempo}</div>
+      </div>
+      <div>
+        <span class="standard-key">${s.key}</span>
+      </div>
+    `;
+    card.onclick = () => showStandardDetail(s);
+    list.appendChild(card);
+  });
+}
+
+function filterStandards() {
+  const query = document.getElementById('standards-search').value.toLowerCase();
+  const form = document.getElementById('standards-form').value;
+  const filtered = STANDARDS.filter(s => {
+    const matchQuery = !query || s.title.toLowerCase().includes(query) || s.composer.toLowerCase().includes(query);
+    const matchForm = form === 'all' || s.form === form;
+    return matchQuery && matchForm;
+  });
+  renderStandards(filtered);
+}
+
+function showStandardDetail(s) {
+  currentStandard = s;
+  document.getElementById('standard-detail').style.display = '';
+  document.getElementById('standard-detail-title').textContent = s.title;
+  document.getElementById('standard-detail-meta').textContent = `${s.composer} · Key: ${s.key} · Form: ${s.form} · ${s.style} · ♩=${s.tempo}`;
+  document.getElementById('standard-detail-chart').textContent = s.chart;
+}
+
+function closeStandardDetail() {
+  document.getElementById('standard-detail').style.display = 'none';
+  currentStandard = null;
+}
+
+function playStandardChords() {
+  if (!currentStandard) return;
+  ensureAudio();
+  // Simple: parse and play chord names from chart
+  const lines = currentStandard.chart.split('\n').filter(l => l.includes('|'));
+  let delay = 0;
+  lines.forEach(line => {
+    const chords = line.match(/\|[A-G][#b]?[^\|]*/g);
+    if (chords) {
+      chords.forEach(ch => {
+        const clean = ch.replace('|', '').trim();
+        if (clean) {
+          const rootMatch = clean.match(/^([A-G][#b]?)/);
+          if (rootMatch) {
+            const rootNote = NOTE_NAMES.indexOf(rootMatch[1].replace('b', '#').replace('Db','C#').replace('Eb','D#').replace('Gb','F#').replace('Ab','G#').replace('Bb','A#'));
+            if (rootNote >= 0) {
+              let iv = [0,4,7,10]; // default dominant
+              if (clean.includes('maj7')) iv = [0,4,7,11];
+              else if (clean.includes('m7b5')) iv = [0,3,6,10];
+              else if (clean.includes('dim')) iv = [0,3,6,9];
+              else if (clean.includes('m')) iv = [0,3,7,10];
+              else if (clean.includes('7')) iv = [0,4,7,10];
+              else iv = [0,4,7,11]; // maj
+              setTimeout(() => playChord(48 + rootNote, iv, 1.0), delay);
+              delay += 1000;
+            }
+          }
+        }
+      });
+    }
+  });
+}
+
+// --- Practice Timer ---
+let practiceSeconds = 0;
+let practiceRunning = false;
+let practiceInterval = null;
+let practiceNotes = [];
+
+function togglePracticeTimer() {
+  if (practiceRunning) {
+    clearInterval(practiceInterval);
+    practiceRunning = false;
+    document.getElementById('timer-toggle').textContent = '▶ 继续';
+  } else {
+    practiceRunning = true;
+    document.getElementById('timer-toggle').textContent = '⏸ 暂停';
+    practiceInterval = setInterval(() => {
+      practiceSeconds++;
+      updateTimerDisplay();
+    }, 1000);
+  }
+  document.getElementById('practice-timer').className = 'timer-time' + (practiceRunning ? ' running' : '');
+}
+
+function resetPracticeTimer() {
+  clearInterval(practiceInterval);
+  practiceRunning = false;
+  practiceSeconds = 0;
+  updateTimerDisplay();
+  document.getElementById('timer-toggle').textContent = '▶ 开始计时';
+  document.getElementById('practice-timer').className = 'timer-time';
+}
+
+function updateTimerDisplay() {
+  const h = Math.floor(practiceSeconds / 3600);
+  const m = Math.floor((practiceSeconds % 3600) / 60);
+  const s = practiceSeconds % 60;
+  document.getElementById('practice-timer').textContent =
+    String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+function savePracticeNote() {
+  const note = document.getElementById('practice-note').value.trim();
+  if (!note) return;
+  const entry = {
+    date: new Date().toLocaleString('zh-CN'),
+    area: document.getElementById('practice-area').value,
+    duration: practiceSeconds,
+    note: note
+  };
+  practiceNotes.unshift(entry);
+  localStorage.setItem('jazzlab-notes', JSON.stringify(practiceNotes));
+  document.getElementById('practice-note').value = '';
+  renderPracticeLog();
+}
+
+function renderPracticeLog() {
+  const log = document.getElementById('practice-log');
+  log.innerHTML = '';
+  practiceNotes.forEach(entry => {
+    const el = document.createElement('div');
+    el.className = 'journal-entry';
+    const durMin = Math.floor(entry.duration / 60);
+    el.innerHTML = `
+      <div class="journal-date">${entry.date} · ${entry.area} · ${durMin}分钟</div>
+      <div class="journal-text">${entry.note}</div>
+    `;
+    log.appendChild(el);
+  });
+}
+
+// --- Theory Guide ---
+const THEORY_CONTENT = {
+  harmony: `
+<div class="info-panel">
+<h3>II-V-I 和弦进行</h3>
+<p style="margin:12px 0;color:var(--text-dim)">爵士乐中最核心的和弦进行。在大调中：IIm7 → V7 → Imaj7。</p>
+<div class="chord-chart">Key of C:
+| Dm7  | G7   | Cmaj7 | Cmaj7 |
+
+Key of Bb:
+| Cm7  | F7   | Bbmaj7 | Bbmaj7 |</div>
+<p style="margin:12px 0;color:var(--text-dim)">
+<strong>音阶选择：</strong><br>
+• IIm7 → Dorian（旋律小调第2模式也行）<br>
+• V7 → Mixolydian / Altered / Half-Whole减<br>
+• Imaj7 → Ionian / Lydian
+</p>
+</div>
+<div class="info-panel">
+<h3>三全音替代 (Tritone Substitution)</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+属七和弦可以用根音降半音的属七和弦替代（bII7 代替 V7），因为它们共享相同的 guide tones（3音和7音互换）。
+</p>
+<div class="chord-chart">Standard II-V-I:
+| Dm7 | G7  | Cmaj7 |
+
+With Tritone Sub:
+| Dm7 | Db7 | Cmaj7 |
+
+bII7 resolves down a half-step to I.</div>
+</div>
+<div class="info-panel">
+<h3>Voice Leading（声部导引）</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+好的 Voice Leading 让每个声部以最小距离移动（半音或全音级进）。<br><br>
+<strong>核心原则：</strong><br>
+• 3音和7音是和弦的"guide tones"，它们决定和弦性质<br>
+• Guide tones 应该级进而非跳进<br>
+• 例如：Dm7(G) → G7(F→F, B→B) → Cmaj7(C→C, B→B)
+</p>
+</div>
+<div class="info-panel">
+<h3>Secondary Dominants（副属和弦）</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+任何和弦前面都可以放一个"临时属七"来增加推进力。<br><br>
+在C调中：<br>
+• V/II = A7 → Dm7<br>
+• V/III = B7 → Em<br>
+• V/VI = E7 → Am<br>
+• V/V = D7 → G7
+</p>
+</div>
+`,
+  modes: `
+<div class="info-panel">
+<h3>教会调式 (Church Modes)</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+大调的七个音阶模式，每个从不同音级开始。<br>
+在 C 大调中：</p>
+<div class="chord-chart">I   Ionian     C D E F G A B   → Cmaj7
+II  Dorian     D E F G A B C   → Dm7
+III Phrygian   E F G A B C D   → Em7
+IV  Lydian     F G A B C D E   → Fmaj7
+V   Mixolydian G A B C D E F   → G7
+VI  Aeolian    A B C D E F G   → Am7
+VII Locrian    B C D E F G A   → Bm7b5</div>
+</div>
+<div class="info-panel">
+<h3>旋律小调模式</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+旋律小调 = 大调音阶但降3音（上行时）。它是现代爵士的"秘密武器"。<br><br>
+<strong>最常用的模式：</strong><br>
+• I - 旋律小调 → 小(maj7)和弦上即兴<br>
+• IV - Lydian Dominant → 属7#11和弦<br>
+• V - Mixolydian b6 → 属7b13和弦<br>
+• VII - Altered Scale → 7alt和弦（最重要的！）
+</p>
+</div>
+<div class="info-panel">
+<h3>对称音阶</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+<strong>全音阶：</strong> 只有两个，每个音等距（全音）。用于augmented和弦和V7#11。<br><br>
+<strong>减音阶：</strong> 有两个（W-H 和 H-W），用于dim7和弦和7b9和弦。
+</p>
+<div class="chord-chart">Whole-Tone: C D E F# G# A# (6 notes)
+Dim-WH:    C D Eb F Gb Ab A B (8 notes)
+Dim-HW:    C Db Eb E F# G A Bb (8 notes)</div>
+</div>
+`,
+  voicings: `
+<div class="info-panel">
+<h3>Shell Voicing（基础壳式和弦）</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+Shell voicing 只用根音、3音和7音（偶尔加5音），是爵士钢琴的基石。<br><br>
+<strong>左手基本位置（以 C 为例）：</strong></p>
+<div class="chord-chart">Cmaj7:  C-B-E (R-7-3)  或  C-E-B (R-3-7)
+Dm7:    D-C-F (R-b7-3) 或  D-F-C (R-3-b7)
+G7:     G-F-B (R-b7-3) 或  G-B-F (R-3-b7)
+
+原则：3音和7音只需要这两个音，
+就可以确定和弦的性质！</div>
+</div>
+<div class="info-panel">
+<h3>Guide Tones（导音）</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+Guide tones = 和弦的3音和7音。它们是声部导引的核心。<br><br>
+在 II-V-I 中，guide tones 自然级进：</p>
+<div class="chord-chart">Dm7 → G7 → Cmaj7
+
+3音: F → F → E  (半音下行)
+7音: C → B → B  (半音下行)
+
+F 和 C (Dm7的3和7)
+  → F 和 B (G7的3和7 — 注意：C变成了B!)
+  → E 和 B (Cmaj7的3和7)
+
+这就是好的 voice leading！</div>
+</div>
+<div class="info-panel">
+<h3>Drop 2 Voicing</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+Drop 2 是爵士编曲中最常用的 voicing 技术：<br>
+1. 写出和弦的四个音（密集排列）<br>
+2. 把第二高的音降一个八度<br><br>
+以 Cmaj7 为例（从低到高：C E G B）：</p>
+<div class="chord-chart">原始排列（密集）: C E G B
+Drop 2:           G C E B (把 G 降到下面)
+
+Drop 2 的好处：
+- 声部分布更均匀
+- 音色更开阔
+- 可以在所有和弦类型上应用
+- 适合左手 comping</div>
+</div>
+<div class="info-panel">
+<h3>Voicing 练习方法</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+<strong>1. Shell → Drop 2 → Rootless：</strong><br>
+先掌握最简单的 shell，再加复杂度。<br><br>
+<strong>2. II-V-I 循环练习：</strong><br>
+在所有12个调上弹 II-V-I，每个调用同一种 voicing。<br><br>
+<strong>3. Voice Leading 练习：</strong><br>
+弹 II-V-I 时，确保每个声部移动不超过一个全音。<br><br>
+<strong>4. Rootless Voicing（无根音和弦）：</strong><br>
+只弹 3-5-7-9，省略根音（贝斯手会弹根音）。<br>
+Cmaj7 rootless: E G B D<br>
+Dm7 rootless:   F A C E<br>
+G7 rootless:    B D F A
+</p>
+</div>
+`,
+  reharm: `
+<div class="info-panel">
+<h3>重配和声基础</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+重配和声（Reharmonization）是改变一首曲子的和弦进行同时保持旋律不变的技术。
+</p>
+</div>
+<div class="info-panel">
+<h3>常用重配手法</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+<strong>1. 三全音替代：</strong> 用 bII7 替代 V7<br><br>
+<strong>2. 插入 II-V：</strong> 在任何和弦前加 II-V<br>
+例：| Cmaj7 | → | Dm7 G7 | Cmaj7 |<br><br>
+<strong>3. Coltrane Changes：</strong> 用大三度循环分割八度<br>
+例：C → E → Ab → C（Giant Steps 的核心）<br><br>
+<strong>4. Diminished Passing：</strong> 用减和弦做经过和弦<br>
+例：| Cmaj7 | → | Cmaj7 C#dim7 | Dm7 G7 |<br><br>
+<strong>5. 抬高 II-V：</strong> 半音上方的 II-V 作为 approach<br>
+例：| Dm7 G7 | C | → | Ebm7 Ab7 | Dm7 G7 | C |
+</p>
+</div>
+`,
+  improv: `
+<div class="info-panel">
+<h3>即兴演奏核心思维</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+即兴不是随机弹音——它是有目的的声音组织。核心要素：<br><br>
+<strong>1. 旋律意识 (Melodic Sense）</strong><br>
+先在脑中"听到"旋律，再用手指去找。哼唱 > 弹奏。<br><br>
+<strong>2. 节奏是王（Rhythm First）</strong><br>
+有趣的节奏比复杂的和声更吸引人。试试：休止符、切分、节奏位移。<br><br>
+<strong>3. Guide Tone Lines</strong><strong><br>
+跟着 3音 和 7音 走，自然产生好的声部导引。<br><br>
+<strong>4. Motif Development（动机发展）</strong><br>
+提出一个小动机（2-4个音），然后：重复、倒影、逆行、移调、节奏变化。
+</p>
+</div>
+<div class="info-panel">
+<h3>练习即兴的方法</h3>
+<p style="margin:12px 0;color:var(--text-dim)">
+<strong>限制练习法：</strong><br>
+• 只用3个音即兴（如 1-2-5）<br>
+• 只用节奏变化（不换音）<br>
+• 只在一个八度内弹<br>
+• 强制使用休止符（每4拍必须休1拍）<br><br>
+<strong>Transcribe（扒谱）：</strong><br>
+听大师的独奏，逐音扒下来。这是最有效的学习方式。<br>
+推荐从 Miles Davis、Chet Baker 的简单旋律开始。<br><br>
+<strong>Sing & Play：</strong><br>
+先哼出要弹的东西，再用乐器弹出来。连接"脑-耳-手"。
+</p>
+</div>
+`
+};
+
+function showTheorySection(section) {
+  document.querySelectorAll('[onclick^="showTheorySection"]').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('theory-content').innerHTML = THEORY_CONTENT[section] || '';
+}
+
+// --- Circle of Fifths ---
+function buildCircleOfFifths() {
+  const container = document.getElementById('circle-of-fifths');
+  container.innerHTML = '';
+  const notes = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5]; // C G D A E B F# Db Ab Eb Bb F
+  const labels = ['C','G','D','A','E','B','F#','Db','Ab','Eb','Bb','F'];
+  const radius = 150;
+  const cx = 180, cy = 180;
+
+  notes.forEach((note, i) => {
+    const angle = (i * 30 - 90) * Math.PI / 180;
+    const x = cx + radius * Math.cos(angle) - 24;
+    const y = cy + radius * Math.sin(angle) - 24;
+    const el = document.createElement('div');
+    el.className = 'cof-note';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.textContent = labels[i];
+    el.onclick = () => showCircleInfo(note, labels[i]);
+    container.appendChild(el);
+  });
+}
+
+function showCircleInfo(root, label) {
+  const info = document.getElementById('cof-info');
+  info.style.display = '';
+  document.getElementById('cof-title').textContent = label + ' 调';
+
+  const majorChords = ['maj7','m7','m7','maj7','7','m7','m7b5'];
+  const minorLabels = ['i','ii','III','iv','V','VI','vii°'];
+  const majorLabels = ['I','ii','iii','IV','V','vi','vii°'];
+
+  let html = '<div style="margin:12px 0"><strong>大调和弦：</strong></div><div class="note-list">';
+  for (let i = 0; i < 7; i++) {
+    const degree = [0,2,4,5,7,9,11];
+    const chordRoot = (root + degree[i]) % 12;
+    const suffix = majorChords[i];
+    html += `<span class="note-badge">${majorLabels[i]} ${NOTE_NAMES[chordRoot]}${suffix}</span>`;
+  }
+  html += '</div>';
+
+  // Relative minor
+  const relMinor = (root + 9) % 12;
+  html += `<div style="margin:16px 0 8px"><strong>关系小调：${NOTE_NAMES[relMinor]}m</strong></div><div class="note-list">`;
+  const minChords = ['m7','m7b5','maj7','m7','m7','maj7','7'];
+  for (let i = 0; i < 7; i++) {
+    const degree = [0,2,3,5,7,8,10];
+    const chordRoot = (relMinor + degree[i]) % 12;
+    html += `<span class="note-badge">${minorLabels[i]} ${NOTE_NAMES[chordRoot]}${minChords[i]}</span>`;
+  }
+  html += '</div>';
+
+  // II-V-I
+  html += `<div style="margin:16px 0 8px"><strong>II-V-I 进行：</strong></div>`;
+  const ii = (root + 2) % 12, v = (root + 7) % 12;
+  html += `<div class="chord-chart">| ${NOTE_NAMES[ii]}m7 | ${NOTE_NAMES[v]}7 | ${NOTE_NAMES[root]}maj7 | ${NOTE_NAMES[root]}maj7 |</div>`;
+
+  document.getElementById('cof-content').innerHTML = html;
+}
+
+// --- Navigation ---
+function navigateTo(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
+
+  // Lazy init
+  if (page === 'chords') updateChordPage();
+  if (page === 'scales') updateScalePage();
+  if (page === 'guitar') updateGuitarFretboard();
+  if (page === 'standards') filterStandards();
+  if (page === 'theory') showTheorySection('harmony');
+  if (page === 'circle') buildCircleOfFifths();
+}
+
+// --- Populate selects ---
+function populatePianoChordSelect() {
+  const sel = document.getElementById('piano-chord-type');
+  sel.innerHTML = '';
+  Object.entries(CHORD_TYPES).forEach(([key, ct]) => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = ct.name + ' (' + ct.suffix + ')';
+    sel.appendChild(opt);
+  });
+}
+
+function populatePianoScaleSelect() {
+  const sel = document.getElementById('piano-scale-type');
+  sel.innerHTML = '';
+  Object.entries(SCALE_TYPES).forEach(([key, st]) => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = st.name;
+    sel.appendChild(opt);
+  });
+}
+
+// --- Piano display change handler ---
+document.getElementById('piano-display').addEventListener('change', function() {
+  document.getElementById('piano-chord-select').style.display = this.value === 'chord' ? '' : 'none';
+  document.getElementById('piano-scale-select').style.display = this.value === 'scale' ? '' : 'none';
+});
+
+// --- Init ---
+document.addEventListener('DOMContentLoaded', () => {
+  buildPiano();
+  populatePianoChordSelect();
+  populatePianoScaleSelect();
+  populateSelect('chord-root');
+  populateSelect('scale-root');
+  populateSelect('guitar-root');
+  updateTimeSignature();
+  showTheorySection('harmony');
+
+  // Load saved practice notes
+  try {
+    practiceNotes = JSON.parse(localStorage.getItem('jazzlab-notes') || '[]');
+    renderPracticeLog();
+  } catch(e) {}
+
+  // Nav click handlers
+  document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+    item.addEventListener('click', () => navigateTo(item.dataset.page));
+  });
+});
+</script>
+</body>
+</html>
