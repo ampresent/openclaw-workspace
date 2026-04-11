@@ -4,6 +4,8 @@ pub mod error;
 pub mod auth;
 pub mod ai_config;
 pub mod backup;
+pub mod tracing_middleware;
+pub mod limiter;
 
 use axum::{
     routing::{get, post},
@@ -16,6 +18,7 @@ use tracing_subscriber::EnvFilter;
 
 use config::Config;
 use cmd::*;
+use limiter::ConcurrencyLimiter;
 
 /// Shared application state passed to all handlers
 pub struct AppState {
@@ -53,6 +56,9 @@ async fn main() -> anyhow::Result<()> {
     let has_token = config.api_token.is_some();
 
     let state = Arc::new(AppState::new(config));
+
+    // Concurrency limiter: max 32 concurrent requests
+    let limiter = Arc::new(ConcurrencyLimiter::new(32));
 
     // API routes (require auth if token is set)
     let api_routes = Router::new()
@@ -94,6 +100,8 @@ async fn main() -> anyhow::Result<()> {
         .nest("/api", api_routes)
         .route("/health", get(cmd::health_handler))
         .layer(CorsLayer::permissive())
+        .layer(axum::middleware::from_fn(tracing_middleware::request_tracing))
+        .layer(axum::middleware::from_fn(limiter::concurrency_limit(limiter)))
         .layer(TraceLayer::new_for_http());
 
     tracing::info!("nix-evo-agent listening on {addr}");
