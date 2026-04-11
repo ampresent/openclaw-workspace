@@ -391,11 +391,11 @@
       <div class="page-title">📚 爵士乐理指南</div>
       <div class="page-subtitle">爵士和声与即兴演奏核心概念</div>
       <div class="tab-bar">
-        <div class="tab-item active" onclick="showTheorySection('harmony')">和声</div>
-        <div class="tab-item" onclick="showTheorySection('modes')">调式</div>
-        <div class="tab-item" onclick="showTheorySection('voicings')">Voicing</div>
-        <div class="tab-item" onclick="showTheorySection('reharm')">重配和声</div>
-        <div class="tab-item" onclick="showTheorySection('improv')">即兴技巧</div>
+        <div class="tab-item active" onclick="showTheorySection('harmony', this)">和声</div>
+        <div class="tab-item" onclick="showTheorySection('modes', this)">调式</div>
+        <div class="tab-item" onclick="showTheorySection('voicings', this)">Voicing</div>
+        <div class="tab-item" onclick="showTheorySection('reharm', this)">重配和声</div>
+        <div class="tab-item" onclick="showTheorySection('improv', this)">即兴技巧</div>
       </div>
       <div id="theory-content"></div>
     </div>
@@ -1927,9 +1927,10 @@ G7 rootless:    B D F A
 `
 };
 
-function showTheorySection(section) {
+function showTheorySection(section, el) {
   document.querySelectorAll('[onclick^="showTheorySection"]').forEach(t => t.classList.remove('active'));
-  event.target.classList.add('active');
+  if (el) el.classList.add('active');
+  else document.querySelector(`[onclick*="'${section}'"]`)?.classList.add('active');
   document.getElementById('theory-content').innerHTML = THEORY_CONTENT[section] || '';
 }
 
@@ -2005,7 +2006,7 @@ function navigateTo(page) {
   if (page === 'scales') updateScalePage();
   if (page === 'guitar') updateGuitarFretboard();
   if (page === 'standards') filterStandards();
-  if (page === 'theory') showTheorySection('harmony');
+  if (page === 'theory') showTheorySection('harmony', null);
   if (page === 'circle') buildCircleOfFifths();
   if (page === 'comping') renderCompingPatterns();
 }
@@ -2048,7 +2049,7 @@ document.addEventListener('DOMContentLoaded', () => {
   populateSelect('scale-root');
   populateSelect('guitar-root');
   updateTimeSignature();
-  showTheorySection('harmony');
+  showTheorySection('harmony', null);
 
   // Load saved practice notes
   try {
