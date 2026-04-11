@@ -355,3 +355,88 @@ evolution-os 的文档保留在 `projects/evolution-os/` 作为参考。
 - 多机编排
 - 自动化测试（nixos-rebuild test 后再 switch）
 - secrets 管理（agenix/sops-nix 集成）
+
+## 八、实现细节
+
+### 8.1 错误处理
+
+Agent 使用类型化的 `AppError` 枚举，包含：
+
+| 变体 | HTTP 状态码 | 说明 |
+|------|-----------|------|
+| `CommandFailed` | 500 | 系统命令执行失败 |
+| `IoError` | 500 | 文件读写失败 |
+| `Validation` | 400 | 请求参数校验失败 |
+| `NotFound` | 404 | 资源不存在 |
+| `Unauthorized` | 401 | API token 认证失败 |
+| `Internal` | 500 | 未知内部错误 |
+
+所有错误消息使用中文，面向最终用户。
+
+### 8.2 认证
+
+- 可选 Bearer token 认证（`--api-token` CLI 参数或 `NIX_EVO_TOKEN` 环境变量）
+- 仅保护 `/api/*` 端点，`/health` 始终公开
+- 未配置 token 时所有请求允许通过（本地开发场景）
+
+### 8.3 Dry-build 解析
+
+`config_validate` 采用多策略尝试：
+
+1. Flake-based（`nixos-rebuild dry-build --flake .#hostname`）
+2. No-flake（`nixos-rebuild dry-build --flake false`）
+3. Basic（`nixos-rebuild dry-build --fast`）
+4. Impure（`nixos-rebuild dry-build --fast --impure`）
+
+包名解析：从 `/nix/store/hash-pkg-version` 路径中提取 `pkg-version`，去除 hash 前缀。
+
+### 8.4 风险评估评分
+
+| 因素 | 分值 |
+|------|------|
+| 删除包 | +3 |
+| 防火墙/iptables 变更 | +3 |
+| 引导加载器变更 | +3 |
+| 磁盘/文件系统变更 | +3 |
+| 网络配置变更 | +2 |
+| 核心服务重启 (nginx/sshd/network) | +2 |
+| 任意服务重启 | +1 |
+| 新增包 | +1 |
+
+分级：safe (0-1) / moderate (2-4) / dangerous (5+)
+
+### 8.5 hosts.toml 格式
+
+```toml
+[hosts.default]
+url = "http://127.0.0.1:7890"
+token = "optional-token"
+
+[hosts.production]
+url = "http://127.0.0.1:7890"
+ssh_tunnel = "user@host:7890"
+description = "生产服务器"
+```
+
+MCP Server 按以下优先级选择主机：
+1. 工具调用中显式指定的 `host` 参数
+2. `[hosts.default]`
+3. 唯一可用主机（自动选择）
+
+### 8.6 Generation 描述
+
+`config_apply` 时如果提供了 `message` 参数，agent 会将描述写入：
+```
+/nix/var/nix/profiles/system-{N}-link/nix-evo-description
+```
+
+`generation_diff` 和 `rollback_list` 会读取此文件，作为 generation 的描述信息。
+
+### 8.7 MCP Server 输出格式
+
+关键工具返回人类可读的格式化摘要 + 原始 JSON：
+
+- `system_snapshot`：Emoji 摘要（失败服务、磁盘警告、内存）+ JSON
+- `config_validate`：风险评估卡片 + 变更摘要 + JSON
+- `generation_diff` / `rollback_list`：时间线格式 + JSON
+- 其他工具：纯 JSON
