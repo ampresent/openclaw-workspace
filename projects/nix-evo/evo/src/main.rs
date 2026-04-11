@@ -9,6 +9,7 @@ pub mod conda_lock;
 pub mod venv_bridge;
 pub mod env_sync;
 pub mod env_test;
+pub mod resolver;
 
 use axum::{
     routing::{get, post, delete},
@@ -74,6 +75,10 @@ async fn main() -> anyhow::Result<()> {
         // Environment testing framework
         .route("/env/test", post(env_test::test_handler))
         .route("/env/test/auto", post(env_test::auto_test_handler))
+        // Package dependency resolver
+        .route("/resolve/package/:name", get(resolver::resolve_handler))
+        .route("/resolve/batch", post(resolver::batch_resolve_handler))
+
         .route("/conda/lock", post(conda_lock::lock_handler))
         .with_state(state.clone());
 
