@@ -32,6 +32,7 @@ pub mod collab;
 pub mod bench;
 pub mod topology;
 pub mod timetravel;
+pub mod chaos;
 
 use axum::{
     routing::{get, post},
@@ -175,6 +176,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/timetravel/snapshots", get(timetravel::handle_list))
         .route("/timetravel/diff", get(timetravel::handle_diff))
         .route("/timetravel/replay", get(timetravel::handle_replay))
+        // Experimental v6: Chaos Engineering
+        .route("/chaos/scenarios", get(chaos::handle_scenarios))
+        .route("/chaos/run", post(chaos::handle_run))
+        .route("/chaos/start", post(chaos::handle_start))
+        .route("/chaos/status", get(chaos::handle_chaos_status))
+        .route("/chaos/report", get(chaos::handle_report))
         .with_state(state.clone());
 
     // Apply auth middleware to API routes if token is configured
@@ -198,6 +205,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/composer", get(serve_composer_html))
         .route("/health", get(serve_health_html))
         .route("/topology", get(serve_topology_html))
+        .route("/chaos", get(serve_chaos_html))
         .with_state(state.clone());
 
     let app = Router::new()
@@ -279,5 +287,11 @@ async fn serve_health_html() -> axum::response::Html<String> {
 /// Serve the topology HTML page
 async fn serve_topology_html() -> axum::response::Html<String> {
     let html = include_str!("../static/topology.html");
+    axum::response::Html(html.to_string())
+}
+
+/// Serve the chaos engineering HTML page
+async fn serve_chaos_html() -> axum::response::Html<String> {
+    let html = include_str!("../static/chaos.html");
     axum::response::Html(html.to_string())
 }

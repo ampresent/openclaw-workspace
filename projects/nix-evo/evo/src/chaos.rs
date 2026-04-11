@@ -277,3 +277,92 @@ pub async fn handle_chaos_status() -> Json<serde_json::Value> {
     let engine = chaos_engine();
     Json(engine.get_status().await)
 }
+
+/// POST /api/chaos/start — Start a chaos experiment from a predefined scenario
+#[derive(Debug, Deserialize)]
+pub struct ChaosStartRequest {
+    pub scenario: String,        // scenario id like "service-kill"
+    pub target: Option<String>,  // override target
+    pub duration_secs: Option<u64>,
+    pub intensity: Option<f64>,
+    pub auto_recover: Option<bool>,
+}
+
+pub async fn handle_start(Json(req): Json<ChaosStartRequest>) -> Result<Json<ChaosResult>, AppError> {
+    let engine = chaos_engine();
+    let scenarios = engine.get_scenarios().await;
+    let scenario = scenarios.iter()
+        .find(|s| s.id == req.scenario)
+        .ok_or_else(|| AppError::NotFound {
+            resource: format!("chaos scenario: {}", req.scenario),
+        })?;
+
+    let target = req.target.unwrap_or_else(|| {
+        scenario.targets.first().cloned().unwrap_or_default()
+    });
+
+    let exp = ChaosExperiment {
+        id: format!("chaos-{}", chrono_now()),
+        name: scenario.name.clone(),
+        target,
+        action: match req.scenario.as_str() {
+            "service-kill" => "kill",
+            "network-partition" => "drop_packets",
+            "disk-pressure" => "fill_disk",
+            "cpu-stress" => "saturate_cpu",
+            "config-corrupt" => "kill",
+            _ => "kill",
+        }.to_string(),
+        duration_secs: req.duration_secs.unwrap_or(10),
+        intensity: req.intensity.unwrap_or(0.5),
+        auto_recover: req.auto_recover.unwrap_or(true),
+    };
+
+    let result = engine.run_experiment(&exp).await?;
+    Ok(Json(result))
+}
+
+/// GET /api/chaos/report — Summary report of all chaos experiments
+pub async fn handle_report() -> Json<serde_json::Value> {
+    let engine = chaos_engine();
+    let status = engine.get_status().await;
+    let history = engine.history.read().await;
+
+    let passed = history.iter().filter(|r| r.status == "passed").count();
+    let recovered = history.iter().filter(|r| r.status == "recovered").count();
+    let failed = history.iter().filter(|r| r.status == "failed").count();
+    let total = history.len();
+
+    let avg_recovery_ms: f64 = if !history.is_empty() {
+        // Compute from observations
+        history.iter()
+            .filter(|r| r.status == "recovered")
+            .map(|r| {
+                let first = r.observations.first().map(|o| o.timestamp.parse::<u64>().unwrap_or(0)).unwrap_or(0);
+                let last = r.observations.last().map(|o| o.timestamp.parse::<u64>().unwrap_or(0)).unwrap_or(0);
+                ((last - first) * 1000) as f64
+            })
+            .sum::<f64>() / recovered.max(1) as f64
+    } else {
+        0.0
+    };
+
+    Json(serde_json::json!({
+        "total_experiments": total,
+        "passed": passed,
+        "recovered": recovered,
+        "failed": failed,
+        "resilience_score": if total > 0 {
+            ((passed + recovered) as f64 / total as f64 * 100.0).round()
+        } else { 0.0 },
+        "avg_recovery_ms": avg_recovery_ms.round(),
+        "last_experiment": history.last(),
+        "experiments": history.iter().map(|r| serde_json::json!({
+            "id": r.experiment_id,
+            "status": r.status,
+            "started_at": r.started_at,
+            "ended_at": r.ended_at,
+            "observations_count": r.observations.len(),
+        })).collect::<Vec<_>>(),
+    }))
+}
