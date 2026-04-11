@@ -221,3 +221,103 @@ AI: [calls conda_list_envs, then conda_drift]
 | conda-lock | ✅ Complete | Parse + generate |
 | NixOS module | ✅ Complete | Declarative provisioning |
 | Flake experiment | ✅ Complete | Nix pins tool, conda pins packages |
+
+---
+
+## V2 — Deeper Conda Integration
+
+### New Components (V2)
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| venv_bridge.rs | `evo/src/venv_bridge.rs` | Unified detection across 8 Python env managers |
+| env_sync.rs | `evo/src/env_sync.rs` | Export/sync environments in 6 formats |
+| env_test.rs | `evo/src/env_test.rs` | Smoke test framework with auto-detection |
+| resolver.rs | `evo/src/resolver.rs` | Cross-source package resolver |
+| build_cache.rs | `evo/src/build_cache.rs` | Cache status, cleanup, mirror management |
+| conda-dashboard.html | `evo/static/conda-dashboard.html` | Self-contained health dashboard |
+| conda_tools_v2.ts | `mcp-server/src/conda_tools_v2.ts` | 7 new MCP tools for V2 features |
+
+### New API Endpoints (V2)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/python/envs` | GET | Unified listing of ALL Python env types |
+| `/api/env/sync` | POST | Sync environment state (export in various formats) |
+| `/api/env/export-all` | POST | Export in all available formats at once |
+| `/api/env/test` | POST | Run configurable tests on an environment |
+| `/api/env/test/auto` | POST | Auto-detect and run appropriate test suite |
+| `/api/resolve/package/:name` | GET | Cross-source package resolution |
+| `/api/resolve/batch` | POST | Batch resolve multiple packages |
+| `/api/cache/status` | GET | Cache status report |
+| `/api/cache/clean` | POST | Clean cache (dry-run supported) |
+| `/api/cache/mirror` | POST | Setup local mirror for offline use |
+| `/api/dashboard/conda` | GET | Interactive health dashboard (HTML) |
+
+### New MCP Tools (V2)
+
+| Tool | Description |
+|------|-------------|
+| `python_envs` | Unified view of ALL Python envs (conda, venv, poetry, etc) |
+| `env_sync` | Export/sync environments in 6 formats |
+| `env_test` | Run smoke tests (default/ML/data-science suites) |
+| `resolve_package` | Cross-source resolver (nixpkgs, conda-forge, PyPI) |
+| `cache_status` | View cache status, stale entries, mirrors |
+| `cache_clean` | Clean unused cache with dry-run support |
+| `env_health` | Comprehensive health check across all environments |
+
+### V2 Architecture Decisions
+
+#### 1. Universal Python Environment Bridge
+
+**Decision**: Detect all 8 Python environment managers in a unified view.
+
+**Rationale**:
+- Real-world servers often have multiple env managers (conda + venv + poetry)
+- Teams need visibility across ALL Python environments, not just conda
+- Cross-environment conflicts (same package, different versions) are a real problem
+- The bridge detects: conda, micromamba, venv, virtualenv, poetry, pipenv, pdm, uv
+
+#### 2. Multi-Format Sync
+
+**Decision**: Support 6 export formats for environment portability.
+
+**Rationale**:
+- conda-pack: for exact environment cloning (includes binaries)
+- conda-lock: for reproducible resolution across platforms
+- pip freeze/requirements.txt: for pip-based workflows
+- environment.yml: standard conda format
+- explicit: for offline installs with exact URLs
+
+#### 3. Environment Testing as First-Class
+
+**Decision**: Built-in smoke test framework with auto-detection.
+
+**Rationale**:
+- Environments break silently — import tests catch issues early
+- Auto-detection selects appropriate suite (ML gets CUDA check, DS gets scipy test)
+- Healthcheck test verifies environment integrity (broken dist-info, missing pip)
+
+#### 4. Cross-Source Resolution
+
+**Decision**: Intelligent recommendation engine for package source selection.
+
+**Rationale**:
+- Not all packages should come from conda — system tools belong in nixpkgs
+- ML packages with CUDA need conda-forge's optimized builds
+- Known patterns: numpy (conda for MKL), git (nixpkgs), pytorch (conda for CUDA)
+
+## V2 Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Virtual env bridge | ✅ Complete | 8 managers detected, cross-env conflicts |
+| Environment sync | ✅ Complete | 6 formats, recreate commands |
+| Environment testing | ✅ Complete | 3 suites, 7 test types, auto-detect |
+| Package resolver | ✅ Complete | nixpkgs + conda-forge + PyPI |
+| Build cache manager | ✅ Complete | Status, clean, mirror management |
+| Health dashboard | ✅ Complete | Self-contained HTML, dark theme |
+| MCP V2 tools | ✅ Complete | 7 tools with Chinese formatting |
+
+## Total API Endpoints: 23 (12 V1 + 11 V2)
+## Total MCP Tools: 13 (6 V1 + 7 V2)
