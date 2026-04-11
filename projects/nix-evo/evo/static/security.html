@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nix-evo — Security Scanner</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0e17;--card:#131a2b;--border:#1e2a3f;--text:#e2e8f0;--muted:#64748b;--green:#10b981;--yellow:#f59e0b;--orange:#f97316;--red:#ef4444;--blue:#3b82f6;--purple:#8b5cf6}
+body{font-family:'SF Mono','Cascadia Code','Fira Code',monospace;background:var(--bg);color:var(--text);padding:24px;min-height:100vh}
+h1{font-size:1.5rem;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+.score-ring{width:120px;height:120px;margin:0 auto 20px;position:relative}
+.score-ring svg{transform:rotate(-90deg)}
+.score-ring .score-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:2rem;font-weight:bold}
+.score-ring .score-label{position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);font-size:0.7rem;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px}
+.card h3{font-size:0.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.stat{font-size:2rem;font-weight:bold}
+.stat.critical{color:var(--red)}.stat.high{color:var(--orange)}.stat.medium{color:var(--yellow)}.stat.low{color:var(--blue)}.stat.info{color:var(--green)}
+.findings{display:flex;flex-direction:column;gap:12px}
+.finding{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;border-left:4px solid}
+.finding.critical{border-left-color:var(--red)}.finding.high{border-left-color:var(--orange)}.finding.medium{border-left-color:var(--yellow)}.finding.low{border-left-color:var(--blue)}.finding.info{border-left-color:var(--green)}
+.finding .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;margin-right:8px;text-transform:uppercase}
+.finding .tag.critical{background:rgba(239,68,68,0.2);color:var(--red)}
+.finding .tag.high{background:rgba(249,115,22,0.2);color:var(--orange)}
+.finding .tag.medium{background:rgba(245,158,11,0.2);color:var(--yellow)}
+.finding .tag.low{background:rgba(59,130,246,0.2);color:var(--blue)}
+.finding .tag.info{background:rgba(16,185,129,0.2);color:var(--green)}
+.finding h4{margin:8px 0 6px;font-size:0.95rem}
+.finding p{font-size:0.85rem;color:var(--muted);line-height:1.5}
+.finding .rec{margin-top:8px;padding:8px;background:rgba(59,130,246,0.1);border-radius:6px;font-size:0.8rem;color:var(--blue)}
+.ports{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.port-tag{padding:2px 8px;border-radius:4px;font-size:0.75rem;background:rgba(139,92,246,0.2);color:var(--purple)}
+.btn{background:var(--blue);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:0.85rem}
+.btn:hover{opacity:0.9}
+.loading{text-align:center;padding:40px;color:var(--muted)}
+#report{display:none}
+.filters{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.filter-btn{padding:4px 12px;border-radius:16px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-size:0.8rem;font-family:inherit}
+.filter-btn.active{background:var(--blue);border-color:var(--blue)}
+.cat-tag{font-size:0.7rem;padding:1px 6px;border-radius:3px;background:rgba(100,116,139,0.2);color:var(--muted)}
+</style>
+</head>
+<body>
+<h1>🔒 Security Scanner</h1>
+<div style="margin-bottom:16px">
+  <input id="path" type="text" value="/etc/nixos/configuration.nix" style="background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-family:inherit;font-size:0.85rem;width:400px;max-width:60vw">
+  <button class="btn" onclick="runScan()" id="scanBtn">Scan</button>
+  <span id="status" style="margin-left:12px;color:var(--muted);font-size:0.8rem"></span>
+</div>
+<div class="loading" id="loading" style="display:none">⏳ Scanning configuration...</div>
+<div id="report">
+  <div style="text-align:center;margin-bottom:24px">
+    <div class="score-ring">
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r="52" fill="none" stroke="#1e2a3f" stroke-width="8"/>
+        <circle id="arc" cx="60" cy="60" r="52" fill="none" stroke-width="8" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
+      </svg>
+      <div class="score-text" id="scoreText">-</div>
+      <div class="score-label">SCORE</div>
+    </div>
+    <div id="hostname" style="color:var(--muted);font-size:0.85rem"></div>
+    <div id="scanTime" style="color:var(--muted);font-size:0.75rem"></div>
+  </div>
+  <div class="grid" id="stats"></div>
+  <div class="filters" id="filters"></div>
+  <div class="findings" id="findings"></div>
+</div>
+<script>
+const apiBase = location.origin;
+let currentReport = null;
+let activeFilter = 'all';
+
+async function runScan() {
+  const path = document.getElementById('path').value;
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('report').style.display = 'none';
+  document.getElementById('scanBtn').disabled = true;
+  document.getElementById('status').textContent = 'Scanning...';
+  try {
+    const res = await fetch(`${apiBase}/api/security/scan?config_path=${encodeURIComponent(path)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    currentReport = await res.json();
+    renderReport(currentReport);
+    document.getElementById('status').textContent = `✅ Done in ${Date.now()}ms`;
+  } catch(e) {
+    document.getElementById('status').textContent = `❌ ${e.message}`;
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('scanBtn').disabled = false;
+  }
+}
+
+function renderReport(r) {
+  // Score ring
+  const score = r.score;
+  const arc = document.getElementById('arc');
+  const offset = 326.7 - (326.7 * score / 100);
+  arc.style.strokeDashoffset = offset;
+  arc.style.stroke = score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : score >= 40 ? '#f97316' : '#ef4444';
+  document.getElementById('scoreText').textContent = score;
+  document.getElementById('scoreText').style.color = arc.style.stroke;
+  document.getElementById('hostname').textContent = r.hostname;
+  document.getElementById('scanTime').textContent = new Date(r.scan_time).toLocaleString();
+
+  // Stats
+  document.getElementById('stats').innerHTML = `
+    <div class="card"><h3>Critical</h3><div class="stat critical">${r.summary.critical}</div></div>
+    <div class="card"><h3>High</h3><div class="stat high">${r.summary.high}</div></div>
+    <div class="card"><h3>Medium</h3><div class="stat medium">${r.summary.medium}</div></div>
+    <div class="card"><h3>Low</h3><div class="stat low">${r.summary.low}</div></div>
+    <div class="card"><h3>Open Ports</h3><div class="ports">${(r.summary.open_ports||[]).map(p=>`<span class="port-tag">${p}</span>`).join('')||'<span style="color:var(--muted)">none detected</span>'}</div></div>
+    <div class="card"><h3>Services</h3><div class="stat" style="font-size:1.5rem">${r.summary.services_checked} checked</div></div>
+  `;
+
+  // Filters
+  const categories = ['all', ...new Set(r.findings.map(f=>f.category))];
+  document.getElementById('filters').innerHTML = categories.map(c =>
+    `<button class="filter-btn ${c===activeFilter?'active':''}" onclick="filterFindings('${c}')">${c}</button>`
+  ).join('');
+
+  renderFindings(r.findings);
+  document.getElementById('report').style.display = 'block';
+}
+
+function filterFindings(cat) {
+  activeFilter = cat;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.textContent===cat));
+  const filtered = cat === 'all' ? currentReport.findings : currentReport.findings.filter(f => f.category===cat);
+  renderFindings(filtered);
+}
+
+function renderFindings(findings) {
+  document.getElementById('findings').innerHTML = findings.map(f => `
+    <div class="finding ${f.severity}">
+      <span class="tag ${f.severity}">${f.severity}</span>
+      <span class="cat-tag">${f.category}</span>
+      ${f.line_hint ? `<span class="cat-tag" style="margin-left:4px">line ${f.line_hint}</span>` : ''}
+      <h4>${f.title}</h4>
+      <p>${f.description}</p>
+      <div class="rec">💡 ${f.recommendation}</div>
+    </div>
+  `).join('') || '<p style="text-align:center;color:var(--green);padding:20px">✅ No issues found in this category</p>';
+}
+
+// Auto-scan on load
+setTimeout(runScan, 500);
+</script>
+</body>
+</html>
