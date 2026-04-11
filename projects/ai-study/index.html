@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Study — ampresent</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    :root {
+      --bg: #0a0a0f; --bg-card: #12121a; --border: #1e1e30;
+      --text: #e8e6f0; --text-dim: #8888aa; --text-muted: #555570;
+      --accent: #7c6aff; --radius: 16px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Space Grotesk', -apple-system, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; line-height: 1.6;
+    }
+    .bg-grid {
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(124,106,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,106,255,0.03) 1px, transparent 1px);
+      background-size: 60px 60px; pointer-events: none;
+    }
+    .container { max-width: 800px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(10,10,15,0.8); backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    nav .container { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .nav-logo {
+      font-weight: 700; font-size: 1.1rem;
+      background: linear-gradient(135deg, #7c6aff, #ff6acc);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .nav-back { color: var(--text-dim); text-decoration: none; font-size: 0.85rem; transition: color 0.3s; }
+    .nav-back:hover { color: var(--text); }
+    main { padding-top: 120px; padding-bottom: 80px; }
+    .project-icon {
+      font-size: 3rem; width: 80px; height: 80px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(,0.12); border-radius: 20px;
+      margin-bottom: 28px;
+    }
+    .project-name { font-size: 2rem; font-weight: 700; letter-spacing: -1px; margin-bottom: 8px; }
+    .project-status {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; color: #7c6aff; margin-bottom: 20px;
+      padding: 4px 12px; background: rgba(,0.1); border-radius: 12px;
+      border: 1px solid rgba(,0.2);
+    }
+    .project-status .dot { width: 6px; height: 6px; border-radius: 50%; background: #7c6aff; }
+    .project-desc { color: var(--text-dim); font-size: 1.05rem; line-height: 1.9; margin-bottom: 32px; max-width: 600px; }
+    .project-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 40px; }
+    .project-tag {
+      font-size: 0.75rem; padding: 4px 14px; border-radius: 12px;
+      background: rgba(255,255,255,0.05); color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+    .back-link {
+      display: inline-flex; align-items: center; gap: 8px;
+      color: var(--text-dim); text-decoration: none; font-size: 0.9rem;
+      transition: color 0.3s;
+    }
+    .back-link:hover { color: var(--accent); }
+    .coming-soon {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 32px; text-align: center;
+    }
+    .coming-soon p { color: var(--text-dim); font-size: 0.95rem; }
+    .coming-soon .icon { font-size: 2rem; margin-bottom: 12px; opacity: 0.5; }
+    @media (max-width: 768px) { .project-name { font-size: 1.5rem; } }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <nav>
+    <div class="container">
+      <span class="nav-logo">ampresent</span>
+      <a href="../../" class="nav-back">← 回到主页</a>
+    </div>
+  </nav>
+  <main>
+    <div class="container">
+      <div class="project-icon">🤖</div>
+      <h1 class="project-name">AI Study</h1>
+      <div class="project-status"><span class="dot"></span>持续更新</div>
+      <p class="project-desc">AI 技术学习笔记与实验场。覆盖 LLM 架构、Agent、经典深度学习、论文研读等方向。系统性地记录学习路径和探索过程。</p>
+      <div class="project-tags">
+        <span class="project-tag">AI/ML</span>
+        <span class="project-tag">学习</span>
+        <span class="project-tag">LLM</span>
+      </div>
+      <hr class="divider">
+      <div class="coming-soon">
+        <div class="icon">🚧</div>
+        <p>在线版本正在建设中，敬请期待。</p>
+      </div>
+      <hr class="divider">
+      <a href="../../" class="back-link">← 返回主页</a>
+    </div>
+  </main>
+</body>
