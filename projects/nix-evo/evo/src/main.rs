@@ -9,6 +9,7 @@ pub mod cicd;
 pub mod observability;
 pub mod dev;
 pub mod api_version;
+pub mod advisor;
 pub mod tracing_middleware;
 pub mod limiter;
 
@@ -116,6 +117,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/dev/mock/generation", post(dev::mock_apply))
         .route("/dev/mock/reset", post(dev::mock_reset))
         .route("/dev/mock/snapshot", get(dev::mock_snapshot));
+
+    // Smart advisor routes (cherry-picked from feature/experimental)
+    let api_routes = api_routes
+        .route("/advisor/rollback", post(advisor::rollback_recommendation))
+        .route("/advisor/capacity", get(advisor::capacity_report));
 
     // AI config generation routes
     let api_routes = api_routes

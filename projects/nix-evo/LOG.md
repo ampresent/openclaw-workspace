@@ -59,3 +59,13 @@
 ## 2026-04-12
 - 项目创建
 - 从 evolution-os 分离，独立项目目录
+
+## 2026-04-12 (续8) — Rounds 13-19: Docker, CI/CD, Observability, Modules, Dev Mode, API Versioning, Advisor
+
+- Round 13: Docker & Container Integration (docker.rs) — container discovery, compose validation, 13 NixOS alternatives
+- Round 14: CI/CD Pipeline (cicd.rs) — Git webhook receiver, preview deployments, deployment tracking
+- Round 15: Observability Stack (observability.rs) — journald→structured JSON, Prometheus metrics, alert rules
+- Round 16: NixOS Module Ecosystem — nextcloud.nix, jellyfin.nix, monitoring-stack.nix with full options
+- Round 17: Developer Experience (dev.rs) — mock system for testing, HOW-TO-CONTRIBUTE.md
+- Round 18: API Versioning (api_version.rs) — v1/v2 support, deprecation headers, API-STABILITY.md
+- Round 19: Smart Advisor (advisor.rs) — rollback scoring + capacity planning (cherry-picked from feature/experimental)
