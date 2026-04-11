@@ -11,6 +11,12 @@ pub mod env_sync;
 pub mod env_test;
 pub mod resolver;
 pub mod build_cache;
+pub mod env_fingerprint;
+pub mod env_migrate;
+pub mod env_repair;
+pub mod pkg_risk;
+pub mod env_templates;
+pub mod env_remote;
 
 use axum::{
     routing::{get, post, delete},
@@ -83,6 +89,25 @@ async fn main() -> anyhow::Result<()> {
         .route("/cache/status", get(build_cache::cache_status_handler))
         .route("/cache/clean", post(build_cache::cache_clean_handler))
         .route("/cache/mirror", post(build_cache::mirror_setup_handler))
+        // Environment fingerprinting
+        .route("/env/fingerprint", get(env_fingerprint::fingerprint_handler))
+        .route("/env/fingerprint/compare", post(env_fingerprint::fingerprint_compare_handler))
+        .route("/env/fingerprint/history", get(env_fingerprint::fingerprint_history_handler))
+        .route("/env/fingerprint/drift", get(env_fingerprint::fingerprint_drift_handler))
+        // Environment migration
+        .route("/env/migrate", post(env_migrate::migrate_handler))
+        // Environment repair
+        .route("/env/repair", post(env_repair::repair_handler))
+        // Package risk assessment
+        .route("/pkg/risk/:name", get(pkg_risk::risk_handler))
+        .route("/pkg/risk/batch", post(pkg_risk::batch_risk_handler))
+        // Environment templates
+        .route("/env/templates", get(env_templates::templates_handler))
+        .route("/env/templates/:name", get(env_templates::template_detail_handler))
+        .route("/env/provision", post(env_templates::provision_handler))
+        // Remote environment sync
+        .route("/env/push", post(env_remote::push_handler))
+        .route("/env/pull", post(env_remote::pull_handler))
 
 
         .route("/conda/lock", post(conda_lock::lock_handler))
