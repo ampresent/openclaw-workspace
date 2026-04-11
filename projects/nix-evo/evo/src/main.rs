@@ -36,6 +36,7 @@ pub mod chaos;
 pub mod patterns;
 pub mod impact;
 pub mod dist_sync;
+pub mod mobile;
 
 use axum::{
     routing::{get, post},
@@ -195,6 +196,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/sync/push", post(dist_sync::handle_push))
         .route("/sync/status", get(dist_sync::handle_status))
         .route("/sync/config", get(dist_sync::handle_config))
+        // Experimental v6: Mobile-First API
+        .route("/mobile/status", get(mobile::handle_status))
+        .route("/mobile/alerts", get(mobile::handle_alerts))
+        .route("/mobile/alerts/ack", post(mobile::handle_acknowledge))
+        .route("/mobile/subscribe", post(mobile::handle_subscribe))
+        .route("/mobile/sync", get(mobile::handle_sync))
         .with_state(state.clone());
 
     // Apply auth middleware to API routes if token is configured
