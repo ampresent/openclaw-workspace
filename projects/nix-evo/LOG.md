@@ -1,5 +1,13 @@
 # 日志
 
+## 2026-04-12 (续5) — Round 2: MCP server completeness
+- 实现 hosts.toml 配置文件解析（~/.config/nix-evo/hosts.toml）
+- 添加主机选择逻辑：显式指定 > default > 单主机自动
+- 添加人类可读格式化：system_snapshot、config_validate、generations、rollback_list
+- 结构化输出：格式化摘要 + 原始 JSON
+- 移除 smol-toml 外部依赖，使用内置解析器
+- 更新工具描述，添加工作流指引
+
 ## 2026-04-12 (续4) — Round 1: Agent robustness
 - 新增 `error.rs`：AppError 枚举，包含 CommandFailed/IoError/Validation/NotFound/Unauthorized/Internal
 - 新增 `auth.rs`：Bearer token 认证中间件，--api-token CLI 参数或 NIX_EVO_TOKEN 环境变量

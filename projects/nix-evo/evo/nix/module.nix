@@ -45,7 +45,7 @@ in
     tokenFile = mkOption {
       type = types.nullOr types.path;
       default = null;
-      description = "Path to file containing API token";
+      description = "Path to file containing API token (one line, no trailing newline)";
     };
   };
 
@@ -59,7 +59,8 @@ in
         ExecStart = "${cfg.package}/bin/nix-evo-agent"
           + " --host ${cfg.host}"
           + " --port ${toString cfg.port}"
-          + " --nixos-dir ${cfg.nixosDir}";
+          + " --nixos-dir ${cfg.nixosDir}"
+          + optionalString (cfg.tokenFile != null) " --api-token $(cat ${cfg.tokenFile})";
         Restart = "on-failure";
         RestartSec = 5;
 
@@ -67,12 +68,10 @@ in
         DynamicUser = true;
         SupplementaryGroups = [ "systemd-journal" ];  # for reading logs
         ProtectSystem = "strict";
-        ReadWritePaths = [ "/tmp" cfg.nixosDir ];
+        # Allow reading configs and writing nix-evo-description files
+        ReadWritePaths = [ "/tmp" cfg.nixosDir "/nix/var/nix/profiles" ];
         PrivateTmp = true;
         NoNewPrivileges = true;
-
-        # Allow nixos-rebuild
-        CapabilityBoundingSet = [ "CAP_SYS_ADMIN" "CAP_NET_ADMIN" ];
       };
 
       path = with pkgs; [
@@ -83,6 +82,8 @@ in
         gnugrep
         diffutils
         jq
+        hostname
+        utillinux  # for uptime, free
       ];
     };
 
