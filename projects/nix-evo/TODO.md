@@ -12,16 +12,20 @@
 - [x] `config_apply` — nixos-rebuild switch + generation 记录
 - [x] `rollback_list` / `rollback_apply` — generation 管理
 - [x] MCP server — stdio transport, JSON-RPC 2.0, 9 tools
-- [ ] hosts.toml — 多主机连接配置 (MCP 侧，目前用环境变量)
-- [ ] SSH 隧道 — 远程访问 agent API
-- [ ] NixOS 集成测试 — 需要 NixOS 机器编译 + 运行
+- [x] hosts.toml — 多主机连接配置 (MCP 侧)
+- [x] 认证 — 可选 Bearer token (--api-token / NIX_EVO_TOKEN)
+- [x] 错误类型 — AppError 枚举 + 中文错误消息
+- [x] 单元测试 — 风险评估 + 包解析 + hosts.toml 解析
+- [x] SSH 隧道 — MCP 端自动建立 (ssh-tunnel.ts)
+- [x] 文档 — QUICKSTART.md + DESIGN.md 实现细节
 - [ ] Cargo.lock — 需要 cargo generate-lockfile
+- [ ] NixOS 集成测试 — 需要 NixOS 机器编译 + 运行
 
 ## v0.2 — 增强
 
+- [ ] nixos-rebuild test 后再 switch（自动测试）— 设计文档已就绪
+- [ ] secrets 管理集成 (agenix/sops-nix) — 设计文档已就绪
 - [ ] nixpkgs 源码级修改工具
-- [ ] nixos-rebuild test 后再 switch（自动测试）
-- [ ] secrets 管理集成 (agenix/sops-nix)
 - [ ] TUI 看板
 
 ## v0.3 — 扩展

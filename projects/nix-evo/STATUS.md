@@ -8,12 +8,15 @@
 
 | 模块 | 状态 | 备注 |
 |------|------|------|
-| 设计文档 | ✅ 完成 | v0.1 — AI 诊断 + 安全执行 |
+| 设计文档 | ✅ 完成 | v0.1 + v0.2 设计 |
 | README | ✅ 完成 | |
-| agent (axum HTTP) | 🔨 骨架完成 | 6 个诊断/执行端点，待编译测试 |
-| MCP Server | 🔨 骨架完成 | stdio, 9 tools, TypeScript |
+| QUICKSTART | ✅ 完成 | 5 步快速入门指南 |
+| agent (axum HTTP) | ✅ v0.1 完成 | 8 个端点 + 错误类型 + 认证 + 改进解析 |
+| MCP Server | ✅ v0.1 完成 | 9 tools + hosts.toml + SSH 隧道 + 格式化输出 |
 | NixOS module | ✅ 完成 | module.nix + package.nix + flake.nix |
-| SSH 隧道 | ⬜ 待做 | 远程访问 |
+| 单元测试 | ✅ 完成 | 风险评估 + 包解析 + hosts.toml 解析 |
+| SSH 隧道 | ✅ MCP 端完成 | 自动建立 SSH 隧道 |
+| v0.2 设计 | ✅ 完成 | test-before-switch + secrets 管理 |
 
 ## 关键决策
 

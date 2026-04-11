@@ -1,5 +1,10 @@
 # 日志
 
+## 2026-04-12 (续6) — Round 5: v0.2 features
+- SSH 隧道自动建立：MCP 端 ssh-tunnel.ts，自动端口发现，超时处理，退出清理
+- DESIGN-V0.2.md：test-before-switch + secrets 管理设计
+- 集成 SSH 隧道到 MCP server 的 host 解析流程
+
 ## 2026-04-12 (续5) — Round 2: MCP server completeness
 - 实现 hosts.toml 配置文件解析（~/.config/nix-evo/hosts.toml）
 - 添加主机选择逻辑：显式指定 > default > 单主机自动
