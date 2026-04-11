@@ -18,6 +18,19 @@ import {
   formatCondaDrift,
   formatCondaLock,
 } from "./conda_tools.js";
+import {
+  CONDA_TOOLS_V3,
+  formatFingerprint,
+  formatFingerprintCompare,
+  formatFingerprintHistory,
+  formatMigrate,
+  formatRepair,
+  formatPkgRisk,
+  formatPkgRiskBatch,
+  formatTemplates,
+  formatProvision,
+  formatRemoteSync,
+} from "./conda_tools_v3.js";
 
 // ─── hosts.toml parsing ─────────────────────────────────────────────────
 
@@ -281,6 +294,7 @@ const TOOLS: Tool[] = [
     },
   },
   ...CONDA_TOOLS,
+  ...CONDA_TOOLS_V3,
 ];
 
 // ─── Risk assessment layer (MCP-side) ─────────────────────────────────────
@@ -493,6 +507,41 @@ async function main() {
           });
           break;
 
+        // V3 tools
+        case "env_fingerprint":
+          result = await agentPost(hostName, host, "/api/env/fingerprint", { env: a.env, save: a.save });
+          break;
+        case "env_fingerprint_compare":
+          result = await agentPost(hostName, host, "/api/env/fingerprint/compare", { env_a: a.env_a, env_b: a.env_b });
+          break;
+        case "env_fingerprint_history":
+          result = await agentGet(hostName, host, "/api/env/fingerprint/history", { env: a.env });
+          break;
+        case "env_migrate":
+          result = await agentPost(hostName, host, "/api/env/migrate", { source: a.source, target: a.target, env_name: a.env_name, file_path: a.file_path, dry_run: a.dry_run });
+          break;
+        case "env_repair":
+          result = await agentPost(hostName, host, "/api/env/repair", { env: a.env, auto_fix: a.auto_fix, check_shared_libs: a.check_shared_libs, check_metadata: a.check_metadata, check_conflicts: a.check_conflicts });
+          break;
+        case "pkg_risk":
+          result = await agentGet(hostName, host, "/api/pkg/risk/" + a.package, {});
+          break;
+        case "pkg_risk_batch":
+          result = await agentPost(hostName, host, "/api/pkg/risk/batch", { packages: a.packages });
+          break;
+        case "env_templates":
+          result = await agentGet(hostName, host, "/api/env/templates", {});
+          break;
+        case "env_provision":
+          result = await agentPost(hostName, host, "/api/env/provision", { template: a.template, env_name: a.env_name, python_version: a.python_version, extra_packages: a.extra_packages, skip_optional: a.skip_optional, dry_run: a.dry_run });
+          break;
+        case "env_push":
+          result = await agentPost(hostName, host, "/api/env/push", { env: a.env, remote_host: { name: "remote", api_url: a.remote_url, api_token: a.remote_token }, remote_env_name: a.remote_env_name, format: a.format });
+          break;
+        case "env_pull":
+          result = await agentPost(hostName, host, "/api/env/pull", { remote_host: { name: "remote", api_url: a.remote_url, api_token: a.remote_token }, remote_env: a.remote_env, local_env_name: a.local_env_name, overwrite: a.overwrite });
+          break;
+
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
@@ -530,6 +579,39 @@ async function main() {
         case "conda_lock":
           text = formatCondaLock(result);
           break;
+
+        // V3 formatters
+        case "env_fingerprint":
+          text = formatFingerprint(result);
+          break;
+        case "env_fingerprint_compare":
+          text = formatFingerprintCompare(result);
+          break;
+        case "env_fingerprint_history":
+          text = formatFingerprintHistory(result);
+          break;
+        case "env_migrate":
+          text = formatMigrate(result);
+          break;
+        case "env_repair":
+          text = formatRepair(result);
+          break;
+        case "pkg_risk":
+          text = formatPkgRisk(result);
+          break;
+        case "pkg_risk_batch":
+          text = formatPkgRiskBatch(result);
+          break;
+        case "env_templates":
+          text = formatTemplates(result);
+          break;
+        case "env_provision":
+          text = formatProvision(result);
+          break;
+        case "env_push":
+        case "env_pull":
+          text = formatRemoteSync(result);
+          break;
         default:
           text = JSON.stringify(result, null, 2);
       }
@@ -555,3 +637,4 @@ main().catch((err) => {
   console.error("Fatal:", err);
   process.exit(1);
 });
+
