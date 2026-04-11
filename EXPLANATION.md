@@ -369,3 +369,105 @@ Controlled fault injection for resilience testing:
 - `flake_convert` — flake.nix generation
 - `config_diff` — deep config comparison (NEW)
 - `service_deps` — dependency graph (NEW)
+
+---
+
+# Experimental V3 Features
+
+## Feature 13: Chaos Monkey Engine
+
+**File:** `evo/src/chaos.rs`
+
+Built-in chaos engineering framework for testing system resilience. Predefined scenarios with configurable risk levels:
+- **Service Kill & Recover**: Stop a service, observe if self-healer restarts it
+- **Network Partition**: iptables packet drops between services
+- **Disk Pressure**: Fill disk to test graceful degradation
+- **CPU Stress**: Saturate cores, measure latency impact
+- **Config Corruption**: Modify config, verify drift detection
+
+Each experiment records pre/post observations and supports auto-recovery.
+
+**Endpoints:**
+- `GET /api/chaos/scenarios` — List available chaos scenarios
+- `POST /api/chaos/run` — Execute an experiment
+- `GET /api/chaos/status` — Check experiment status
+
+---
+
+## Feature 14: Config Drift Detector
+
+**File:** `evo/src/drift.rs`
+
+Scans the running system against the NixOS generation store to detect unauthorized changes:
+- **File drift**: Modified files in /etc that differ from generation
+- **Service drift**: Services in unexpected states
+- **Package drift**: Missing binaries from generation
+- **Health score**: 0-100 based on drift severity
+
+**Endpoint:** `GET /api/drift/scan?paths=/etc/nginx&depth=3`
+
+---
+
+## Feature 15: AI Config Optimizer
+
+**File:** `evo/src/optimizer.rs`
+
+Analyzes the system and suggests optimizations with ready-to-use nix config snippets:
+- **Unused services**: Detect running services that aren't needed (cups, avahi, bluetooth)
+- **Security hardening**: SSH config, firewall, auto-upgrades
+- **Storage**: Nix store cleanup, /tmp usage, generation pruning
+- **Performance**: Swap analysis, kernel parameters
+
+Each suggestion includes: category, impact level, effort level, nix snippet, and reference URL.
+
+**Endpoint:** `GET /api/optimizer/analyze`
+
+---
+
+## Feature 16: Service Mesh Visualizer
+
+**File:** `evo/src/mesh.rs`
+
+Discovers the actual network topology of running services by parsing `ss` and `/proc/net`:
+- Map all listening services with their addresses and PIDs
+- Trace active TCP connections between services
+- Discover unix socket connections
+- Identify externally-exposed vs isolated services
+- Resolve well-known ports to service names
+
+**Endpoint:** `GET /api/mesh/topology`
+
+---
+
+## Complete API Endpoints (V1 + V2 + V3)
+
+| Endpoint | Method | Feature |
+|----------|--------|---------|
+| `/api/dashboard/ws` | WebSocket | Live Dashboard |
+| `/dashboard` | GET | Dashboard HTML |
+| `/api/audit` | GET | Audit log query |
+| `/api/audit/stats` | GET | Audit statistics |
+| `/api/healer/status` | GET | Healer status |
+| `/api/flake/convert` | POST | Flake conversion |
+| `/api/cluster/deploy` | POST | Cluster deploy |
+| `/api/cluster/status` | GET | Cluster status |
+| `/api/cluster/nodes` | POST/DELETE | Add/remove nodes |
+| `/api/marketplace/search` | GET | Package search |
+| `/api/marketplace/info` | GET | Package details |
+| `/api/deps/graph` | GET | Dependency graph |
+| `/api/deps/graph/analyze` | POST | Inline config analysis |
+| `/api/timeline` | GET | Generation timeline |
+| `/api/timeline/compare` | GET | Compare generations |
+| `/api/advisor/recommend` | POST | Smart rollback |
+| `/api/advisor/status` | GET | Advisor quick status |
+| `/metrics` | GET | Prometheus metrics |
+| `/deps` | GET | Deps graph UI |
+| `/timeline` | GET | Timeline UI |
+| `/api/chaos/scenarios` | GET | Chaos scenarios |
+| `/api/chaos/run` | POST | Run chaos experiment |
+| `/api/chaos/status` | GET | Chaos engine status |
+| `/api/drift/scan` | GET | Config drift scan |
+| `/api/optimizer/analyze` | GET | Config optimizer |
+| `/api/mesh/topology` | GET | Service mesh map |
+| `/api/config/diff` | POST | Config diff (v1) |
+| `/api/deps` | GET | Dep graph (v1) |
