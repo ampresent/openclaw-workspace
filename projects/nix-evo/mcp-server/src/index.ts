@@ -8,6 +8,7 @@ import {
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import { ensureTunnel, cleanupTunnels } from "./ssh-tunnel.js";
 
 // ─── hosts.toml parsing ─────────────────────────────────────────────────
 
@@ -92,19 +93,20 @@ if (!existsSync(CONFIG_PATH)) {
 /**
  * Resolve a host from the tool call argument.
  * If no host specified, uses "default" or the only available host.
+ * Returns the host entry with its original URL (tunnel resolution happens per-request).
  */
-function resolveHost(hostArg?: string): HostEntry {
+function resolveHost(hostArg?: string): { name: string; entry: HostEntry } {
   // Explicit host name
   if (hostArg && hosts[hostArg]) {
-    return hosts[hostArg];
+    return { name: hostArg, entry: hosts[hostArg] };
   }
   // Default
   if (hosts["default"]) {
-    return hosts["default"];
+    return { name: "default", entry: hosts["default"] };
   }
   // Only one host available — use it
   if (hostNames.length === 1) {
-    return hosts[hostNames[0]];
+    return { name: hostNames[0], entry: hosts[hostNames[0]] };
   }
   // Multiple hosts, no default — error
   throw new Error(
@@ -112,14 +114,26 @@ function resolveHost(hostArg?: string): HostEntry {
   );
 }
 
+/**
+ * Get the effective URL for a host, establishing SSH tunnel if needed.
+ */
+async function getEffectiveUrl(hostName: string, entry: HostEntry): Promise<string> {
+  if (entry.ssh_tunnel) {
+    return ensureTunnel(hostName, entry.ssh_tunnel, entry.url);
+  }
+  return entry.url;
+}
+
 // ─── Agent API client ───────────────────────────────────────────────────
 
 async function agentGet(
+  hostName: string,
   host: HostEntry,
   path: string,
   params: Record<string, string> = {}
 ): Promise<any> {
-  const url = new URL(path, host.url);
+  const baseUrl = await getEffectiveUrl(hostName, host);
+  const url = new URL(path, baseUrl);
   for (const [k, v] of Object.entries(params)) {
     if (v) url.searchParams.set(k, v);
   }
@@ -136,11 +150,13 @@ async function agentGet(
 }
 
 async function agentPost(
+  hostName: string,
   host: HostEntry,
   path: string,
   body: any
 ): Promise<any> {
-  const url = new URL(path, host.url);
+  const baseUrl = await getEffectiveUrl(hostName, host);
+  const url = new URL(path, baseUrl);
 
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -426,16 +442,16 @@ async function main() {
     const a = args || {};
 
     try {
-      const host = resolveHost(a.host as string | undefined);
+      const { name: hostName, entry: host } = resolveHost(a.host as string | undefined);
       let result: any;
 
       switch (name) {
         case "system_snapshot":
-          result = await agentGet(host, "/api/snapshot", { host: a.host as string });
+          result = await agentGet(hostName, host, "/api/snapshot", { host: a.host as string });
           break;
 
         case "service_logs":
-          result = await agentGet(host, "/api/logs", {
+          result = await agentGet(hostName, host, "/api/logs", {
             host: a.host as string,
             unit: a.unit as string,
             lines: String(a.lines || 50),
@@ -443,21 +459,21 @@ async function main() {
           break;
 
         case "config_read":
-          result = await agentGet(host, "/api/config", {
+          result = await agentGet(hostName, host, "/api/config", {
             host: a.host as string,
             path: a.path as string,
           });
           break;
 
         case "package_info":
-          result = await agentGet(host, "/api/package", {
+          result = await agentGet(hostName, host, "/api/package", {
             host: a.host as string,
             name: a.name as string,
           });
           break;
 
         case "generation_diff":
-          result = await agentGet(host, "/api/generations", {
+          result = await agentGet(hostName, host, "/api/generations", {
             host: a.host as string,
             from: a.from as string,
             to: a.to as string,
@@ -465,14 +481,14 @@ async function main() {
           break;
 
         case "config_validate":
-          result = await agentPost(host, "/api/config/validate", {
+          result = await agentPost(hostName, host, "/api/config/validate", {
             host: a.host,
             config: a.config,
           });
           break;
 
         case "config_apply":
-          result = await agentPost(host, "/api/config/apply", {
+          result = await agentPost(hostName, host, "/api/config/apply", {
             host: a.host,
             config: a.config,
             message: a.message,
@@ -480,11 +496,11 @@ async function main() {
           break;
 
         case "rollback_list":
-          result = await agentGet(host, "/api/generations", { host: a.host as string });
+          result = await agentGet(hostName, host, "/api/generations", { host: a.host as string });
           break;
 
         case "rollback_apply":
-          result = await agentPost(host, "/api/rollback", {
+          result = await agentPost(hostName, host, "/api/rollback", {
             host: a.host,
             target: a.target,
           });
