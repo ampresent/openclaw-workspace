@@ -11,7 +11,6 @@
 </head>
 <body>
 
-<!-- Loading -->
 <div class="loading-screen" id="loading-screen">
   <div class="loading-prism"></div>
   <div class="loading-text">PRISM</div>
@@ -22,101 +21,51 @@
   <!-- Sidebar -->
   <nav class="sidebar">
     <div class="sidebar-logo">◇</div>
-    <div class="sidebar-item active" data-page="today">
-      <span>📋</span>
-      <span class="tooltip">今日</span>
-    </div>
-    <div class="sidebar-item" data-page="voice">
-      <span>🎤</span>
-      <span class="tooltip">声音训练</span>
-    </div>
-    <div class="sidebar-item" data-page="skin">
-      <span>🧴</span>
-      <span class="tooltip">护肤管理</span>
-    </div>
-    <div class="sidebar-item" data-page="makeup">
-      <span>💄</span>
-      <span class="tooltip">妆容档案</span>
-    </div>
-    <div class="sidebar-item" data-page="fashion">
-      <span>👗</span>
-      <span class="tooltip">穿搭灵感</span>
-    </div>
-    <div class="sidebar-item" data-page="exercise">
-      <span>💪</span>
-      <span class="tooltip">身体锻炼</span>
-    </div>
-    <div class="sidebar-item" data-page="journal">
-      <span>📓</span>
-      <span class="tooltip">身体日记</span>
-    </div>
-    <div class="sidebar-item" data-page="community">
-      <span>🌻</span>
-      <span class="tooltip">社群花园</span>
-    </div>
+    <div class="sidebar-item active" data-page="today"><span>📋</span><span class="tooltip">今日</span></div>
+    <div class="sidebar-item" data-page="voice"><span>🎤</span><span class="tooltip">声音训练</span></div>
+    <div class="sidebar-item" data-page="skin"><span>🧴</span><span class="tooltip">护肤</span></div>
+    <div class="sidebar-item" data-page="exercise"><span>💪</span><span class="tooltip">锻炼</span></div>
+    <div class="sidebar-item" data-page="community"><span>🌻</span><span class="tooltip">社群</span></div>
     <div class="sidebar-spacer"></div>
     <div class="sidebar-bottom">
-      <div class="sidebar-item" id="btn-export" title="导出数据">
-        <span>📦</span>
-        <span class="tooltip">导出数据</span>
-      </div>
-      <div class="sidebar-item" id="btn-import" title="导入数据">
-        <span>📥</span>
-        <span class="tooltip">导入数据</span>
-      </div>
+      <div class="sidebar-item" id="btn-export"><span>📦</span><span class="tooltip">导出数据</span></div>
     </div>
-    <input type="file" id="hidden-import" accept=".json" style="display:none">
   </nav>
 
   <!-- Main -->
   <div class="main">
     <header class="main-header">
       <h1 id="page-title">今日</h1>
-      <div class="header-right">
-        <div class="streak-badge">
-          🔥 <span id="streak-number">0</span> 天
-        </div>
-      </div>
+      <div class="streak-badge">🔥 <span id="streak-number">0</span> 天</div>
     </header>
 
-    <!-- ==================== TODAY PAGE ==================== -->
+    <!-- TODAY -->
     <div class="page active" id="page-today">
       <div class="page-today">
-
-        <!-- Greeting -->
         <div class="greeting-section">
           <div class="greeting-time" id="greeting-time">早安 ☀️</div>
           <div class="greeting-sub" id="greeting-sub"></div>
           <div class="greeting-affirmation" id="daily-affirmation"></div>
         </div>
 
-        <!-- Today progress -->
-        <div id="today-stats"></div>
-
-        <!-- Morning routine -->
         <div class="today-section">// 晨间</div>
         <div id="plan-morning" class="plan-card"></div>
 
-        <!-- Training (voice or body, based on day) -->
-        <div class="today-section" id="section-training">// 今日训练</div>
+        <div class="today-section" id="section-training">// 训练</div>
         <div id="plan-training" class="plan-card"></div>
 
-        <!-- Skin care -->
         <div class="today-section">// 护肤</div>
         <div id="plan-skin" class="plan-card"></div>
 
-        <!-- Wellness -->
-        <div class="today-section">// 身心</div>
-        <div id="plan-wellness" class="plan-card"></div>
+        <div class="today-section">// 穿搭</div>
+        <div id="plan-outfit" class="plan-card"></div>
 
-        <!-- Evening routine (shows after 4pm) -->
         <div class="today-section" id="section-evening">// 晚间</div>
         <div id="plan-evening" class="plan-card"></div>
-
       </div>
     </div>
 
-    <!-- ==================== VOICE PAGE ==================== -->
+    <!-- VOICE -->
     <div class="page" id="page-voice">
       <div class="sub-page">
         <div class="card">
@@ -126,218 +75,54 @@
             <div class="pitch-label">实时音高监测</div>
             <div class="pitch-indicator"></div>
           </div>
-          <div style="display:flex;gap:8px;margin-top:16px;justify-content:center">
-            <button class="btn btn-primary" onclick="App.startPitchMonitor()">🎤 开始监测</button>
-            <button class="btn btn-ghost hidden" id="btn-stop-pitch-page" onclick="App.stopPitchMonitor()">⏹ 停止</button>
+          <div style="display:flex;gap:8px;margin-top:14px;justify-content:center">
+            <button class="btn btn-primary" onclick="App.startPitch()">🎤 开始监测</button>
           </div>
         </div>
         <div class="card">
           <div class="card-title">练习句子</div>
-          <div id="voice-sentences" style="display:flex;flex-direction:column;gap:8px">
-          </div>
-          <script>
-            // Render sentences inline
-            setTimeout(() => {
-              const el = document.getElementById('voice-sentences');
-              if (el) el.innerHTML = PrismData.voicePracticeSentences.map(s =>
-                `<div style="padding:10px 14px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.9rem;color:var(--text-secondary)">"${s}"</div>`
-              ).join('');
-            }, 1000);
-          </script>
-        </div>
-        <div class="card">
-          <div class="card-title">训练记录</div>
-          <div class="quick-log">
-            <input type="number" placeholder="时长(分钟)" id="voice-duration-page" style="max-width:120px">
-            <input type="text" placeholder="训练笔记..." id="voice-note-page">
-            <button class="btn btn-sm btn-primary" onclick="App.saveVoiceLog()">记录</button>
-          </div>
-          <div id="voice-log-list" style="margin-top:16px"></div>
+          <div id="voice-sentences"></div>
         </div>
       </div>
     </div>
 
-    <!-- ==================== SKIN PAGE ==================== -->
+    <!-- SKIN -->
     <div class="page" id="page-skin">
       <div class="sub-page">
         <div class="card">
-          <div class="card-title">🧴 护肤流程</div>
-          <div id="skin-routine-full"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">产品架</div>
-          <div class="quick-log">
-            <input type="text" placeholder="产品名称" id="product-name">
-            <select id="product-type" class="form-select" style="max-width:120px">
-              <option value="cleanser">洁面</option>
-              <option value="toner">化妆水</option>
-              <option value="serum">精华</option>
-              <option value="moisturizer">面霜</option>
-              <option value="sunscreen">防晒</option>
-              <option value="mask">面膜</option>
-              <option value="eye">眼霜</option>
-              <option value="other">其他</option>
-            </select>
-            <button class="btn btn-sm btn-primary" onclick="App.addProduct()">添加</button>
-          </div>
-          <div id="product-shelf" style="margin-top:12px"></div>
+          <div class="card-title" id="skin-page-title">🧴 护肤流程</div>
+          <div id="skin-page-routine"></div>
         </div>
       </div>
     </div>
 
-    <!-- ==================== MAKEUP PAGE ==================== -->
-    <div class="page" id="page-makeup">
-      <div class="sub-page">
-        <div class="card">
-          <div class="card-title">💄 妆容档案</div>
-          <div class="form-group">
-            <label class="form-label">妆容风格</label>
-            <input type="text" class="form-input" id="makeup-style" placeholder="日常妆 / 约会妆 / ...">
-          </div>
-          <div class="form-group">
-            <label class="form-label">使用技巧</label>
-            <div class="tags-row" id="makeup-techniques">
-              <span class="tag" data-tag="修容" onclick="this.classList.toggle('selected')">修容</span>
-              <span class="tag" data-tag="遮瑕" onclick="this.classList.toggle('selected')">遮瑕</span>
-              <span class="tag" data-tag="眼妆" onclick="this.classList.toggle('selected')">眼妆</span>
-              <span class="tag" data-tag="唇妆" onclick="this.classList.toggle('selected')">唇妆</span>
-              <span class="tag" data-tag="眉毛" onclick="this.classList.toggle('selected')">眉毛</span>
-              <span class="tag" data-tag="腮红" onclick="this.classList.toggle('selected')">腮红</span>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">笔记</label>
-            <textarea class="form-textarea" id="makeup-note" placeholder="今天的妆容心得..."></textarea>
-          </div>
-          <button class="btn btn-primary" onclick="App.saveMakeupLog()">记录妆容</button>
-        </div>
-        <div class="card">
-          <div class="card-title">历史记录</div>
-          <div id="makeup-history"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================== FASHION PAGE ==================== -->
-    <div class="page" id="page-fashion">
-      <div class="sub-page">
-        <div class="card">
-          <div class="card-title">👗 穿搭记录</div>
-          <div class="form-group">
-            <label class="form-label">场合</label>
-            <input type="text" class="form-input" id="outfit-occasion" placeholder="上班 / 约会 / 逛街 / ...">
-          </div>
-          <div class="form-group">
-            <label class="form-label">穿搭描述</label>
-            <textarea class="form-textarea" id="outfit-desc" placeholder="今天穿了什么..."></textarea>
-          </div>
-          <div class="form-group">
-            <label class="form-label">风格标签</label>
-            <div class="tags-row" id="outfit-styles">
-              <span class="tag" data-tag="休闲" onclick="this.classList.toggle('selected')">休闲</span>
-              <span class="tag" data-tag="甜美" onclick="this.classList.toggle('selected')">甜美</span>
-              <span class="tag" data-tag="知性" onclick="this.classList.toggle('selected')">知性</span>
-              <span class="tag" data-tag="运动" onclick="this.classList.toggle('selected')">运动</span>
-              <span class="tag" data-tag="优雅" onclick="this.classList.toggle('selected')">优雅</span>
-              <span class="tag" data-tag="可爱" onclick="this.classList.toggle('selected')">可爱</span>
-            </div>
-          </div>
-          <button class="btn btn-primary" onclick="App.saveOutfitLog()">记录穿搭</button>
-        </div>
-        <div class="card">
-          <div class="card-title">历史记录</div>
-          <div id="outfit-history"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================== EXERCISE PAGE ==================== -->
+    <!-- EXERCISE -->
     <div class="page" id="page-exercise">
       <div class="sub-page">
         <div id="workout-plan-full"></div>
       </div>
     </div>
 
-    <!-- ==================== JOURNAL PAGE ==================== -->
-    <div class="page" id="page-journal">
-      <div class="sub-page">
-        <div class="card">
-          <div class="card-title">📓 身体日记</div>
-          <div class="form-group">
-            <label class="form-label">身体感受</label>
-            <div class="tags-row" id="body-feeling">
-              <span class="tag" data-tag="舒适" onclick="this.classList.toggle('selected')">舒适</span>
-              <span class="tag" data-tag="疲惫" onclick="this.classList.toggle('selected')">疲惫</span>
-              <span class="tag" data-tag="有力量" onclick="this.classList.toggle('selected')">有力量</span>
-              <span class="tag" data-tag="僵硬" onclick="this.classList.toggle('selected')">僵硬</span>
-              <span class="tag" data-tag="轻盈" onclick="this.classList.toggle('selected')">轻盈</span>
-              <span class="tag" data-tag="紧张" onclick="this.classList.toggle('selected')">紧张</span>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">关注区域</label>
-            <div class="tags-row" id="body-areas">
-              <span class="tag" data-tag="声音" onclick="this.classList.toggle('selected')">声音</span>
-              <span class="tag" data-tag="皮肤" onclick="this.classList.toggle('selected')">皮肤</span>
-              <span class="tag" data-tag="体态" onclick="this.classList.toggle('selected')">体态</span>
-              <span class="tag" data-tag="臀腿" onclick="this.classList.toggle('selected')">臀腿</span>
-              <span class="tag" data-tag="腰腹" onclick="this.classList.toggle('selected')">腰腹</span>
-              <span class="tag" data-tag="整体" onclick="this.classList.toggle('selected')">整体</span>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">今天的感受</label>
-            <textarea class="form-textarea" id="body-journal-content" placeholder="写下你对自己身体的感受..."></textarea>
-          </div>
-          <button class="btn btn-primary" onclick="App.saveBodyJournal()">保存日记</button>
-        </div>
-        <div class="card">
-          <div class="card-title">历史日记</div>
-          <div id="body-journal-list"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================== COMMUNITY PAGE ==================== -->
+    <!-- COMMUNITY -->
     <div class="page" id="page-community">
       <div class="sub-page">
-        <div class="card">
-          <div class="card-title">🌻 匿名分享</div>
-          <div class="form-group">
-            <label class="form-label">分类</label>
-            <select id="story-category" class="form-select">
-              <option value="voice">声音训练</option>
-              <option value="skin">护肤经验</option>
-              <option value="makeup">化妆技巧</option>
-              <option value="fashion">穿搭心得</option>
-              <option value="exercise">锻炼经验</option>
-              <option value="general">日常分享</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <textarea class="form-textarea" id="story-content" placeholder="分享你的经验、心得、小技巧..."></textarea>
-          </div>
-          <button class="btn btn-primary" onclick="App.shareStory()">匿名分享 🌻</button>
-        </div>
         <div class="tags-row" style="margin-bottom:16px">
-          <span class="tag active" onclick="UI.renderCommunityPage('all');document.querySelectorAll('.tags-row .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">全部</span>
-          <span class="tag" onclick="UI.renderCommunityPage('voice');document.querySelectorAll('.tags-row .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">声音</span>
-          <span class="tag" onclick="UI.renderCommunityPage('makeup');document.querySelectorAll('.tags-row .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">化妆</span>
-          <span class="tag" onclick="UI.renderCommunityPage('fashion');document.querySelectorAll('.tags-row .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">穿搭</span>
-          <span class="tag" onclick="UI.renderCommunityPage('exercise');document.querySelectorAll('.tags-row .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">锻炼</span>
+          <span class="tag active" onclick="UI.renderCommunityPage('all');document.querySelectorAll('.page-community .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">全部</span>
+          <span class="tag" onclick="UI.renderCommunityPage('voice');document.querySelectorAll('.page-community .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">声音</span>
+          <span class="tag" onclick="UI.renderCommunityPage('makeup');document.querySelectorAll('.page-community .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">化妆</span>
+          <span class="tag" onclick="UI.renderCommunityPage('fashion');document.querySelectorAll('.page-community .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">穿搭</span>
+          <span class="tag" onclick="UI.renderCommunityPage('exercise');document.querySelectorAll('.page-community .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">锻炼</span>
         </div>
         <div id="stories-feed"></div>
       </div>
     </div>
 
-  </div><!-- /main -->
-
-</div><!-- /app -->
+  </div>
+</div>
 
 <script src="js/data.js"></script>
 <script src="js/store.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>
-
 </body>
 </html>
