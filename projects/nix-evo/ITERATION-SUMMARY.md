@@ -119,3 +119,90 @@ Completed 5 rounds of improvements to the nix-evo project (NixOS management tool
 - Multi-host orchestration
 - Webhook triggers
 - Config templates/shared modules
+
+## Additional Rounds (Subagent 2 — Rounds 6-12)
+
+### Round 6: MCP Tool Routing Tests
+- Created `mcp-server/tests/tools.test.ts` with 30+ test cases
+- Tests: host resolution (5), request construction (5), tool validation (5), response formatting (4), tool routing matrix (6), error handling (3)
+- Validates all 9 original tools have correct method/path mappings
+
+### Round 7: Performance & Observability
+- Enhanced health endpoint: includes NixOS detection, uptime, version
+- Command timeout support: `run_cmd_with_timeout` with configurable 120s default
+- Request tracking infrastructure in cmd/mod.rs
+
+### Round 8: AI Configuration Generation
+- `evo/src/ai_config.rs`: Template-based NixOS config from natural language
+- 9 built-in patterns: nginx, docker, ssh, firewall, postgresql, redis, node, python, borgbackup
+- Each pattern includes config snippet, explanation, packages, services, risk level
+- Keyword scoring for best-match selection
+- `mcp-server/src/ai-config.ts`: MCP-side pattern matching and LLM prompt builder
+- New MCP tool: `config_generate`
+
+### Round 9: Backup & Disaster Recovery
+- `evo/src/backup.rs`: Full backup system
+- Snapshot /etc/nixos before applies
+- Backup rotation: 20 auto + 50 manual max
+- Restore with safety backup (creates backup before restore)
+- Dry-run preview mode
+- New endpoints: GET /api/backups, POST /api/backup/create, POST /api/backup/restore, POST /api/backup/rotate
+- New MCP tools: backup_list, backup_create, backup_restore
+
+### Round 10: Community & Ecosystem
+- `CONTRIBUTING.md`: Development setup, code style, PR guidelines
+- `evo/nix/README.md`: NixOS module installation guide with all options
+- `NIXPKGS-PR-TEMPLATE.md`: Draft nixpkgs submission template
+- `examples/nginx-setup.sh`, `examples/docker-setup.sh`: Usage examples
+
+### Round 11: Security & Test-Before-Switch
+- `evo/src/cmd/config_test.rs`: Test-before-switch endpoint
+  - Runs `nixos-rebuild test` (reversible by reboot)
+  - Optional auto-switch after configurable delay (default 5 min)
+  - Cancel endpoint for stopping auto-switch
+  - Records [TEST] prefix in generation descriptions
+- `evo/src/tls.rs`: TLS configuration structure (design + stub)
+- `SECURITY.md`: Comprehensive threat model and hardening roadmap
+
+### Round 12: Integration Roadmap
+- `INTEGRATIONS.md`: Multi-host orchestration, Docker, systemd-nspawn, Kubernetes, monitoring, CI/CD
+- `examples/docker-compose-monitoring.yml`: Monitoring stack example
+
+## New Files Created (Rounds 6-12)
+
+| File | Description |
+|------|-------------|
+| mcp-server/tests/tools.test.ts | MCP tool routing tests (30+ tests) |
+| evo/src/ai_config.rs | AI config generation (9 patterns) |
+| evo/src/backup.rs | Backup & disaster recovery |
+| evo/src/cmd/config_test.rs | Test-before-switch endpoint |
+| evo/src/tls.rs | TLS config structure |
+| mcp-server/src/ai-config.ts | MCP-side AI config |
+| CONTRIBUTING.md | Developer guide |
+| SECURITY.md | Threat model & hardening |
+| INTEGRATIONS.md | Integration roadmap |
+| evo/nix/README.md | NixOS module guide |
+| NIXPKGS-PR-TEMPLATE.md | nixpkgs submission template |
+| examples/nginx-setup.sh | Nginx setup example |
+| examples/docker-setup.sh | Docker setup example |
+| examples/docker-compose-monitoring.yml | Monitoring stack example |
+
+## Updated Files
+
+| File | Changes |
+|------|---------|
+| evo/src/main.rs | Added ai_config, backup, config_test modules; new routes |
+| evo/src/cmd/mod.rs | Added config_test, ai_config modules; health handler; timeout support |
+| mcp-server/src/index.ts | Added config_generate, backup_list, backup_create, backup_restore tools + formatters |
+| LOG.md | Updated with rounds 6-12 |
+| STATUS.md | Updated to v0.3 with full endpoint/tool inventory |
+
+## What's Next (v0.4+)
+
+- TLS implementation (rustls integration)
+- Multi-host orchestration
+- Real LLM integration for config generation
+- Docker/systemd-nspawn container management
+- Prometheus metrics export
+- CI/CD webhook triggers
+- Rate limiting middleware
