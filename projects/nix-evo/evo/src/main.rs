@@ -5,6 +5,7 @@ pub mod auth;
 pub mod ai_config;
 pub mod backup;
 pub mod docker;
+pub mod cicd;
 pub mod tracing_middleware;
 pub mod limiter;
 
@@ -85,6 +86,13 @@ async fn main() -> anyhow::Result<()> {
     let api_routes = api_routes
         .route("/docker/status", get(docker::docker_status))
         .route("/docker/compose-validate", post(docker::compose_validate));
+
+    // CI/CD routes
+    let api_routes = api_routes
+        .route("/cicd/webhook", post(cicd::webhook_handler))
+        .route("/cicd/preview-deploy", post(cicd::preview_deploy))
+        .route("/cicd/deployments", get(cicd::list_deployments))
+        .route("/cicd/deployments/:id", get(cicd::get_deployment));
 
     // AI config generation routes
     let api_routes = api_routes
