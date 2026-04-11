@@ -9,13 +9,22 @@ import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { ensureTunnel, cleanupTunnels } from "./ssh-tunnel.js";
+import {
+  CONDA_TOOLS,
+  formatCondaEnvList,
+  formatCondaEnvInfo,
+  formatCondaInstall,
+  formatCondaExport,
+  formatCondaDrift,
+  formatCondaLock,
+} from "./conda_tools.js";
 
 // ─── hosts.toml parsing ─────────────────────────────────────────────────
 
 interface HostEntry {
   url: string;
   token?: string;
-  ssh_tunnel?: string; // e.g. "user@remote-host:7890"
+  ssh_tunnel?: string;
   description?: string;
 }
 
@@ -25,10 +34,6 @@ const CONFIG_PATH = join(
   "hosts.toml"
 );
 
-/**
- * Minimal TOML parser for hosts.toml structure.
- * Supports: [hosts.name], key = "value", # comments
- */
 function parseHostsToml(content: string): Record<string, HostEntry> {
   const hosts: Record<string, HostEntry> = {};
   let currentSection: string | null = null;
@@ -37,7 +42,6 @@ function parseHostsToml(content: string): Record<string, HostEntry> {
     const line = rawLine.replace(/#.*$/, "").trim();
     if (!line) continue;
 
-    // Section header: [hosts.name]
     const sectionMatch = line.match(/^\[hosts\.([a-zA-Z0-9_-]+)\]$/);
     if (sectionMatch) {
       currentSection = sectionMatch[1];
@@ -45,7 +49,6 @@ function parseHostsToml(content: string): Record<string, HostEntry> {
       continue;
     }
 
-    // Key-value
     const kvMatch = line.match(/^([a-zA-Z_]+)\s*=\s*"(.*)"$/);
     if (kvMatch && currentSection) {
       const [, key, value] = kvMatch;
@@ -69,7 +72,6 @@ function loadHosts(): Record<string, HostEntry> {
     }
   }
 
-  // Fallback: env vars for single-host setup
   const envUrl = process.env.NIX_EVO_AGENT_URL || "http://127.0.0.1:7890";
   const envToken = process.env.NIX_EVO_TOKEN;
   return {
@@ -80,8 +82,6 @@ function loadHosts(): Record<string, HostEntry> {
   };
 }
 
-// ─── Config ─────────────────────────────────────────────────────────────
-
 const hosts = loadHosts();
 const hostNames = Object.keys(hosts);
 
@@ -90,33 +90,21 @@ if (!existsSync(CONFIG_PATH)) {
   console.error(`Note: No hosts.toml found at ${CONFIG_PATH}, using env vars`);
 }
 
-/**
- * Resolve a host from the tool call argument.
- * If no host specified, uses "default" or the only available host.
- * Returns the host entry with its original URL (tunnel resolution happens per-request).
- */
 function resolveHost(hostArg?: string): { name: string; entry: HostEntry } {
-  // Explicit host name
   if (hostArg && hosts[hostArg]) {
     return { name: hostArg, entry: hosts[hostArg] };
   }
-  // Default
   if (hosts["default"]) {
     return { name: "default", entry: hosts["default"] };
   }
-  // Only one host available — use it
   if (hostNames.length === 1) {
     return { name: hostNames[0], entry: hosts[hostNames[0]] };
   }
-  // Multiple hosts, no default — error
   throw new Error(
     `请指定 host 参数。可用主机: ${hostNames.join(", ")}`
   );
 }
 
-/**
- * Get the effective URL for a host, establishing SSH tunnel if needed.
- */
 async function getEffectiveUrl(hostName: string, entry: HostEntry): Promise<string> {
   if (entry.ssh_tunnel) {
     return ensureTunnel(hostName, entry.ssh_tunnel, entry.url);
@@ -292,34 +280,28 @@ const TOOLS: Tool[] = [
       required: [],
     },
   },
+  ...CONDA_TOOLS,
 ];
 
 // ─── Risk assessment layer (MCP-side) ─────────────────────────────────────
 
 function formatRiskBadge(level: string): string {
   switch (level) {
-    case "safe":
-      return "🟢 安全";
-    case "moderate":
-      return "🟡 中等风险";
-    case "dangerous":
-      return "🔴 高风险";
-    default:
-      return "❓ 未知";
+    case "safe": return "🟢 安全";
+    case "moderate": return "🟡 中等风险";
+    case "dangerous": return "🔴 高风险";
+    default: return "❓ 未知";
   }
 }
 
 function formatValidateOutput(result: any): string {
   const parts: string[] = [];
 
-  // Status line
   parts.push(result.valid ? "✅ 验证通过" : "❌ 验证失败");
 
-  // Summary
   const s = result.summary || {};
   if (s.packages_added?.length) {
     parts.push(`\n📦 将安装 (${s.packages_added.length}):`);
-    // Show first 10
     const shown = s.packages_added.slice(0, 10);
     for (const p of shown) parts.push(`  + ${p}`);
     if (s.packages_added.length > 10) {
@@ -339,7 +321,6 @@ function formatValidateOutput(result: any): string {
     for (const svc of s.services_stop) parts.push(`  ■ ${svc}`);
   }
 
-  // Risk assessment
   const level = s.risk_level || "unknown";
   const reasons = s.risk_reasons || [];
   parts.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
@@ -359,13 +340,11 @@ function formatSnapshot(result: any): string {
   parts.push(`🖥️  ${result.hostname} (NixOS ${result.nixos_version})`);
   parts.push(`   内核: ${result.kernel} | 运行时间: ${result.uptime}`);
 
-  // Disk warnings
   const diskWarning = result.disk?.find((d: any) => d.used_pct > 80);
   if (diskWarning) {
     parts.push(`\n⚠️  磁盘使用率高: ${diskWarning.mount} (${diskWarning.used_pct}%)`);
   }
 
-  // Failed services
   if (result.recent_failures?.length > 0) {
     parts.push(`\n❌ 失败的服务 (${result.recent_failures.length}):`);
     for (const f of result.recent_failures) {
@@ -374,12 +353,10 @@ function formatSnapshot(result: any): string {
     }
   }
 
-  // Memory
   if (result.memory) {
     parts.push(`\n💾 内存: ${result.memory.used} / ${result.memory.total} (可用: ${result.memory.available})`);
   }
 
-  // Running services count
   if (result.services?.length) {
     parts.push(`\n🟢 运行中: ${result.services.length} 个服务`);
   }
@@ -391,7 +368,6 @@ function formatGenerations(result: any): string {
   const parts: string[] = [];
   parts.push(`📋 NixOS Generation 历史 (当前: ${result.current})\n`);
 
-  // Show last 10
   const gens = (result.generations || []).slice(-10).reverse();
   for (const g of gens) {
     const marker = g.number === result.current ? " ← 当前" : "";
@@ -427,16 +403,14 @@ function formatRollbackList(result: any): string {
 
 async function main() {
   const server = new Server(
-    { name: "nix-evo", version: "0.2.0" },
+    { name: "nix-evo", version: "0.3.0" },
     { capabilities: { tools: {} } }
   );
 
-  // List tools
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: TOOLS,
   }));
 
-  // Call tool
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     const a = args || {};
@@ -446,63 +420,76 @@ async function main() {
       let result: any;
 
       switch (name) {
+        // ─── NixOS tools ────────────────────────────────────────────
         case "system_snapshot":
           result = await agentGet(hostName, host, "/api/snapshot", { host: a.host as string });
           break;
-
         case "service_logs":
           result = await agentGet(hostName, host, "/api/logs", {
-            host: a.host as string,
-            unit: a.unit as string,
-            lines: String(a.lines || 50),
+            host: a.host as string, unit: a.unit as string, lines: String(a.lines || 50),
           });
           break;
-
         case "config_read":
           result = await agentGet(hostName, host, "/api/config", {
-            host: a.host as string,
-            path: a.path as string,
+            host: a.host as string, path: a.path as string,
           });
           break;
-
         case "package_info":
           result = await agentGet(hostName, host, "/api/package", {
-            host: a.host as string,
-            name: a.name as string,
+            host: a.host as string, name: a.name as string,
           });
           break;
-
         case "generation_diff":
           result = await agentGet(hostName, host, "/api/generations", {
-            host: a.host as string,
-            from: a.from as string,
-            to: a.to as string,
+            host: a.host as string, from: a.from as string, to: a.to as string,
           });
           break;
-
         case "config_validate":
           result = await agentPost(hostName, host, "/api/config/validate", {
-            host: a.host,
-            config: a.config,
+            host: a.host, config: a.config,
           });
           break;
-
         case "config_apply":
           result = await agentPost(hostName, host, "/api/config/apply", {
-            host: a.host,
-            config: a.config,
-            message: a.message,
+            host: a.host, config: a.config, message: a.message,
           });
           break;
-
         case "rollback_list":
           result = await agentGet(hostName, host, "/api/generations", { host: a.host as string });
           break;
-
         case "rollback_apply":
           result = await agentPost(hostName, host, "/api/rollback", {
-            host: a.host,
-            target: a.target,
+            host: a.host, target: a.target,
+          });
+          break;
+
+        // ─── Conda tools ────────────────────────────────────────────
+        case "conda_list_envs":
+          result = await agentGet(hostName, host, "/api/conda/envs", { host: a.host as string });
+          break;
+        case "conda_env_info":
+          result = await agentGet(hostName, host, "/api/conda/packages", {
+            host: a.host as string, env: a.env as string,
+          });
+          break;
+        case "conda_install":
+          result = await agentPost(hostName, host, "/api/conda/install", {
+            env: a.env, packages: a.packages,
+          });
+          break;
+        case "conda_export":
+          result = await agentGet(hostName, host, "/api/conda/export", {
+            host: a.host as string, env: a.env as string, explicit: String(a.explicit || false),
+          });
+          break;
+        case "conda_drift":
+          result = await agentGet(hostName, host, "/api/conda/drift", {
+            host: a.host as string, env: a.env as string, yml: a.yml as string,
+          });
+          break;
+        case "conda_lock":
+          result = await agentPost(hostName, host, "/api/conda/lock", {
+            env: a.env, yml: a.yml, platforms: a.platforms, filename: a.filename,
           });
           break;
 
@@ -525,6 +512,24 @@ async function main() {
         case "rollback_list":
           text = `${formatRollbackList(result)}\n\n---\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
           break;
+        case "conda_list_envs":
+          text = formatCondaEnvList(result);
+          break;
+        case "conda_env_info":
+          text = formatCondaEnvInfo(result);
+          break;
+        case "conda_install":
+          text = formatCondaInstall(result);
+          break;
+        case "conda_export":
+          text = formatCondaExport(result);
+          break;
+        case "conda_drift":
+          text = formatCondaDrift(result);
+          break;
+        case "conda_lock":
+          text = formatCondaLock(result);
+          break;
         default:
           text = JSON.stringify(result, null, 2);
       }
@@ -541,10 +546,9 @@ async function main() {
     }
   });
 
-  // Start stdio transport
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("nix-evo MCP server v0.2.0 running on stdio");
+  console.error("nix-evo MCP server v0.3.0 running on stdio");
 }
 
 main().catch((err) => {
