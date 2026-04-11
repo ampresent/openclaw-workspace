@@ -8,6 +8,7 @@ pub mod config_apply;
 pub mod rollback;
 pub mod config_diff;
 pub mod config_list;
+pub mod config_search;
 pub mod config_test;
 pub mod ai_config;
 

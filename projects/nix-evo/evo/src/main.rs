@@ -6,6 +6,7 @@ pub mod ai_config;
 pub mod backup;
 pub mod docker;
 pub mod cicd;
+pub mod observability;
 pub mod tracing_middleware;
 pub mod limiter;
 
@@ -68,6 +69,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/logs", get(service_logs::handle))
         .route("/config", get(config_read::handle))
         .route("/config/list", get(config_list::handle))
+        .route("/config/search", post(config_search::handle))
         .route("/package", get(package_info::handle))
         .route("/generations", get(generation_diff::handle))
         .route("/config/validate", post(config_validate::handle))
@@ -94,6 +96,15 @@ async fn main() -> anyhow::Result<()> {
         .route("/cicd/preview-deploy", post(cicd::preview_deploy))
         .route("/cicd/deployments", get(cicd::list_deployments))
         .route("/cicd/deployments/:id", get(cicd::get_deployment));
+
+    // Observability routes
+    let api_routes = api_routes
+        .route("/observability/logs", post(observability::query_logs))
+        .route("/observability/metrics", get(observability::metrics_endpoint))
+        .route("/observability/alerts", get(observability::list_alerts))
+        .route("/observability/alerts/check", post(observability::check_alerts))
+        .route("/observability/alerts/rules", post(observability::upsert_alert_rule))
+        .route("/observability/config", get(observability::get_observability_config));
 
     // AI config generation routes
     let api_routes = api_routes

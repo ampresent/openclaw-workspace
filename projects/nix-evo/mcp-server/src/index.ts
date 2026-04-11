@@ -197,6 +197,21 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: "config_search",
+    description: "在 NixOS 配置文件中搜索模式（支持 grep 语法）。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        pattern: { type: "string", description: "搜索模式（grep 兼容）" },
+        path: { type: "string", description: "搜索路径，默认 /etc/nixos" },
+        case_insensitive: { type: "boolean", description: "是否忽略大小写", default: false },
+        limit: { type: "number", description: "最大结果数", default: 50 },
+      },
+      required: ["pattern"],
+    },
+  },
+  {
     name: "package_info",
     description: "查询已安装包的详细信息。",
     inputSchema: {
@@ -641,6 +656,15 @@ async function main() {
         case "config_list":
           result = await agentGet(baseUrl, token, "/api/config/list", {
             dir: a.dir as string,
+          });
+          break;
+
+        case "config_search":
+          result = await agentPost(baseUrl, token, "/api/config/search", {
+            pattern: a.pattern,
+            path: a.path,
+            case_insensitive: a.case_insensitive,
+            limit: a.limit,
           });
           break;
 
