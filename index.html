@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ampresent</title>
+  <meta name="description" content="ampresent - 创造者、探索者、永远在路上">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    :root {
+      --bg: #0a0a0f;
+      --bg-card: #12121a;
+      --bg-card-hover: #1a1a28;
+      --border: #1e1e30;
+      --border-glow: #2a2a4a;
+      --text: #e8e6f0;
+      --text-dim: #8888aa;
+      --text-muted: #555570;
+      --accent: #7c6aff;
+      --accent2: #ff6acc;
+      --accent3: #6affcc;
+      --accent-dim: rgba(124,106,255,0.15);
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Space Grotesk', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* ---- Background ---- */
+    .bg-grid {
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(124,106,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,106,255,0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+    }
+    .bg-glow {
+      position: fixed; z-index: 0; pointer-events: none;
+      width: 600px; height: 600px; border-radius: 50%;
+      filter: blur(120px); opacity: 0.15;
+    }
+    .bg-glow-1 { top: -200px; right: -100px; background: var(--accent); }
+    .bg-glow-2 { bottom: -200px; left: -100px; background: var(--accent2); }
+
+    /* ---- Layout ---- */
+    .container {
+      max-width: 1100px; margin: 0 auto;
+      padding: 0 24px; position: relative; z-index: 1;
+    }
+
+    /* ---- Nav ---- */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(10,10,15,0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    nav .container {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .nav-logo {
+      font-weight: 700; font-size: 1.1rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+    .nav-links { display: flex; gap: 28px; }
+    .nav-links a {
+      color: var(--text-dim); text-decoration: none;
+      font-size: 0.85rem; font-weight: 500;
+      transition: color 0.3s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-links a .dot {
+      display: inline-block; width: 6px; height: 6px;
+      border-radius: 50%; margin-right: 6px;
+      vertical-align: middle; opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .nav-links a:hover .dot { opacity: 1; }
+    .nav-links a:nth-child(1) .dot { background: var(--accent); }
+    .nav-links a:nth-child(2) .dot { background: var(--accent2); }
+    .nav-links a:nth-child(3) .dot { background: var(--accent3); }
+
+    /* ---- Hero ---- */
+    .hero {
+      min-height: 100vh; display: flex; align-items: center;
+      padding-top: 64px;
+    }
+    .hero-content { max-width: 700px; }
+    .hero-tag {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem; color: var(--accent);
+      margin-bottom: 24px; padding: 6px 14px;
+      background: var(--accent-dim); border-radius: 20px;
+      border: 1px solid rgba(124,106,255,0.2);
+    }
+    .hero-tag .pulse {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent3);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(106,255,204,0.4); }
+      50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(106,255,204,0); }
+    }
+    .hero h1 {
+      font-size: clamp(2.8rem, 6vw, 4.5rem);
+      font-weight: 700; line-height: 1.1;
+      letter-spacing: -2px; margin-bottom: 24px;
+    }
+    .hero h1 .gradient {
+      background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-size: 200% 200%;
+      animation: gradientShift 6s ease infinite;
+    }
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .hero p {
+      font-size: 1.15rem; color: var(--text-dim);
+      max-width: 540px; line-height: 1.8;
+    }
+    .hero-links {
+      display: flex; gap: 16px; margin-top: 40px; flex-wrap: wrap;
+    }
+    .hero-link {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 24px; border-radius: var(--radius-sm);
+      font-size: 0.9rem; font-weight: 500;
+      text-decoration: none; transition: all 0.3s;
+    }
+    .hero-link.primary {
+      background: linear-gradient(135deg, var(--accent), #9b7aff);
+      color: white;
+      box-shadow: 0 4px 20px rgba(124,106,255,0.3);
+    }
+    .hero-link.primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(124,106,255,0.4);
+    }
+    .hero-link.secondary {
+      background: var(--bg-card); color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .hero-link.secondary:hover {
+      border-color: var(--accent);
+      background: var(--bg-card-hover);
+    }
+
+    /* ---- Section ---- */
+    section { padding: 100px 0; }
+    .section-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; color: var(--accent);
+      text-transform: uppercase; letter-spacing: 3px;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: clamp(1.8rem, 3vw, 2.5rem);
+      font-weight: 700; letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+    .section-desc {
+      color: var(--text-dim); max-width: 500px;
+      margin-bottom: 48px;
+    }
+
+    /* ---- Project Grid ---- */
+    .project-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+    }
+    .project-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px; position: relative;
+      overflow: hidden; cursor: pointer;
+      text-decoration: none; color: inherit;
+      transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      display: flex; flex-direction: column;
+    }
+    .project-card::before {
+      content: ''; position: absolute; inset: 0;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--card-accent, var(--accent)), transparent);
+      opacity: 0; transition: opacity 0.4s;
+    }
+    .project-card:hover {
+      border-color: var(--border-glow);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    }
+    .project-card:hover::before { opacity: 0.06; }
+    .project-card > * { position: relative; z-index: 1; }
+
+    .project-icon {
+      font-size: 2rem; margin-bottom: 16px;
+      width: 52px; height: 52px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--accent-dim); border-radius: 12px;
+    }
+    .project-name {
+      font-size: 1.15rem; font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .project-desc {
+      font-size: 0.85rem; color: var(--text-dim);
+      line-height: 1.7; flex: 1;
+    }
+    .project-tags {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-top: 16px;
+    }
+    .project-tag {
+      font-size: 0.7rem; padding: 3px 10px;
+      border-radius: 12px; background: rgba(255,255,255,0.05);
+      color: var(--text-muted); border: 1px solid var(--border);
+    }
+    .project-arrow {
+      position: absolute; top: 24px; right: 24px;
+      font-size: 1.2rem; color: var(--text-muted);
+      transition: all 0.3s;
+    }
+    .project-card:hover .project-arrow {
+      color: var(--accent);
+      transform: translate(3px, -3px);
+    }
+
+    /* Featured card (large) */
+    .project-card.featured {
+      grid-column: 1 / -1;
+      flex-direction: row; gap: 32px;
+      padding: 36px;
+      background: linear-gradient(135deg, rgba(124,106,255,0.08), rgba(255,106,204,0.05));
+      border-color: rgba(124,106,255,0.2);
+    }
+    .project-card.featured .project-icon {
+      width: 72px; height: 72px; font-size: 2.5rem;
+      flex-shrink: 0;
+    }
+    .project-card.featured .project-info { flex: 1; }
+    .project-card.featured .project-desc { max-width: 600px; }
+    .featured-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.7rem; color: var(--accent2);
+      margin-bottom: 8px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ---- About ---- */
+    .about-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 40px; align-items: start;
+    }
+    .about-text { color: var(--text-dim); line-height: 1.9; }
+    .about-text p { margin-bottom: 16px; }
+    .about-stats {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    .stat-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px;
+      text-align: center;
+    }
+    .stat-number {
+      font-size: 2.2rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .stat-label {
+      font-size: 0.8rem; color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* ---- Footer ---- */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 0;
+    }
+    .footer-content {
+      display: flex; justify-content: space-between;
+      align-items: center; flex-wrap: wrap; gap: 16px;
+    }
+    .footer-copy {
+      font-size: 0.8rem; color: var(--text-muted);
+    }
+    .footer-links {
+      display: flex; gap: 20px;
+    }
+    .footer-links a {
+      color: var(--text-dim); text-decoration: none;
+      font-size: 0.8rem; transition: color 0.3s;
+    }
+    .footer-links a:hover { color: var(--accent); }
+
+    /* ---- Animations ---- */
+    .fade-up {
+      opacity: 0; transform: translateY(30px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .fade-up.visible {
+      opacity: 1; transform: none;
+    }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2.4rem; letter-spacing: -1px; }
+      .about-grid { grid-template-columns: 1fr; }
+      .project-card.featured { flex-direction: column; }
+      .nav-links { display: none; }
+      .project-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+  <div class="bg-grid"></div>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <!-- Nav -->
+  <nav>
+    <div class="container">
+      <span class="nav-logo">ampresent</span>
+      <div class="nav-links">
+        <a href="#projects"><span class="dot"></span>Projects</a>
+        <a href="#about"><span class="dot"></span>About</a>
+        <a href="https://github.com/ampresent" target="_blank"><span class="dot"></span>GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-content">
+        <div class="hero-tag">
+          <span class="pulse"></span>
+          currently building things
+        </div>
+        <h1>
+          Hi, I'm <span class="gradient">ampresent</span>
+        </h1>
+        <p>
+          I build tools that matter. Some help people understand themselves better.<br>
+          Some make beautiful music. Some are just fun.
+        </p>
+        <div class="hero-links">
+          <a href="#projects" class="hero-link primary">
+            看看我做了什么 →
+          </a>
+          <a href="https://github.com/ampresent" target="_blank" class="hero-link secondary">
+            GitHub ↗
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Projects -->
+  <section id="projects">
+    <div class="container">
+      <div class="section-label fade-up">// projects</div>
+      <h2 class="section-title fade-up">在造的东西</h2>
+      <p class="section-desc fade-up">每一个项目都从一个真实的需求开始。</p>
+
+      <div class="project-grid">
+
+        <!-- Featured: Prism -->
+        <a href="./prism/" class="project-card featured fade-up" style="--card-accent: #9b72cf">
+          <div class="project-icon">◇</div>
+          <div class="project-info">
+            <div class="featured-badge">★ featured project</div>
+            <div class="project-name">Prism 棱镜</div>
+            <div class="project-desc">
+              MTF 身体表达与气质塑造平台。声音训练、护肤管理、妆容档案、穿搭灵感、形体仪态、身体锻炼——不做手术不吃药，全方位关注身体的每一步改变。12 个模块，完全本地隐私。
+            </div>
+            <div class="project-tags">
+              <span class="project-tag">Web App</span>
+              <span class="project-tag">纯前端</span>
+              <span class="project-tag">PWA</span>
+              <span class="project-tag">隐私优先</span>
+            </div>
+          </div>
+          <span class="project-arrow">↗</span>
+        </a>
+
+        <!-- JazzLab -->
+        <a href="./jazzlab/" class="project-card fade-up" style="--card-accent: #d4a854">
+          <div class="project-icon">🎹</div>
+          <div class="project-name">JazzLab</div>
+          <div class="project-desc">
+            爵士乐学习工作台。钢琴、和弦、音阶、吉他、节拍器、练耳、Real Book、练习日志、乐理指南——一应俱全。
+          </div>
+          <div class="project-tags">
+            <span class="project-tag">音乐</span>
+            <span class="project-tag">Web Audio</span>
+            <span class="project-tag">教育</span>
+          </div>
+          <span class="project-arrow">↗</span>
+        </a>
+
+        <!-- Piano Practice -->
+        <a href="./piano-practice/" class="project-card fade-up" style="--card-accent: #6bc5b8">
+          <div class="project-icon">🎵</div>
+          <div class="project-name">Piano Practice</div>
+          <div class="project-desc">
+            钢琴练习辅助工具。智能曲谱显示、练习计时、进度追踪。
+          </div>
+          <div class="project-tags">
+            <span class="project-tag">音乐</span>
+            <span class="project-tag">练习工具</span>
+          </div>
+          <span class="project-arrow">↗</span>
+        </a>
+
+        <!-- Music Recommender -->
+        <a href="./music-recommender/" class="project-card fade-up" style="--card-accent: #e88bab">
+          <div class="project-icon">🎧</div>
+          <div class="project-name">Music Recommender</div>
+          <div class="project-desc">
+            音乐推荐引擎。基于口味分析发现新音乐。
+          </div>
+          <div class="project-tags">
+            <span class="project-tag">音乐</span>
+            <span class="project-tag">推荐系统</span>
+          </div>
+          <span class="project-arrow">↗</span>
+        </a>
+
+        <!-- AI Study -->
+        <a href="./ai-study/" class="project-card fade-up" style="--card-accent: #7c6aff">
+          <div class="project-icon">🤖</div>
+          <div class="project-name">AI Study</div>
+          <div class="project-desc">
+            AI 学习笔记与实验场。记录学习路径和探索过程。
+          </div>
+          <div class="project-tags">
+            <span class="project-tag">AI/ML</span>
+            <span class="project-tag">学习</span>
+          </div>
+          <span class="project-arrow">↗</span>
+        </a>
+
+        <!-- Small Model Lab -->
+        <a href="./small-model-lab/" class="project-card fade-up" style="--card-accent: #6affcc">
+          <div class="project-icon">🔬</div>
+          <div class="project-name">Small Model Lab</div>
+          <div class="project-desc">
+            小模型实验室。在有限资源下探索模型训练和微调。
+          </div>
+          <div class="project-tags">
+            <span class="project-tag">LLM</span>
+            <span class="project-tag">实验</span>
+          </div>
+          <span class="project-arrow">↗</span>
+        </a>
+
+        <!-- Daily Affairs -->
+        <a href="./daily-affairs/" class="project-card fade-up" style="--card-accent: #e89b7c">
+          <div class="project-icon">📋</div>
+          <div class="project-name">Daily Affairs</div>
+          <div class="project-desc">
+            日常事务管理。简洁高效地处理生活中的大小事。
+          </div>
+          <div class="project-tags">
+            <span class="project-tag">效率</span>
+            <span class="project-tag">工具</span>
+          </div>
+          <span class="project-arrow">↗</span>
+        </a>
+
+        <!-- Inspiration -->
+        <a href="./inspiration/" class="project-card fade-up" style="--card-accent: #d4a854">
+          <div class="project-icon">💡</div>
+          <div class="project-name">Inspiration</div>
+          <div class="project-desc">
+            灵感收集与整理。捕捉那些一闪而过的念头。
+          </div>
+          <div class="project-tags">
+            <span class="project-tag">创意</span>
+            <span class="project-tag">笔记</span>
+          </div>
+          <span class="project-arrow">↗</span>
+        </a>
+
+        <!-- Bugs Love -->
+        <a href="./bugs-love/" class="project-card fade-up" style="--card-accent: #e88bab">
+          <div class="project-icon">🐛</div>
+          <div class="project-name">Bugs Love</div>
+          <div class="project-desc">
+            一个关于 bug 的奇妙项目。
+          </div>
+          <div class="project-tags">
+            <span class="project-tag">创意</span>
+            <span class="project-tag">趣味</span>
+          </div>
+          <span class="project-arrow">↗</span>
+        </a>
+
+        <!-- Investment -->
+        <a href="./investment/" class="project-card fade-up" style="--card-accent: #6bc5b8">
+          <div class="project-icon">📈</div>
+          <div class="project-name">Investment</div>
+          <div class="project-desc">
+            投资分析与追踪工具。
+          </div>
+          <div class="project-tags">
+            <span class="project-tag">金融</span>
+            <span class="project-tag">数据分析</span>
+          </div>
+          <span class="project-arrow">↗</span>
+        </a>
+
+        <!-- Info Collector -->
+        <a href="./info-collector/" class="project-card fade-up" style="--card-accent: #7c6aff">
+          <div class="project-icon">🔍</div>
+          <div class="project-name">Info Collector</div>
+          <div class="project-desc">
+            信息收集与聚合工具。从噪音中提取信号。
+          </div>
+          <div class="project-tags">
+            <span class="project-tag">工具</span>
+            <span class="project-tag">信息</span>
+          </div>
+          <span class="project-arrow">↗</span>
+        </a>
+
+        <!-- Resume -->
+        <a href="./resume/" class="project-card fade-up" style="--card-accent: #6affcc">
+          <div class="project-icon">📄</div>
+          <div class="project-name">Resume</div>
+          <div class="project-desc">
+            个人简历生成与管理。
+          </div>
+          <div class="project-tags">
+            <span class="project-tag">工具</span>
+            <span class="project-tag">文档</span>
+          </div>
+          <span class="project-arrow">↗</span>
+        </a>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- About -->
+  <section id="about">
+    <div class="container">
+      <div class="section-label fade-up">// about</div>
+      <h2 class="section-title fade-up">关于</h2>
+      <div class="about-grid">
+        <div class="about-text fade-up">
+          <p>
+            I make things. Sometimes useful tools, sometimes experiments that go nowhere, sometimes things that surprise me.
+          </p>
+          <p>
+            I believe software should respect its users. Privacy isn't a feature — it's a baseline.
+            The best tools get out of your way and let you focus on what matters.
+          </p>
+          <p>
+            Currently interested in music technology, human-centered AI, and building tools for underserved communities.
+          </p>
+        </div>
+        <div class="about-stats fade-up">
+          <div class="stat-card">
+            <div class="stat-number">12+</div>
+            <div class="stat-label">Projects</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">∞</div>
+            <div class="stat-label">Curiosity</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">0</div>
+            <div class="stat-label">Trackers</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">1</div>
+            <div class="stat-label">Human</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-content">
+        <span class="footer-copy">© 2026 ampresent · built with intention</span>
+        <div class="footer-links">
+          <a href="https://github.com/ampresent" target="_blank">GitHub</a>
+          <a href="#projects">Projects</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Scroll reveal
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+    // Stagger project cards
+    document.querySelectorAll('.project-card.fade-up').forEach((card, i) => {
+      card.style.transitionDelay = `${i * 0.08}s`;
+    });
+
+    // Smooth scroll for nav
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        const target = document.querySelector(a.getAttribute('href'));
+        if (target) target.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+  </script>
+
+</body>
+</html>
