@@ -208,6 +208,90 @@ users.users.YOUR_USER.extraGroups = [ "docker" ];"#,
         services: &["borgbackup-job-nixos.service"],
         risk: "moderate",
     },
+    NixPattern {
+        keywords: &["mysql", "mariadb"],
+        config: r#"services.mysql = {
+  enable = true;
+  package = pkgs.mariadb;
+  settings.mysqld.bind-address = "127.0.0.1";
+};"#,
+        explanation: "启用 MariaDB (MySQL 兼容)，仅监听本地",
+        packages: &["mariadb"],
+        services: &["mysql.service"],
+        risk: "moderate",
+    },
+    NixPattern {
+        keywords: &["caddy", "automatic https"],
+        config: r#"services.caddy = {
+  enable = true;
+  virtualHosts."example.com" = {
+    extraConfig = ''
+      root * /var/www/example
+      file_server
+    '';
+  };
+};"#,
+        explanation: "启用 Caddy web 服务器，自动 HTTPS 证书管理",
+        packages: &["caddy"],
+        services: &["caddy.service"],
+        risk: "moderate",
+    },
+    NixPattern {
+        keywords: &["monitoring", "prometheus", "grafana", "metrics"],
+        config: r#"services.prometheus = {
+  enable = true;
+  port = 9090;
+  exporters.node = {
+    enable = true;
+    port = 9100;
+  };
+  scrapeConfigs = [{
+    job_name = "node";
+    static_configs = [{ targets = [ "127.0.0.1:9100" ]; }];
+  }];
+};
+
+services.grafana = {
+  enable = true;
+  settings.server = {
+    http_addr = "127.0.0.1";
+    http_port = 3000;
+  };
+};"#,
+        explanation: "启用 Prometheus + Grafana + Node Exporter 监控栈",
+        packages: &["prometheus", "grafana"],
+        services: &["prometheus.service", "grafana.service"],
+        risk: "moderate",
+    },
+    NixPattern {
+        keywords: &["fail2ban", "brute force", "intrusion"],
+        config: r#"services.fail2ban = {
+  enable = true;
+  maxretry = 5;
+  bantime = "1h";
+};"#,
+        explanation: "启用 Fail2Ban 防暴力破解，默认 5 次失败后封禁 1 小时",
+        packages: &["fail2ban"],
+        services: &["fail2ban.service"],
+        risk: "safe",
+    },
+    NixPattern {
+        keywords: &["wireguard", "vpn"],
+        config: r#"networking.wireguard.interfaces.wg0 = {
+  ips = [ "10.0.0.1/24" ];
+  listenPort = 51820;
+  privateKeyFile = "/etc/wireguard/private.key";
+  peers = [{
+    publicKey = "PEER_PUBLIC_KEY";
+    allowedIPs = [ "10.0.0.2/32" ];
+  }];
+};
+networking.firewall.allowedUDPPorts = [ 51820 ];"#,
+        explanation: "配置 WireGuard VPN（需替换公钥和 IP）",
+        packages: &["wireguard-tools"],
+        services: &["wireguard-wg0.service"],
+        risk: "dangerous",
+    },
 ];
 
 /// Match natural language prompt against known patterns
@@ -344,5 +428,35 @@ mod tests {
         let p = p.unwrap();
         // The pattern with more keyword matches should win
         assert!(p.config.contains("firewall") || p.config.contains("nginx"));
+    }
+
+    #[test]
+    fn test_match_fail2ban() {
+        let p = match_pattern("enable fail2ban protection");
+        assert!(p.is_some());
+        assert!(p.unwrap().config.contains("fail2ban"));
+        assert_eq!(p.unwrap().risk, "safe");
+    }
+
+    #[test]
+    fn test_match_monitoring() {
+        let p = match_pattern("set up prometheus and grafana monitoring");
+        assert!(p.is_some());
+        assert!(p.unwrap().config.contains("prometheus"));
+        assert!(p.unwrap().config.contains("grafana"));
+    }
+
+    #[test]
+    fn test_match_wireguard() {
+        let p = match_pattern("configure wireguard vpn");
+        assert!(p.is_some());
+        assert_eq!(p.unwrap().risk, "dangerous");
+    }
+
+    #[test]
+    fn test_match_mariadb() {
+        let p = match_pattern("install mariadb database");
+        assert!(p.is_some());
+        assert!(p.unwrap().config.contains("services.mysql"));
     }
 }

@@ -138,6 +138,17 @@ const hostParamDesc = hostNames.length > 1
 
 const TOOLS: Tool[] = [
   {
+    name: "health_check",
+    description: "检查 nix-evo-agent 的连接状态和版本信息。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+      },
+      required: [],
+    },
+  },
+  {
     name: "system_snapshot",
     description: "获取 NixOS 服务器的全局状态快照（服务、磁盘、内存、最近失败）。诊断问题时第一步必调。",
     inputSchema: {
@@ -553,6 +564,10 @@ async function main() {
       let result: any;
 
       switch (name) {
+        case "health_check":
+          result = await agentGet(baseUrl, token, "/health", {});
+          break;
+
         case "system_snapshot":
           result = await agentGet(baseUrl, token, "/api/snapshot", { host: a.host as string });
           break;
@@ -651,6 +666,9 @@ async function main() {
       // Format output based on tool type
       let text: string;
       switch (name) {
+        case "health_check":
+          text = `✅ Agent 连接正常\n版本: ${result.version || "未知"}\nNixOS: ${result.nixos ? "是" : "否"}\n运行时间: ${result.uptime_secs || 0}s`;
+          break;
         case "system_snapshot":
           text = `${formatSnapshot(result)}\n\n---\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
           break;
