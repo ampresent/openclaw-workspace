@@ -473,11 +473,78 @@ function formatRollbackList(result: any): string {
   return parts.join("\n");
 }
 
+function formatGenerateOutput(result: any): string {
+  const parts: string[] = [];
+  const badge = result.ai_generated ? "🤖 AI 生成" : "📋 模板匹配";
+  const confidence = Math.round((result.confidence || 0) * 100);
+
+  parts.push(`${badge} (置信度: ${confidence}%)\n`);
+  parts.push(`📝 ${result.explanation}\n`);
+
+  if (result.affected_packages?.length) {
+    parts.push(`📦 涉及包: ${result.affected_packages.join(", ")}`);
+  }
+  if (result.affected_services?.length) {
+    parts.push(`🔄 涉及服务: ${result.affected_services.join(", ")}`);
+  }
+
+  parts.push(`\n⚠️  风险: ${formatRiskBadge(result.risk_level || "unknown")}`);
+  parts.push(`\n--- 生成的配置 ---\n`);
+  parts.push("```nix");
+  parts.push(result.config);
+  parts.push("```");
+
+  return parts.join("\n");
+}
+
+function formatBackupList(result: any): string {
+  const parts: string[] = [];
+  const backups = result.backups || [];
+
+  if (backups.length === 0) {
+    return "📦 暂无备份";
+  }
+
+  parts.push(`📦 配置备份 (${backups.length} 个)\n`);
+
+  for (const b of backups) {
+    const date = new Date(b.created_at * 1000).toLocaleString("zh-CN");
+    const size = b.size_bytes > 1024 * 1024
+      ? `${(b.size_bytes / 1024 / 1024).toFixed(1)} MB`
+      : `${(b.size_bytes / 1024).toFixed(1)} KB`;
+    const type = b.auto ? "🔄 自动" : "📝 手动";
+    parts.push(`  ${type} ${b.id}`);
+    parts.push(`    标签: ${b.label} | ${size} | ${b.file_count} 文件 | ${date}`);
+  }
+
+  return parts.join("\n");
+}
+
+function formatBackupRestore(result: any): string {
+  const parts: string[] = [];
+
+  if (result.dry_run_files) {
+    parts.push(`🔍 预览模式: ${result.dry_run_files.length} 个文件将被恢复\n`);
+    for (const f of result.dry_run_files.slice(0, 20)) {
+      parts.push(`  • ${f}`);
+    }
+    if (result.dry_run_files.length > 20) {
+      parts.push(`  ... 及其他 ${result.dry_run_files.length - 20} 个文件`);
+    }
+    return parts.join("\n");
+  }
+
+  parts.push(`✅ ${result.summary}`);
+  parts.push(`\n恢复了 ${result.files_restored} 个文件`);
+
+  return parts.join("\n");
+}
+
 // ─── Main server ──────────────────────────────────────────────────────────
 
 async function main() {
   const server = new Server(
-    { name: "nix-evo", version: "0.2.0" },
+    { name: "nix-evo", version: "0.3.0" },
     { capabilities: { tools: {} } }
   );
 
@@ -628,7 +695,7 @@ async function main() {
   // Start stdio transport
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("nix-evo MCP server v0.2.0 running on stdio");
+  console.error("nix-evo MCP server v0.3.0 running on stdio");
 }
 
 main().catch((err) => {
