@@ -9,4 +9,5 @@
 | 🧠 AI 技术学习 | `projects/ai-study/` | 刚创建 |
 | 📡 信息收集管理器 | `projects/info-collector/` | 刚创建 |
 | 🧪 小模型实验 | `projects/small-model-lab/` | Gemma 3 1B 验证完成 |
+| 🧬 Evolution OS | `projects/evolution-os/` | 设计完成，骨架搭建中 |
 | 🎭 Mock Backend | `projects/mock-backend/` | GDB 拦截 + e1000 网卡 mock |
