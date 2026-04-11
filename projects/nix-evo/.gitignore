@@ -1,0 +1,13 @@
+# Rust
+/target
+Cargo.lock
+
+# Node
+node_modules
+dist
+*.tsbuildinfo
+
+# IDE
+.idea/
+.vscode/
+*.swp
