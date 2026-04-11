@@ -31,6 +31,7 @@ pub mod chain;
 pub mod collab;
 pub mod bench;
 pub mod topology;
+pub mod timetravel;
 
 use axum::{
     routing::{get, post},
@@ -169,6 +170,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/topology", get(topology::handle_topology))
         .route("/topology/services", get(topology::handle_services))
         .route("/topology/connections", get(topology::handle_connections))
+        // Experimental v6: Time-Travel Debugging
+        .route("/timetravel/snapshot", post(timetravel::handle_snapshot))
+        .route("/timetravel/snapshots", get(timetravel::handle_list))
+        .route("/timetravel/diff", get(timetravel::handle_diff))
+        .route("/timetravel/replay", get(timetravel::handle_replay))
         .with_state(state.clone());
 
     // Apply auth middleware to API routes if token is configured
