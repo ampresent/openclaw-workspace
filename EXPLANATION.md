@@ -957,3 +957,161 @@ Six new MCP tools wrapping all V4 features:
 - Health score uses `RwLock<Vec<ScoreHistory>>` for thread-safe trend recording
 - All V4 modules follow existing axum + tokio + serde patterns from V1-V3
 - No new external dependencies added — all V4 features use existing Cargo.toml deps
+
+---
+
+## V5 Features — The Frontier (6 features, 20 endpoints, 12 MCP tools, 1 HTML UI)
+
+### Feature 1: 🧬 Nix Config DNA — Genetic Optimization
+
+**File:** `evo/src/dna.rs`
+
+Treats NixOS configuration as DNA — individual config options are "genes" that can be mutated, crossed over, and selected through genetic algorithms.
+
+**How it works:**
+- Each config option is a `Gene` with name, value (Bool/Int/Float/String/List), category, and mutability flag
+- A `Genome` is a complete configuration — a collection of genes with a fitness score
+- `FitnessScore` evaluates four objectives: build speed, disk size, security, boot time
+- `DnaEngine` runs genetic operations: mutation (random value changes), crossover (combine two parents), elite selection (keep top N)
+- Population seeded from a base config, then evolved for N generations
+
+**Endpoints:**
+- `POST /api/dna/evolve` — Run evolution with optional seed genes and config
+- `GET /api/dna/population` — View current population and fitness scores
+
+**MCP Tools:** `dna_evolve`, `dna_population`
+
+---
+
+### Feature 2: 🎭 NixOS Config Theater — Replay & Undo
+
+**File:** `evo/src/theater.rs`
+
+Every config change is a "scene" in a play. Replay the entire history, undo any single scene, or branch into alternative timelines.
+
+**How it works:**
+- Each config change creates a `Scene` with diff, author, timestamp, and act number
+- `replay()` steps through scenes chronologically, computing cumulative diffs
+- `undo_scene()` removes a scene and generates its inverse diff — surgical undo, not just rollback
+- `branch()` forks at any scene to create "what if?" alternative timelines
+- Branches can have their own scenes and be compared for divergence
+
+**Endpoints:**
+- `POST /api/theater/record` — Record a config change as a scene
+- `GET /api/theater/replay` — Replay scenes (with optional range)
+- `POST /api/theater/undo` — Undo a single scene by ID
+- `POST /api/theater/branch` — Create alternative timeline
+- `GET /api/theater/branches` — List all branches
+
+**MCP Tools:** `theater_record`, `theater_replay`, `theater_undo`, `theater_branch`
+
+---
+
+### Feature 3: 🔗 Nix Config Blockchain
+
+**File:** `evo/src/chain.rs`
+
+Hash-chained config change history for tamper-evident audit trails. Not real blockchain — just SHA-256 hash chaining for integrity verification.
+
+**How it works:**
+- Each config change is a `Block` containing action, description, and SHA-256 hash of previous block
+- Genesis block bootstraps the chain
+- `verify()` walks the entire chain, checking hash integrity and link continuity
+- Blocks include metadata: author, generation, diff summary, config snapshot hash
+
+**Endpoints:**
+- `GET /api/chain/verify` — Verify entire chain integrity
+- `GET /api/chain/history` — Get chain history with optional filters
+- `POST /api/chain/add` — Add a new block
+
+**MCP Tools:** `chain_verify`, `chain_history`
+
+---
+
+### Feature 4: 🌊 Real-Time Collaborative Config Editing
+
+**File:** `evo/src/collab.rs`
+
+WebSocket-based collaborative editing with Operational Transformation — like Google Docs for NixOS config files.
+
+**How it works:**
+- `OTEngine` implements Operational Transformation for Insert, Delete, and Cursor operations
+- Transform functions ensure convergence: two concurrent edits applied in either order produce the same result
+- `CollabSession` manages document state, revision tracking, peer cursors, and broadcast
+- Each peer gets a unique color for cursor visualization
+- WebSocket protocol: init → sync → operation/cursor messages
+
+**Endpoints:**
+- `WS /api/collab/ws` — Collaborative editing WebSocket
+
+**MCP Tools:** `collab_info`
+
+---
+
+### Feature 5: 🎯 Config Benchmarking Suite
+
+**File:** `evo/src/bench.rs`
+
+Measure the impact of config changes with statistical rigor — boot time, build time, disk size, security score, memory usage.
+
+**How it works:**
+- Runs real system commands: `systemd-analyze time`, `nixos-rebuild dry-build`, `du -sm /nix/store`, `iptables -L`, `free -m`
+- Collects metrics with stddev, min/max, and 95% confidence intervals
+- `compare()` computes delta % between two runs, determines direction (better/worse), and flags statistical significance
+- Overall grading: A+ through F based on combined security + performance score
+
+**Endpoints:**
+- `POST /api/bench/run` — Run benchmarks
+- `GET /api/bench/results` — Get all benchmark results
+- `GET /api/bench/compare` — Compare two runs
+
+**MCP Tools:** `bench_run`, `bench_compare`
+
+---
+
+### Feature 6: 🗺️ NixOS Topology Map
+
+**Files:** `evo/src/topology.rs` + `evo/static/topology.html`
+
+Auto-discover all services and visualize them as an interactive network topology map.
+
+**How it works:**
+- Discovers services via `systemctl list-units`, ports via `ss -tlnp`, connections via `ss -tn`
+- Classifies services: Database, ReverseProxy, Cache, Queue, Storage, Network
+- Infers dependencies from port connections
+- SVG-based visualization with physics simulation (repulsion + attraction forces)
+- Drag-and-drop nodes, hover tooltips, color-coded types, real-time stats
+
+**Endpoints:**
+- `GET /api/topology` — Full topology (nodes + edges)
+- `GET /api/topology/services` — Services only
+- `GET /api/topology/connections` — Connections only
+
+**UI:** `http://localhost:7890/topology`
+
+**MCP Tools:** `topology_map`
+
+---
+
+## Version Summary (Updated)
+
+| Version | Features | Endpoints | MCP Tools | HTML UIs |
+|---------|----------|-----------|-----------|----------|
+| V0.1 | 8 core | 8 | 0 | 0 |
+| V1 | 5 | 6 | 4 | 1 |
+| V2 | 6 | 12 | 7 | 3 |
+| V3 | 7 | 14 | 8 | 2 |
+| V4 | 7 | 11 | 6 | 3 |
+| **V5** | **6** | **20** | **12** | **1** |
+| **Total** | **39** | **~71** | **37** | **10** |
+
+## Architecture Notes (V5)
+
+- DNA engine uses `LazyLock<Arc<DnaEngine>>` for zero-cost global state
+- Theater implements surgical undo via inverse diff generation — not full rollback
+- Chain uses SHA-256 (sha2 crate) with configurable difficulty for integrity proofs
+- Collab OT engine handles all 6 transform cases: insert×insert, insert×delete, delete×delete
+- Bench uses real system commands — results reflect actual system state
+- Topology SVG renderer implements force-directed layout with damping
+- All V5 modules use existing axum + tokio + serde + chrono deps — no new Cargo dependencies
+- MCP V5 tools provide 12 new AI agent capabilities across all 6 V5 features
