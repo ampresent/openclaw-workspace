@@ -2,6 +2,8 @@ pub mod config;
 pub mod cmd;
 pub mod error;
 pub mod auth;
+pub mod ai_config;
+pub mod backup;
 
 use axum::{
     routing::{get, post},
@@ -48,6 +50,13 @@ async fn main() -> anyhow::Result<()> {
         .route("/config/apply", post(config_apply::handle))
         .route("/rollback", post(rollback::handle))
         .with_state(state.clone());
+
+    // Backup routes
+    let api_routes = api_routes
+        .route("/backups", get(backup::list_backups))
+        .route("/backup/create", post(backup::create_backup))
+        .route("/backup/restore", post(backup::restore_backup))
+        .route("/backup/rotate", post(backup::rotate_backups));
 
     // Apply auth middleware to API routes if token is configured
     let api_routes = if has_token {
