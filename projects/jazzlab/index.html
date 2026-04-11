@@ -24,6 +24,7 @@
       <div class="nav-separator"></div>
       <div class="nav-item" data-page="metronome"><span class="nav-icon">🥁</span><span>节拍器</span></div>
       <div class="nav-item" data-page="comping"><span class="nav-icon">🎶</span><span>Comping</span></div>
+      <div class="nav-item" data-page="progressions"><span class="nav-icon">🔄</span><span>进行练习</span></div>
       <div class="nav-item" data-page="ear"><span class="nav-icon">👂</span><span>听音训练</span></div>
       <div class="nav-item" data-page="standards"><span class="nav-icon">📖</span><span>爵士标准曲</span></div>
       <div class="nav-separator"></div>
@@ -260,6 +261,42 @@
         <button class="btn btn-gold btn-lg" id="comping-play-btn" onclick="toggleComping()">▶ 播放</button>
       </div>
       <div id="comping-patterns"></div>
+    </div>
+
+    <!-- CHORD PROGRESSIONS -->
+    <div class="page" id="page-progressions">
+      <div class="page-title">🔄 和弦进行练习</div>
+      <div class="page-subtitle">选择一个常用进行，在所有调上练习 II-V-I 等核心和弦走向</div>
+      <div class="controls-row">
+        <div class="control-group">
+          <span class="control-label">进行类型</span>
+          <select id="prog-type" onchange="renderProgression()">
+            <option value="ii-v-i">II-V-I (大调)</option>
+            <option value="ii-v-i-minor">II-V-I (小调)</option>
+            <option value="iii-vi-ii-v">III-VI-II-V</option>
+            <option value="i-vi-ii-v">I-VI-II-V (Rhythm Changes A)</option>
+            <option value="tritone-sub">II-bII-I (三全音替代)</option>
+            <option value="coltrane">Coltrane Changes</option>
+            <option value="blues">12小节 Blues</option>
+            <option value="rhythm-b">Rhythm Changes B</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <span class="control-label">调</span>
+          <select id="prog-key" onchange="renderProgression()">
+            <option value="0">C</option><option value="1">Db</option><option value="2">D</option>
+            <option value="3">Eb</option><option value="4">E</option><option value="5">F</option>
+            <option value="6">Gb</option><option value="7">G</option><option value="8">Ab</option>
+            <option value="9">A</option><option value="10">Bb</option><option value="11">B</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <span class="control-label">BPM</span>
+          <input type="number" id="prog-bpm" value="100" min="40" max="300" style="width:80px">
+        </div>
+        <button class="btn btn-gold btn-lg" id="prog-play-btn" onclick="toggleProgression()">▶ 播放</button>
+      </div>
+      <div id="progression-display"></div>
     </div>
 
     <!-- EAR TRAINING -->
@@ -1109,6 +1146,179 @@ function tapTempo() {
   // Reset if too slow
   setTimeout(() => { if (Date.now() - tapTimes[tapTimes.length-1] > 3000) tapTimes = []; }, 3000);
 }
+
+// --- Chord Progressions ---
+const PROGRESSIONS = {
+  'ii-v-i': {
+    name: 'II-V-I (大调)',
+    desc: '爵士乐最核心的和弦进行',
+    chords: [
+      { root: 2, type: 'm7', degree: 'ii' },
+      { root: 7, type: '7', degree: 'V' },
+      { root: 0, type: 'maj7', degree: 'I' },
+      { root: 0, type: 'maj7', degree: 'I' },
+    ]
+  },
+  'ii-v-i-minor': {
+    name: 'II-V-I (小调)',
+    desc: '小调的 II-V-I，半减七到属七到小(maj7)',
+    chords: [
+      { root: 2, type: 'm7b5', degree: 'ii°' },
+      { root: 7, type: '7alt', degree: 'V7alt' },
+      { root: 0, type: 'm(maj7)', degree: 'i(maj7)' },
+      { root: 0, type: 'm(maj7)', degree: 'i(maj7)' },
+    ]
+  },
+  'iii-vi-ii-v': {
+    name: 'III-VI-II-V',
+    desc: '通往 II-V 的 chain of dominants',
+    chords: [
+      { root: 4, type: 'm7', degree: 'iii' },
+      { root: 9, type: '7', degree: 'VI7' },
+      { root: 2, type: 'm7', degree: 'ii' },
+      { root: 7, type: '7', degree: 'V7' },
+    ]
+  },
+  'i-vi-ii-v': {
+    name: 'I-VI-II-V (Rhythm Changes A)',
+    desc: '最经典的和弦进行，Rhythm Changes 前四小节',
+    chords: [
+      { root: 0, type: 'maj7', degree: 'I' },
+      { root: 9, type: 'm7', degree: 'vi' },
+      { root: 2, type: 'm7', degree: 'ii' },
+      { root: 7, type: '7', degree: 'V7' },
+    ]
+  },
+  'tritone-sub': {
+    name: 'II-bII-I (三全音替代)',
+    desc: '用 bII7 替代 V7，贝斯半音下行更平滑',
+    chords: [
+      { root: 2, type: 'm7', degree: 'ii' },
+      { root: 6, type: '7', degree: 'bII7' },
+      { root: 0, type: 'maj7', degree: 'I' },
+      { root: 0, type: 'maj7', degree: 'I' },
+    ]
+  },
+  'coltrane': {
+    name: 'Coltrane Changes',
+    desc: '大三度循环：I - III - bVI - I',
+    chords: [
+      { root: 0, type: 'maj7', degree: 'I' },
+      { root: 4, type: '7', degree: 'III7' },
+      { root: 8, type: 'maj7', degree: 'bVImaj7' },
+      { root: 0, type: 'maj7', degree: 'I' },
+    ]
+  },
+  'blues': {
+    name: '12 小节 Blues',
+    desc: '爵士 Blues 基本框架',
+    chords: [
+      { root: 0, type: '7', degree: 'I7' },
+      { root: 0, type: '7', degree: 'I7' },
+      { root: 0, type: '7', degree: 'I7' },
+      { root: 0, type: '7', degree: 'I7' },
+      { root: 5, type: '7', degree: 'IV7' },
+      { root: 5, type: '7', degree: 'IV7' },
+      { root: 0, type: '7', degree: 'I7' },
+      { root: 0, type: '7', degree: 'I7' },
+      { root: 2, type: 'm7', degree: 'ii' },
+      { root: 7, type: '7', degree: 'V7' },
+      { root: 0, type: '7', degree: 'I7' },
+      { root: 7, type: '7', degree: 'V7 (turnaround)' },
+    ]
+  },
+  'rhythm-b': {
+    name: 'Rhythm Changes B',
+    desc: 'Rhythm Changes 桥段的 III-VI-II-V 链',
+    chords: [
+      { root: 4, type: '7', degree: 'III7' },
+      { root: 4, type: '7', degree: 'III7' },
+      { root: 9, type: '7', degree: 'VI7' },
+      { root: 9, type: '7', degree: 'VI7' },
+      { root: 2, type: '7', degree: 'II7' },
+      { root: 2, type: '7', degree: 'II7' },
+      { root: 7, type: '7', degree: 'V7' },
+      { root: 7, type: '7', degree: 'V7' },
+    ]
+  },
+};
+
+let progRunning = false;
+let progTimer = null;
+let progBeat = 0;
+
+function renderProgression() {
+  const type = document.getElementById('prog-type').value;
+  const key = parseInt(document.getElementById('prog-key').value);
+  const prog = PROGRESSIONS[type];
+  if (!prog) return;
+
+  const container = document.getElementById('progression-display');
+  let html = `<div class="info-panel"><h3>${prog.name}</h3><div class="formula">${prog.desc}</div>`;
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-top:16px">';
+
+  prog.chords.forEach((c, i) => {
+    const chordRoot = (key + c.root) % 12;
+    const ct = CHORD_TYPES[c.type];
+    const notes = ct.intervals.map(iv => NOTE_NAMES[((chordRoot + iv) % 12)]);
+    html += `<div class="card" style="cursor:pointer" onclick="playChord(48+${chordRoot}, [${ct.intervals}], 1.5)" id="prog-chord-${i}">
+      <div style="font-size:11px;color:var(--purple);font-weight:600;margin-bottom:4px">${c.degree}</div>
+      <div style="font-size:20px;font-weight:700;color:var(--gold)">${NOTE_NAMES[chordRoot]}${ct.suffix}</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-top:4px">${notes.join(' ')}</div>
+    </div>`;
+  });
+
+  html += '</div></div>';
+  container.innerHTML = html;
+}
+
+function toggleProgression() {
+  if (progRunning) stopProgression();
+  else startProgression();
+}
+
+function startProgression() {
+  ensureAudio();
+  const type = document.getElementById('prog-type').value;
+  const key = parseInt(document.getElementById('prog-key').value);
+  const bpm = parseInt(document.getElementById('prog-bpm').value) || 100;
+  const prog = PROGRESSIONS[type];
+  if (!prog) return;
+
+  progRunning = true;
+  progBeat = 0;
+  document.getElementById('prog-play-btn').textContent = '⏸ 暂停';
+
+  const beatMs = 60000 / bpm * 4; // one chord per bar
+
+  function tick() {
+    if (!progRunning) return;
+    const idx = progBeat % prog.chords.length;
+    const c = prog.chords[idx];
+    const chordRoot = (key + c.root) % 12;
+    const ct = CHORD_TYPES[c.type];
+
+    // Highlight current chord
+    document.querySelectorAll('[id^="prog-chord-"]').forEach(el => el.style.borderColor = '');
+    const currentEl = document.getElementById('prog-chord-' + idx);
+    if (currentEl) currentEl.style.borderColor = 'var(--gold)';
+
+    if (ct) playChord(48 + chordRoot, ct.intervals, beatMs / 1000 * 0.9);
+    progBeat++;
+    progTimer = setTimeout(tick, beatMs);
+  }
+  tick();
+}
+
+function stopProgression() {
+  progRunning = false;
+  clearTimeout(progTimer);
+  document.getElementById('prog-play-btn').textContent = '▶ 播放';
+  document.querySelectorAll('[id^="prog-chord-"]').forEach(el => el.style.borderColor = '');
+}
+
+// Helper
+function NOTE_NAMES_FUNC(n) { return NOTE_NAMES[((n%12)+12)%12]; }
 
 // --- Comping Patterns ---
 const COMPING_PATTERNS = [
