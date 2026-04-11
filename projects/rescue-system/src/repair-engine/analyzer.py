@@ -9,42 +9,15 @@ import urllib.request
 import urllib.error
 
 MODEL_API = os.environ.get("RESCUE_MODEL_API", "http://127.0.0.1:8081/v1/chat/completions")
-MODEL_NAME = os.environ.get("RESCUE_MODEL_NAME", "qwen2.5")
+MODEL_NAME = os.environ.get("RESCUE_MODEL_NAME", "")
 SKILLS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "skills")
 
-SYSTEM_PROMPT = """你是一个 Linux 系统故障诊断与修复专家。你会收到一份系统诊断报告（JSON 格式），请：
+SYSTEM_PROMPT = """你是一个 Linux 系统故障诊断与修复专家。分析系统诊断报告（JSON），识别问题并给出修复方案。
 
-1. **分析每个模块的检查结果**，识别真正的问题
-2. **评估严重程度**：critical（系统不可用）/ high（影响大）/ medium（有隐患）/ low（可忽略）
-3. **给出具体修复方案**，每步都要是可执行的命令或操作
+输出严格 JSON 格式：
+{"summary":"总述","overall_severity":"critical|high|medium|low","findings":[{"module":"模块","issue":"问题","severity":"级别","evidence":"证据","fix":{"description":"方案","commands":["命令"],"requires_confirmation":true,"rollback_commands":["回滚"],"risks":["风险"]}}],"manual_steps":["人工步骤"]}
 
-输出格式（严格 JSON）：
-{
-  "summary": "一句话总述",
-  "overall_severity": "critical|high|medium|low",
-  "findings": [
-    {
-      "module": "模块名",
-      "issue": "问题描述",
-      "severity": "critical|high|medium|low",
-      "evidence": "诊断报告中的关键数据",
-      "fix": {
-        "description": "修复方案说明",
-        "commands": ["具体的修复命令"],
-        "requires_confirmation": true,
-        "rollback_commands": ["回滚命令（如果修复出错）"],
-        "risks": ["潜在风险"]
-      }
-    }
-  ],
-  "manual_steps": ["需要人工判断的步骤"]
-}
-
-注意：
-- 只输出 JSON，不要其他解释
-- 修复命令必须针对实际诊断数据，不要泛泛而谈
-- 如果某个模块状态是 ok，不要编造问题
-- 考虑救援系统环境：目标系统挂载在 /mnt/rescue-target，修复时要用 chroot 或直接操作挂载点"""
+规则：只输出JSON；不要编造问题；考虑救援环境（目标挂载在/mnt/rescue-target）"""
 
 
 def load_skill_references():
@@ -59,14 +32,47 @@ def load_skill_references():
                     with open(path) as f:
                         content = f.read()
                         # 只取前 3000 字符避免上下文太长
-                        refs.append(f"## {fname}\n{content[:3000]}")
+                        refs.append(f"## {fname}\n{content[:1500]}")
                 except Exception:
                     pass
-    return "\n\n".join(refs[:3])  # 最多 3 个参考文件
+    return "\n\n".join(refs[:2])  # 最多 2 个参考文件
+
+
+def _resolve_model_name() -> str:
+    """从 API 自动获取模型名称"""
+    if MODEL_NAME:
+        return MODEL_NAME
+    try:
+        req = urllib.request.Request(MODEL_API.replace("/chat/completions", "/models"))
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+            if data.get("models"):
+                return data["models"][0]["name"]
+    except Exception:
+        pass
+    return ""
+
+
+def _truncate_report(report_dict: dict, max_chars: int = 6000) -> str:
+    """截断过长的诊断报告，适配小模型上下文"""
+    trimmed = dict(report_dict)
+    for mod in trimmed.get("modules", []):
+        checks = mod.get("checks", {})
+        for k, v in list(checks.items()):
+            if isinstance(v, list) and len(v) > 5:
+                checks[k] = v[:5] + [f"... ({len(v)} total, truncated)"]
+            elif isinstance(v, str) and len(v) > 300:
+                checks[k] = v[:300] + "... (truncated)"
+    text = json.dumps(trimmed, ensure_ascii=False, indent=2)
+    if len(text) > max_chars:
+        text = text[:max_chars] + "\n... (report truncated)"
+    return text
 
 
 def call_model(diagnosis_report: str, skill_refs: str) -> dict:
     """调用本地模型 API"""
+    model_name = _resolve_model_name()
+
     user_message = f"""请分析以下系统诊断报告并给出修复方案：
 
 ## 诊断报告
@@ -78,15 +84,19 @@ def call_model(diagnosis_report: str, skill_refs: str) -> dict:
 {skill_refs if skill_refs else "（无额外参考）"}
 """
 
-    payload = json.dumps({
-        "model": MODEL_NAME,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_message}
-        ],
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_message}
+    ]
+    payload_dict = {
+        "messages": messages,
         "temperature": 0.1,
         "max_tokens": 4096,
-    }).encode("utf-8")
+    }
+    if model_name:
+        payload_dict["model"] = model_name
+
+    payload = json.dumps(payload_dict).encode("utf-8")
 
     req = urllib.request.Request(
         MODEL_API,
@@ -128,7 +138,8 @@ def analyze(report_path: str) -> dict:
 
     # 3. 调用模型分析
     print("🧠 正在分析诊断报告...")
-    analysis = call_model(json.dumps(report, ensure_ascii=False, indent=2), skill_refs)
+    report_text = _truncate_report(report)
+    analysis = call_model(report_text, skill_refs)
 
     # 4. 附加元数据
     analysis["source_report"] = report_path

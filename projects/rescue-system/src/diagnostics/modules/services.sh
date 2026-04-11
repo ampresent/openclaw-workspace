@@ -2,60 +2,42 @@
 # services.sh — P1 服务诊断
 set -euo pipefail
 
-TARGET="${1:-/mnt/rescue-target}"
-
-# 失败的服务
-failed_services=$(systemctl list-units --state=failed --no-pager --no-legend 2>/dev/null || echo "")
-
-# 目标系统失败服务
-target_failed=""
-if [ -d "$TARGET/run/systemd" ]; then
-    target_failed=$(systemctl --root="$TARGET" list-units --state=failed --no-pager --no-legend 2>/dev/null || echo "")
-fi
-
-# 关键服务状态
-critical_services="sshd systemd-networkd NetworkManager systemd-resolved crond cron docker"
-service_status="{}"
-for svc in $critical_services; do
-    status=$(systemctl is-active "$svc" 2>/dev/null || echo "not-found")
-    enabled=$(systemctl is-enabled "$svc" 2>/dev/null || echo "unknown")
-    service_status=$(python3 -c "
-import sys, json
-d = json.loads('''$service_status''') if '''$service_status''' != '{}' else {}
-d['$svc'] = {'active': '$status', 'enabled': '$enabled'}
-print(json.dumps(d))
-" 2>/dev/null || echo "$service_status")
-done
-
-# 最近的 journal 错误
-recent_errors=$(journalctl -p err --since "24 hours ago" --no-pager -q 2>/dev/null | tail -30 || echo "")
-
-# 崩溃的进程
-crashed=$(coredumpctl list --no-pager 2>/dev/null | tail -10 || echo "coredumpctl not available")
-
 python3 -c "
-import json
+import json, subprocess
 
-failed = [l.strip() for l in '''$failed_services'''.split('\n') if l.strip()]
-target = [l.strip() for l in '''$target_failed'''.split('\n') if l.strip()]
-errors = [l.strip() for l in '''$recent_errors'''.split('\n') if l.strip()]
+checks = {}
 
-total_failed = len(failed) + len(target)
+# Failed services
+failed = []
+try:
+    out = subprocess.run(['systemctl', 'list-units', '--state=failed', '--no-pager', '--no-legend'],
+                        capture_output=True, text=True, timeout=10)
+    failed = [l.strip() for l in out.stdout.strip().split('\n') if l.strip()]
+except: pass
+checks['failed_services'] = failed[:20]
+
+# Critical services
+critical = ['sshd', 'systemd-networkd', 'NetworkManager', 'systemd-resolved', 'cron', 'docker']
+svc_status = {}
+for svc in critical:
+    active = subprocess.run(['systemctl', 'is-active', svc], capture_output=True, text=True, timeout=5)
+    enabled = subprocess.run(['systemctl', 'is-enabled', svc], capture_output=True, text=True, timeout=5)
+    svc_status[svc] = {'active': active.stdout.strip(), 'enabled': enabled.stdout.strip()}
+checks['critical_services'] = svc_status
+
+# Recent errors
+errors = []
+try:
+    out = subprocess.run(['journalctl', '-p', 'err', '--since', '24 hours ago', '--no-pager', '-q'],
+                        capture_output=True, text=True, timeout=15)
+    errors = [l.strip() for l in out.stdout.strip().split('\n') if l.strip()][-30:]
+except: pass
+checks['recent_errors'] = errors
 
 print(json.dumps({
     'module': 'services',
     'priority': 'P1',
-    'status': 'error' if total_failed > 5 else ('warning' if total_failed > 0 else 'ok'),
-    'checks': {
-        'failed_services': {
-            'host_count': len(failed),
-            'host': failed[:20],
-            'target_count': len(target),
-            'target': target[:20]
-        },
-        'critical_services': json.loads('''$service_status''' if '''$service_status''' != '{}' else '{}'),
-        'recent_errors': errors[-20:],
-        'crashes': '''$crashed'''.strip()
-    }
-}, indent=2))
+    'status': 'error' if len(failed) > 5 else ('warning' if failed else 'ok'),
+    'checks': checks
+}, ensure_ascii=False, indent=2))
 "

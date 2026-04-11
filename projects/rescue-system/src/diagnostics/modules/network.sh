@@ -2,70 +2,57 @@
 # network.sh — P2 网络诊断
 set -euo pipefail
 
-TARGET="${1:-/mnt/rescue-target}"
+python3 -c "
+import json, subprocess, socket
 
-# 网络接口
-interfaces=$(ip -j addr 2>/dev/null || echo "[]")
+checks = {}
 
-# 路由表
-routes=$(ip -j route 2>/dev/null || echo "[]")
+# Interfaces
+try:
+    out = subprocess.run(['ip', '-j', 'addr'], capture_output=True, text=True, timeout=5)
+    checks['interfaces'] = json.loads(out.stdout)
+except: checks['interfaces'] = []
 
-# DNS 配置
-dns_config=""
-if [ -f "$TARGET/etc/resolv.conf" ]; then
-    dns_config=$(cat "$TARGET/etc/resolv.conf" 2>/dev/null || cat /etc/resolv.conf)
-else
-    dns_config=$(cat /etc/resolv.conf 2>/dev/null || echo "not found")
-fi
+# DNS
+nameservers = []
+try:
+    with open('/etc/resolv.conf') as f:
+        for line in f:
+            if line.startswith('nameserver'):
+                nameservers.append(line.split()[1])
+except: pass
 
-# DNS 解析测试
-dns_test=$(python3 -c "
-import socket, json
-results = {}
-for host in ['localhost', 'google.com', 'baidu.com']:
+# DNS test
+dns_test = {}
+for host in ['localhost', 'baidu.com']:
     try:
         ip = socket.getaddrinfo(host, None, socket.AF_INET)[0][4][0]
-        results[host] = {'resolved': True, 'ip': ip}
+        dns_test[host] = {'resolved': True, 'ip': ip}
     except Exception as e:
-        results[host] = {'resolved': False, 'error': str(e)}
-print(json.dumps(results))
-" 2>/dev/null || echo "{}")
+        dns_test[host] = {'resolved': False, 'error': str(e)}
+checks['dns'] = {'nameservers': nameservers, 'resolution_test': dns_test}
 
-# 监听端口
-listening=$(ss -tlnp 2>/dev/null | head -30 || netstat -tlnp 2>/dev/null | head -30 || echo "unavailable")
+# Listening ports
+try:
+    out = subprocess.run(['ss', '-tlnp'], capture_output=True, text=True, timeout=5)
+    checks['listening_ports'] = out.stdout.strip().split('\n')[:20]
+except: checks['listening_ports'] = []
 
-# 防火墙状态
-firewall=""
-if command -v iptables &>/dev/null; then
-    firewall=$(iptables -L -n 2>/dev/null | head -30 || echo "iptables failed")
-elif command -v nft &>/dev/null; then
-    firewall=$(nft list ruleset 2>/dev/null | head -30 || echo "nft failed")
-fi
-
-# 网络错误
-net_errors=$(dmesg 2>/dev/null | grep -iE '(eth|wlan|net|nic|link).*error' | tail -10 || echo "")
-
-python3 -c "
-import json
-
-dns_lines = [l.strip() for l in '''$dns_config'''.split('\n') if l.strip() and not l.startswith('#')]
-nameservers = [l.split()[1] for l in dns_lines if l.startswith('nameserver')]
-net_err = [l.strip() for l in '''$net_errors'''.split('\n') if l.strip()]
+# Network errors
+net_errors = []
+try:
+    out = subprocess.run(['dmesg'], capture_output=True, text=True, timeout=10)
+    for line in out.stdout.split('\n'):
+        if any(k in line.lower() for k in ['eth', 'wlan', 'net', 'nic']):
+            if 'error' in line.lower():
+                net_errors.append(line.strip())
+except: pass
+checks['network_errors'] = net_errors[-10:]
 
 print(json.dumps({
     'module': 'network',
     'priority': 'P2',
-    'status': 'error' if not nameservers else ('warning' if net_err else 'ok'),
-    'checks': {
-        'interfaces': json.loads('''$interfaces''' if '''$interfaces''' != '[]' else '[]'),
-        'routes': json.loads('''$routes''' if '''$routes''' != '[]' else '[]'),
-        'dns': {
-            'nameservers': nameservers,
-            'resolv_conf': dns_lines[:10],
-            'resolution_test': json.loads('''$dns_test''' if '''$dns_test''' != '{}' else '{}')
-        },
-        'listening_ports': '''$listening'''.strip().split('\n')[:20],
-        'network_errors': net_err
-    }
-}, indent=2))
+    'status': 'error' if not nameservers else ('warning' if net_errors else 'ok'),
+    'checks': checks
+}, ensure_ascii=False, indent=2))
 "

@@ -29,16 +29,9 @@ mkdir -p "$MODELS_DIR"
 # Qwen2.5-7B GGUF 量化版本
 MODEL_FILE="$MODELS_DIR/qwen2.5-7b-instruct-q4_k_m.gguf"
 if [ ! -f "$MODEL_FILE" ]; then
-    echo "下载 Qwen2.5-7B-Instruct Q4_K_M..."
-    # 使用 huggingface-cli 或直接 curl
-    if command -v huggingface-cli &>/dev/null; then
-        huggingface-cli download Qwen/Qwen2.5-7B-Instruct-GGUF \
-            qwen2.5-7b-instruct-q4_k_m.gguf \
-            --local-dir "$MODELS_DIR"
-    else
-        curl -L -o "$MODEL_FILE" \
-            "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q4_k_m.gguf"
-    fi
+    echo "下载 Qwen2.5-7B-Instruct Q4_K_M (ModelScope 镜像)..."
+    curl -L --connect-timeout 30 --max-time 1200 -o "$MODEL_FILE" \
+        "https://modelscope.cn/models/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/master/qwen2.5-7b-instruct-q4_k_m.gguf"
 else
     echo "模型已存在: $MODEL_FILE"
 fi

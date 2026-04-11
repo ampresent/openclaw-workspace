@@ -1,61 +1,53 @@
 #!/usr/bin/env bash
 # packages.sh — P2 包管理器诊断
 set -euo pipefail
-
 TARGET="${1:-/mnt/rescue-target}"
 
-# 检测包管理器类型
-pkg_manager="unknown"
-if [ -f "$TARGET/etc/debian_version" ]; then
-    pkg_manager="apt"
-elif [ -f "$TARGET/etc/redhat-release" ]; then
-    pkg_manager="yum"
-elif [ -f "$TARGET/etc/arch-release" ]; then
-    pkg_manager="pacman"
-fi
+python3 - "$TARGET" <<'PYEOF'
+import json, subprocess, os, sys
 
-# dpkg/rpm 状态检查
-db_status="ok"
-db_errors=""
-if [ "$pkg_manager" = "apt" ]; then
-    db_errors=$(chroot "$TARGET" dpkg --audit 2>/dev/null | head -30 || echo "")
-    if [ -n "$db_errors" ]; then
-        db_status="warning"
-    fi
-    # 检查中断的安装
-    interrupted=$(chroot "$TARGET" dpkg --configure -a --dry-run 2>&1 | head -10 || echo "")
-elif [ "$pkg_manager" = "yum" ]; then
-    db_errors=$(chroot "$TARGET" rpm -Va --nomtime --nosize --nomode --nolinkto 2>/dev/null | head -30 || echo "")
-    if [ -n "$db_errors" ]; then
-        db_status="warning"
-    fi
-fi
+target = sys.argv[1] if len(sys.argv) > 1 else "/mnt/rescue-target"
+checks = {}
 
-# 锁文件检查
-locks=""
-for lock in "$TARGET/var/lib/dpkg/lock" "$TARGET/var/lib/apt/lists/lock" "$TARGET/var/cache/apt/archives/lock" "$TARGET/var/lib/rpm/.rpm.lock"; do
-    [ -f "$lock" ] || continue
-    if fuser "$lock" &>/dev/null; then
-        locks+="LOCKED: $lock (in use)\n"
-    fi
-done
+# Detect package manager
+pkg_mgr = "unknown"
+for path, name in [("etc/debian_version", "apt"), ("etc/redhat-release", "yum"), ("etc/arch-release", "pacman")]:
+    if os.path.isfile(os.path.join(target, path)):
+        pkg_mgr = name
+        break
+checks["package_manager"] = pkg_mgr
 
-python3 -c "
-import json
+# DB status
+db_errors = []
+if pkg_mgr == "apt":
+    try:
+        r = subprocess.run(["chroot", target, "dpkg", "--audit"], capture_output=True, text=True, timeout=30)
+        db_errors = [l for l in r.stdout.strip().split("\n") if l.strip()][:30]
+    except: pass
+elif pkg_mgr == "yum":
+    try:
+        r = subprocess.run(["chroot", target, "rpm", "-Va", "--nomtime", "--nosize"], capture_output=True, text=True, timeout=60)
+        db_errors = [l for l in r.stdout.strip().split("\n") if l.strip()][:30]
+    except: pass
+checks["db_status"] = "warning" if db_errors else "ok"
+checks["db_errors"] = db_errors
 
-db_err = '''$db_errors'''.strip()
-locks = '''$locks'''.strip()
+# Lock files
+locks = []
+for lock in ["var/lib/dpkg/lock", "var/lib/apt/lists/lock", "var/cache/apt/archives/lock", "var/lib/rpm/.rpm.lock"]:
+    fp = os.path.join(target, lock)
+    if os.path.isfile(fp):
+        try:
+            r = subprocess.run(["fuser", fp], capture_output=True, text=True, timeout=5)
+            if r.returncode == 0:
+                locks.append(f"LOCKED: {fp}")
+        except: pass
+checks["lock_status"] = locks
 
 print(json.dumps({
-    'module': 'packages',
-    'priority': 'P2',
-    'status': 'error' if 'LOCKED' in locks else ('$db_status' if db_err else 'ok'),
-    'checks': {
-        'package_manager': '$pkg_manager',
-        'db_status': '$db_status',
-        'db_errors': db_err.split('\n')[:20] if db_err else [],
-        'lock_status': locks.split('\n') if locks else [],
-        'interrupted_installs': '''$interrupted'''.strip().split('\n')[:10] if '''$interrupted'''.strip() else []
-    }
-}, indent=2))
-"
+    "module": "packages",
+    "priority": "P2",
+    "status": "error" if locks else ("warning" if db_errors else "ok"),
+    "checks": checks
+}, ensure_ascii=False, indent=2))
+PYEOF
