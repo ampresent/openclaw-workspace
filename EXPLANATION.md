@@ -746,3 +746,214 @@ All tools return human-readable formatted text + raw JSON via `structuredContent
 - Plugin system defines C ABI for interop — supports .so/.dylib on Linux/macOS
 - All V3 features follow the existing axum + tokio patterns from V1/V2
 - MCP V3 tools include both human-readable formatting and `structuredContent` for AI agent consumption
+
+---
+
+# Experimental V4 Features
+
+## Feature 21: AI-Powered Nix Doctor
+
+**Files:** `evo/src/doctor.rs` + `evo/static/doctor.html`
+
+An intelligent diagnostic engine that matches NixOS error messages against a built-in knowledge base of 12 known issue patterns with solutions.
+
+**Knowledge base covers:**
+| Category | Patterns | Examples |
+|----------|----------|---------|
+| Evaluation | Missing attribute, infinite recursion | "attribute X missing", "infinite recursion encountered" |
+| Build | Hash mismatch, sandbox failure | "hash mismatch", "cannot build in sandbox" |
+| Packages | Package collisions | "collision between" |
+| System | Disk full, permission denied, broken symlink, daemon down, store corruption | "No space left on device", "Permission denied" |
+| Services | Service failures | "unit entered failed state" |
+| Configuration | Channel conflicts | "conflicting channel", "<nixpkgs>" |
+
+**Matching algorithm:**
+- Supports glob patterns with `.*` wildcards (e.g., `attribute .* missing`)
+- Confidence scoring based on number of matched patterns / total patterns
+- Results sorted by confidence descending
+- Context parameter allows combining multiple error sources
+
+**Endpoints:**
+- `POST /api/doctor/diagnose` — paste error, get ranked diagnosis with fix commands
+- `GET /api/doctor/knowledge` — list all knowledge base entries
+
+**UI:** `/doctor` — paste error area, example errors, severity badges, copy-to-clipboard commands, documentation links.
+
+---
+
+## Feature 22: Service Orchestration Composer
+
+**Files:** `evo/src/composer.rs` + `evo/static/composer.html`
+
+Define complex multi-service NixOS deployments as "compositions" — like docker-compose but for NixOS services, with dependency-aware startup ordering.
+
+**Core concepts:**
+- **Composition**: A named set of services with version and metadata
+- **ServiceDef**: name, package, enable flag, dependencies, health check, restart policy, scaling hints, env vars, ports
+- **StartupPlan**: Topologically sorted layers (Kahn's algorithm) — services in the same layer start in parallel
+
+**Features:**
+- Topological sort with cycle detection
+- Layer-based parallel startup planning
+- Auto-generates NixOS config snippets (maps service names to `services.*.enable`)
+- Validation: circular dependencies, missing dependencies, duplicate names, missing health checks
+- Systemd dependency injection (`after`, `requires`)
+
+**Built-in service mapping:** nginx → `services.nginx`, postgresql → `services.postgresql`, redis → `services.redis`, etc.
+
+**Endpoints:**
+- `POST /api/compose` — plan/deploy/validate a composition
+- `GET /api/compose/status` — runtime status of all compositions
+
+**UI:** `/composer` — service catalog with toggle selection, 4 templates (Web Stack, Monitoring, Database Cluster, Full Stack), tabbed view for Startup Plan / Dependencies / NixOS Config / Warnings.
+
+---
+
+## Feature 23: Predictive Failure Detection
+
+**File:** `evo/src/predict.rs`
+
+Analyzes system metrics trends and predicts failures BEFORE they happen. Uses a simplified linear projection model.
+
+**What it detects:**
+- **Disk exhaustion**: Projects hours-to-full based on current usage (higher usage = faster assumed growth rate)
+- **Memory pressure**: Alerts at >85% with OOM risk estimation
+- **CPU overload**: Compares 1-minute load average against core count
+- **Failed services**: Detects services in failed state
+
+**Risk scoring:** 0-100 composite based on alert severity weights (critical: 25pts, warning: 15pts, info: 5pts) plus memory/disk thresholds.
+
+**Alert structure:** Each alert includes severity, category, title, description, estimated time, metric trend (current value, rate, direction, projected hours), and recommended actions.
+
+**Endpoint:** `GET /api/predict/alerts`
+
+---
+
+## Feature 24: NixOS Config Streaming
+
+**File:** `evo/src/stream.rs`
+
+WebSocket that streams real-time config file changes detected by a background file watcher.
+
+**File watcher:**
+- Polls `/etc/nixos/` and `/etc/nix/` every 5 seconds
+- Watches `.nix` and `.conf` files
+- Detects: created, modified, deleted, discovered (first seen) events
+- Records file size and modification time
+
+**Git integration:**
+- Auto-fetches git commit info for changed files (`git log -1 --format=...`)
+- Diff preview: first 500 chars of `git diff HEAD` against the file
+
+**Broadcast architecture:**
+- Uses `tokio::sync::broadcast` (1024 capacity)
+- Supports multiple concurrent WebSocket clients
+- Welcome message on connect with configuration info
+
+**Endpoint:** `WS /api/stream/config`
+
+---
+
+## Feature 25: Cross-Distro Compatibility Layer
+
+**File:** `evo/src/compat.rs`
+
+Translates NixOS config concepts to other Linux distributions.
+
+**Supported distros:** Ubuntu, Debian, Fedora, Arch, Alpine
+
+**Translation engine:**
+- **Package mapping**: NixOS package names → distro-specific names (e.g., `postgresql_16` → `postgresql-16` on Debian, `postgresql-server` on Fedora)
+- **Systemd unit generation**: Creates `.service` files from NixOS service definitions with `After=`, `Type=forking`, `Restart=on-failure`
+- **Install script generation**: Produces shell scripts with correct package manager (`apt-get`, `dnf`, `pacman`, `apk`) and `systemctl enable/start` commands
+- **Service detection**: Parses `services.*.enable = true` patterns from NixOS config text
+
+**9 mapped services:** nginx, postgresql, redis, openssh, mysql, caddy, docker, prometheus, grafana
+
+**Endpoint:** `POST /api/compat/translate`
+
+---
+
+## Feature 26: System Health Score
+
+**Files:** `evo/src/health_score.rs` + `evo/static/health.html`
+
+Composite health score (0-100) for the entire system with letter grading.
+
+**6 weighted factors:**
+
+| Factor | Weight | Data Source | Thresholds |
+|--------|--------|-------------|------------|
+| Services | 25% | `systemctl --failed` | 0 failed = 100, 1-2 = warning, 3+ = critical |
+| Disk Space | 20% | `df /` | <60% = 100, 60-80 = good, 80-90 = warning, >90 = critical |
+| Memory | 15% | `free -b` | <70% = 100, 70-85 = warning, >85 = critical |
+| Security | 15% | firewall, SSH, updates | Checks root login, password auth, unattended-upgrades |
+| Config Quality | 10% | file checks, parse | Parse errors, generation count, flake presence |
+| Update Freshness | 15% | `/run/current-system` age | <30d = 100, 30-90d = warning, >90d = critical |
+
+**Scoring:** Weighted average → letter grade (A: 90+, B: 80+, C: 70+, D: 60+, F: <60)
+
+**Trend history:** In-memory ring buffer of last 100 score points for time-series visualization.
+
+**Endpoint:** `GET /api/health/score`
+
+**UI:** `/health` — SVG gauge with animated ring, factor cards with colored bars, summary pills, SVG trend chart with area fill.
+
+---
+
+## Feature 27: MCP Server V4 Tools
+
+**File:** `mcp-server/src/experimental-v4.ts`
+
+Six new MCP tools wrapping all V4 features:
+
+| Tool | Description | Agent Endpoint |
+|------|-------------|----------------|
+| `nix_doctor` | Diagnose NixOS errors from knowledge base | `POST /api/doctor/diagnose` |
+| `compose_services` | Define multi-service compositions | `POST /api/compose` |
+| `predict_alerts` | Predictive failure detection | `GET /api/predict/alerts` |
+| `compat_translate` | NixOS → other distro translation | `POST /api/compat/translate` |
+| `health_score` | Composite system health score | `GET /api/health/score` |
+| `stream_config_status` | Config streaming WebSocket info | WS /api/stream/config |
+
+---
+
+## New API Endpoints Summary (V4)
+
+| Endpoint | Method | Feature |
+|----------|--------|---------|
+| `/api/doctor/diagnose` | POST | Error diagnosis |
+| `/api/doctor/knowledge` | GET | Knowledge base list |
+| `/api/compose` | POST | Service composition |
+| `/api/compose/status` | GET | Composition status |
+| `/api/predict/alerts` | GET | Predictive alerts |
+| `/api/stream/config` | WS | Config change stream |
+| `/api/compat/translate` | POST | Cross-distro translation |
+| `/api/health/score` | GET | Health score |
+| `/doctor` | GET | Doctor UI |
+| `/composer` | GET | Composer UI |
+| `/health` | GET | Health score UI |
+
+---
+
+## Complete Feature Count
+
+| Version | Features | Endpoints | MCP Tools | HTML UIs |
+|---------|----------|-----------|-----------|----------|
+| V0.1 | 8 core | 8 | 0 | 0 |
+| V1 | 5 | 6 | 4 | 1 |
+| V2 | 6 | 12 | 7 | 3 |
+| V3 | 7 | 14 | 8 | 2 |
+| V4 | 7 | 11 | 6 | 3 |
+| **Total** | **33** | **~51** | **25** | **9** |
+
+## Architecture Notes (V4)
+
+- Doctor uses `OnceLock<Vec<DiagnosisEntry>>` for immutable knowledge base — zero allocations after init
+- Composer implements Kahn's algorithm for topological sort with cycle detection
+- Predict uses simplified linear projection (sufficient for "will be full in X hours" estimation)
+- Stream uses `tokio::sync::broadcast` with 1024 capacity for multi-client WebSocket fan-out
+- Compat generates shell scripts and systemd units from structured data — no template engine needed
+- Health score uses `RwLock<Vec<ScoreHistory>>` for thread-safe trend recording
+- All V4 modules follow existing axum + tokio + serde patterns from V1-V3
+- No new external dependencies added — all V4 features use existing Cargo.toml deps
