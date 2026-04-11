@@ -2,955 +2,342 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prism · 做真实的自己</title>
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/animations.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Prism 棱镜</title>
+  <meta name="description" content="Prism — 你的身体表达与气质塑造伙伴">
+  <meta name="theme-color" content="#0c0c14">
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#9b72cf">
-  <meta name="description" content="Prism - MTF身体表达与气质塑造平台">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- Loading Screen -->
-  <div id="loading-screen" class="loading-screen">
-    <div class="loading-prism">
-      <div class="prism-shape"></div>
-      <div class="loading-text">Prism</div>
-      <div class="loading-sub">正在准备你的空间...</div>
+
+<!-- Loading -->
+<div class="loading-screen" id="loading-screen">
+  <div class="loading-prism"></div>
+  <div class="loading-text">PRISM</div>
+</div>
+
+<div id="app" class="hidden">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">◇</div>
+    <div class="sidebar-item active" data-page="today">
+      <span>📋</span>
+      <span class="tooltip">今日</span>
     </div>
-  </div>
-
-  <!-- App Shell -->
-  <div id="app" class="app hidden">
-    <nav id="sidebar" class="sidebar">
-      <div class="sidebar-header">
-        <div class="logo">
-          <span class="logo-icon">◇</span>
-          <span class="logo-text">Prism</span>
-        </div>
-        <button class="sidebar-toggle" id="sidebar-toggle" aria-label="收起菜单">☰</button>
+    <div class="sidebar-item" data-page="voice">
+      <span>🎤</span>
+      <span class="tooltip">声音训练</span>
+    </div>
+    <div class="sidebar-item" data-page="skin">
+      <span>🧴</span>
+      <span class="tooltip">护肤管理</span>
+    </div>
+    <div class="sidebar-item" data-page="makeup">
+      <span>💄</span>
+      <span class="tooltip">妆容档案</span>
+    </div>
+    <div class="sidebar-item" data-page="fashion">
+      <span>👗</span>
+      <span class="tooltip">穿搭灵感</span>
+    </div>
+    <div class="sidebar-item" data-page="exercise">
+      <span>💪</span>
+      <span class="tooltip">身体锻炼</span>
+    </div>
+    <div class="sidebar-item" data-page="journal">
+      <span>📓</span>
+      <span class="tooltip">身体日记</span>
+    </div>
+    <div class="sidebar-item" data-page="community">
+      <span>🌻</span>
+      <span class="tooltip">社群花园</span>
+    </div>
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-bottom">
+      <div class="sidebar-item" id="btn-export" title="导出数据">
+        <span>📦</span>
+        <span class="tooltip">导出数据</span>
       </div>
-      <ul class="nav-list" id="nav-list">
-        <li class="nav-item active" data-page="dashboard">
-          <span class="nav-icon">🏠</span><span class="nav-label">今日概览</span>
-        </li>
-        <li class="nav-item" data-page="voice">
-          <span class="nav-icon">🎤</span><span class="nav-label">声音训练</span>
-        </li>
-        <li class="nav-item" data-page="skin">
-          <span class="nav-icon">🧴</span><span class="nav-label">护肤管理</span>
-        </li>
-        <li class="nav-item" data-page="makeup">
-          <span class="nav-icon">💄</span><span class="nav-label">妆容档案</span>
-        </li>
-        <li class="nav-item" data-page="fashion">
-          <span class="nav-icon">👗</span><span class="nav-label">穿搭灵感</span>
-        </li>
-        <li class="nav-item" data-page="posture">
-          <span class="nav-icon">🧍‍♀️</span><span class="nav-label">形体仪态</span>
-        </li>
-        <li class="nav-item" data-page="exercise">
-          <span class="nav-icon">🏋️‍♀️</span><span class="nav-label">身体锻炼</span>
-        </li>
-        <li class="nav-item" data-page="routine">
-          <span class="nav-icon">📋</span><span class="nav-label">每日流程</span>
-        </li>
-        <li class="nav-item" data-page="body-journal">
-          <span class="nav-icon">📓</span><span class="nav-label">身体日记</span>
-        </li>
-        <li class="nav-item" data-page="community">
-          <span class="nav-icon">🤝</span><span class="nav-label">社群花园</span>
-        </li>
-        <li class="nav-item" data-page="resources">
-          <span class="nav-icon">📚</span><span class="nav-label">资源库</span>
-        </li>
-        <li class="nav-item" data-page="wellness">
-          <span class="nav-icon">💜</span><span class="nav-label">情绪支持</span>
-        </li>
-      </ul>
-      <div class="sidebar-footer">
-        <button class="btn-icon" id="btn-export" title="导出数据">📦</button>
-        <button class="btn-icon" id="btn-import" title="导入数据">📥</button>
+      <div class="sidebar-item" id="btn-import" title="导入数据">
+        <span>📥</span>
+        <span class="tooltip">导入数据</span>
       </div>
-    </nav>
+    </div>
+    <input type="file" id="hidden-import" accept=".json" style="display:none">
+  </nav>
 
-    <main id="main-content" class="main-content">
-      <header class="topbar">
-        <div class="topbar-left">
-          <button class="sidebar-toggle-mobile" id="sidebar-toggle-mobile" aria-label="菜单">☰</button>
-          <h1 id="page-title" class="page-title">今日概览</h1>
+  <!-- Main -->
+  <div class="main">
+    <header class="main-header">
+      <h1 id="page-title">今日</h1>
+      <div class="header-right">
+        <div class="streak-badge">
+          🔥 <span id="streak-number">0</span> 天
         </div>
-        <div class="topbar-right">
-          <div class="greeting" id="greeting"></div>
+      </div>
+    </header>
+
+    <!-- ==================== TODAY PAGE ==================== -->
+    <div class="page active" id="page-today">
+      <div class="page-today">
+
+        <!-- Greeting -->
+        <div class="greeting-section">
+          <div class="greeting-time" id="greeting-time">早安 ☀️</div>
+          <div class="greeting-sub" id="greeting-sub"></div>
+          <div class="greeting-affirmation" id="daily-affirmation"></div>
         </div>
-      </header>
 
-      <div class="page-container" id="page-container">
+        <!-- Today progress -->
+        <div id="today-stats"></div>
 
-        <!-- ============= Dashboard ============= -->
-        <section class="page active" id="page-dashboard">
-          <div class="dashboard-grid">
-            <div class="card card-streak">
-              <h3>连续打卡</h3>
-              <div class="streak-display" id="streak-display">
-                <span class="streak-number" id="streak-number">0</span>
-                <span class="streak-label">天</span>
-              </div>
-              <div class="streak-calendar" id="streak-calendar"></div>
-            </div>
-            <div class="card">
-              <h3>今日流程进度</h3>
-              <div id="dashboard-routine" class="dashboard-routine"></div>
-            </div>
-            <div class="card">
-              <h3>今日训练计划</h3>
-              <div id="dashboard-training" class="dashboard-training"></div>
-            </div>
-            <div class="card">
-              <h3>皮肤状态</h3>
-              <div id="dashboard-skin" class="dashboard-skin"></div>
-            </div>
-            <div class="card">
-              <h3>最近穿搭</h3>
-              <div id="dashboard-outfit" class="dashboard-outfit"></div>
-            </div>
-            <div class="card card-quick-actions">
-              <h3>快速操作</h3>
-              <div class="quick-actions">
-                <button class="btn btn-soft" onclick="Prism.navigate('voice')">🎤 练声</button>
-                <button class="btn btn-soft" onclick="Prism.navigate('exercise')">🏋️ 锻炼</button>
-                <button class="btn btn-soft" onclick="Prism.navigate('skin')">🧴 护肤</button>
-                <button class="btn btn-soft" onclick="Prism.navigate('routine')">📋 打卡</button>
-              </div>
-            </div>
-          </div>
-        </section>
+        <!-- Morning routine -->
+        <div class="today-section">// 晨间</div>
+        <div id="plan-morning" class="plan-card"></div>
 
-        <!-- ============= Voice Training ============= -->
-        <section class="page" id="page-voice">
-          <div class="voice-layout">
-            <!-- Pitch Practice -->
-            <div class="card">
-              <h3>🎵 音域练习</h3>
-              <p class="text-muted">使用浏览器录音功能，练习提升共鸣位置和音高。目标是找到舒适且自然的女性化声音。</p>
-              <div class="pitch-practice">
-                <div class="pitch-display" id="pitch-display">
-                  <div class="pitch-bar-container">
-                    <div class="pitch-range-male">男声区间</div>
-                    <div class="pitch-range-andro">中性区间</div>
-                    <div class="pitch-range-female">女声区间</div>
-                    <div class="pitch-indicator" id="pitch-indicator"></div>
-                  </div>
-                  <div class="pitch-value" id="pitch-value">-- Hz</div>
-                </div>
-                <div class="pitch-controls">
-                  <button class="btn btn-primary" id="btn-start-pitch">🎙️ 开始监听</button>
-                  <button class="btn btn-ghost hidden" id="btn-stop-pitch">⏹ 停止</button>
-                </div>
-                <div class="pitch-tips text-muted" style="margin-top:12px">
-                  <strong>目标范围参考：</strong><br>
-                  女声基频通常在 165-255 Hz · 男声基频通常在 85-155 Hz<br>
-                  目标不是追求高音，而是找到自然、舒适、可持续的发声方式
-                </div>
-              </div>
-            </div>
+        <!-- Training (voice or body, based on day) -->
+        <div class="today-section" id="section-training">// 今日训练</div>
+        <div id="plan-training" class="plan-card"></div>
 
-            <!-- Resonance Exercises -->
-            <div class="card">
-              <h3>🫁 共鸣训练</h3>
-              <p class="text-muted">声音女性化的关键不是音高，而是共鸣位置。以下练习帮助你将共鸣从胸腔转移到头腔。</p>
-              <div class="resonance-exercises">
-                <div class="exercise-step">
-                  <div class="exercise-num">1</div>
-                  <div>
-                    <strong>大黄蜂嗡嗡（Buzzing）</strong>
-                    <p class="text-muted">闭上嘴唇，发出 "mmmm" 的声音，感受嘴唇的振动。逐渐把振动感从嘴唇移到鼻梁和面部上方。</p>
-                    <div class="exercise-timer">
-                      <span id="buzz-timer">2:00</span>
-                      <button class="btn btn-sm btn-soft" onclick="Prism.startTimer('buzz-timer', 120)">开始计时</button>
-                    </div>
-                  </div>
-                </div>
-                <div class="exercise-step">
-                  <div class="exercise-num">2</div>
-                  <div>
-                    <strong>小狗喘气（Panting）</strong>
-                    <p class="text-muted">模仿小狗快速喘气，舌头放松伸出。感受喉结上提的感觉，这是提升共鸣位置的关键。</p>
-                    <div class="exercise-timer">
-                      <span id="pant-timer">1:00</span>
-                      <button class="btn btn-sm btn-soft" onclick="Prism.startTimer('pant-timer', 60)">开始计时</button>
-                    </div>
-                  </div>
-                </div>
-                <div class="exercise-step">
-                  <div class="exercise-num">3</div>
-                  <div>
-                    <strong>水母音（"Zee" Slides）</strong>
-                    <p class="text-muted">用 "zee" 音从低到高滑动，保持声音流畅不破裂。注意感受共鸣在面部的移动。</p>
-                    <div class="exercise-timer">
-                      <span id="zee-timer">2:00</span>
-                      <button class="btn btn-sm btn-soft" onclick="Prism.startTimer('zee-timer', 120)">开始计时</button>
-                    </div>
-                  </div>
-                </div>
-                <div class="exercise-step">
-                  <div class="exercise-num">4</div>
-                  <div>
-                    <strong>句子练习</strong>
-                    <p class="text-muted">用提升后的共鸣位置读出以下句子，保持自然流畅：</p>
-                    <div class="practice-sentences">
-                      <p class="practice-sentence">"今天天气真不错，我想出去走走。"</p>
-                      <p class="practice-sentence">"请问，这个多少钱？"</p>
-                      <p class="practice-sentence">"你好，我叫___，很高兴认识你。"</p>
-                      <p class="practice-sentence">"我觉得这个想法很好，我们可以试试看。"</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <!-- Skin care -->
+        <div class="today-section">// 护肤</div>
+        <div id="plan-skin" class="plan-card"></div>
 
-            <!-- Voice Log -->
-            <div class="card">
-              <h3>📝 训练日志</h3>
-              <div class="form-group">
-                <label>今天练习了什么？</label>
-                <textarea id="voice-log-content" placeholder="记录今天的练习内容、感受、发现..." rows="3"></textarea>
-              </div>
-              <div class="form-group">
-                <label>今日状态</label>
-                <div class="tag-group single" id="voice-log-tags">
-                  <button class="tag" data-tag="有进步">📈 有进步</button>
-                  <button class="tag" data-tag="维持水平">➡️ 维持</button>
-                  <button class="tag" data-tag="嗓子累了">😮‍💨 嗓子累</button>
-                  <button class="tag" data-tag="找到感觉">💡 找到感觉</button>
-                  <button class="tag" data-tag="瓶颈期">🧱 瓶颈</button>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group" style="flex:1">
-                  <label>练习时长（分钟）</label>
-                  <input type="number" id="voice-log-duration" placeholder="15" min="0" max="180">
-                </div>
-              </div>
-              <button class="btn btn-primary" id="btn-save-voice-log">保存日志</button>
-              <div class="voice-log-list" id="voice-log-list" style="margin-top:16px"></div>
-            </div>
+        <!-- Wellness -->
+        <div class="today-section">// 身心</div>
+        <div id="plan-wellness" class="plan-card"></div>
 
-            <!-- Voice Tips -->
-            <div class="card">
-              <h3>💡 发声技巧</h3>
-              <div class="tips-list" id="voice-tips">
-                <div class="tip-item"><strong>喉位控制：</strong>说话时想象喉结轻轻上提，就像吞咽前那一刻的感觉，但不要用力挤压。</div>
-                <div class="tip-item"><strong>气息支撑：</strong>用腹部呼吸，而不是浅层的胸腔呼吸。充足的气息是稳定声音的基础。</div>
-                <div class="tip-item"><strong>语调变化：</strong>女性化语调通常有更丰富的升降变化。练习时可以适当夸张，再慢慢收回来。</div>
-                <div class="tip-item"><strong>口腔形状：</strong>女性化说话时口腔通常更打开，嘴唇更放松。对着镜子练习口型。</div>
-                <div class="tip-item"><strong>保护嗓子：</strong>每天练习不超过30分钟。感到任何疼痛或不适立即停止。多喝温水。</div>
-                <div class="tip-item"><strong>日常应用：</strong>从短句开始，比如点咖啡时用练习后的声音。逐渐扩展到更长的对话。</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ============= Skin Care ============= -->
-        <section class="page" id="page-skin">
-          <div class="skin-layout">
-            <!-- Today's Routine -->
-            <div class="card">
-              <h3>今日护肤流程</h3>
-              <div class="routine-tabs">
-                <button class="tag active" data-routine="morning">☀️ 晨间</button>
-                <button class="tag" data-routine="evening">🌙 夜间</button>
-              </div>
-              <div class="skin-routine" id="skin-routine"></div>
-            </div>
-
-            <!-- Skin Log -->
-            <div class="card">
-              <h3>皮肤状态记录</h3>
-              <div class="form-group">
-                <label>整体状态</label>
-                <div class="skin-rating" id="skin-rating">
-                  <button class="mood-btn" data-rating="1" data-label="很差">😣</button>
-                  <button class="mood-btn" data-rating="2" data-label="不太好">😕</button>
-                  <button class="mood-btn" data-rating="3" data-label="一般">😐</button>
-                  <button class="mood-btn" data-rating="4" data-label="还不错">🙂</button>
-                  <button class="mood-btn" data-rating="5" data-label="很好">😊</button>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>皮肤问题</label>
-                <div class="tag-group" id="skin-issues">
-                  <button class="tag" data-tag="干燥">干燥</button>
-                  <button class="tag" data-tag="出油">出油</button>
-                  <button class="tag" data-tag="痘痘">痘痘</button>
-                  <button class="tag" data-tag="黑头">黑头</button>
-                  <button class="tag" data-tag="泛红">泛红</button>
-                  <button class="tag" data-tag="暗沉">暗沉</button>
-                  <button class="tag" data-tag="毛孔粗大">毛孔粗大</button>
-                  <button class="tag" data-tag="细纹">细纹</button>
-                  <button class="tag" data-tag="胡茬青影">胡茬青影</button>
-                  <button class="tag" data-tag="状态不错">状态不错 ✨</button>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>备注</label>
-                <textarea id="skin-note" placeholder="今天用了什么产品？有什么感受？" rows="2"></textarea>
-              </div>
-              <button class="btn btn-primary" id="btn-save-skin">保存记录</button>
-            </div>
-
-            <!-- Product Shelf -->
-            <div class="card">
-              <h3>🧴 我的产品架</h3>
-              <div class="form-row">
-                <input type="text" id="product-name" placeholder="产品名称">
-                <select id="product-type">
-                  <option value="cleanser">洁面</option>
-                  <option value="toner">化妆水</option>
-                  <option value="serum">精华</option>
-                  <option value="moisturizer">面霜</option>
-                  <option value="sunscreen">防晒</option>
-                  <option value="mask">面膜</option>
-                  <option value="eye">眼霜</option>
-                  <option value="other">其他</option>
-                </select>
-                <button class="btn btn-secondary" id="btn-add-product">添加</button>
-              </div>
-              <div class="product-shelf" id="product-shelf"></div>
-            </div>
-
-            <!-- Skin Tips -->
-            <div class="card">
-              <h3>💡 护肤要点</h3>
-              <div class="tips-list">
-                <div class="tip-item"><strong>基础三步：</strong>清洁→保湿→防晒，做好这三步比用贵妇产品更重要。</div>
-                <div class="tip-item"><strong>剃须后护理：</strong>使用温和的须后水或芦荟胶，避免刺激性产品。冰敷可以缓解泛红。</div>
-                <div class="tip-item"><strong>遮盖青影：</strong>使用橘色/桃色遮瑕中和胡茬青影，再上肤色遮瑕。少量多次，轻轻拍开。</div>
-                <div class="tip-item"><strong>防晒是关键：</strong>每天使用 SPF30+ 防晒霜，即使阴天。防晒是抗衰老最有效的一步。</div>
-                <div class="tip-item"><strong>耐心：</strong>护肤品通常需要4-8周才能看到效果。不要频繁更换产品。</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ============= Makeup ============= -->
-        <section class="page" id="page-makeup">
-          <div class="makeup-layout">
-            <!-- Makeup Log -->
-            <div class="card">
-              <h3>💄 今日妆容</h3>
-              <div class="form-group">
-                <label>妆容风格</label>
-                <select id="makeup-style">
-                  <option value="natural">日常自然妆</option>
-                  <option value="office">通勤妆</option>
-                  <option value="date">约会妆</option>
-                  <option value="party">派对妆</option>
-                  <option value="creative">创意妆</option>
-                  <option value="practice">练习妆</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>使用的技巧</label>
-                <div class="tag-group" id="makeup-techniques">
-                  <button class="tag" data-tag="底妆">底妆</button>
-                  <button class="tag" data-tag="遮瑕">遮瑕</button>
-                  <button class="tag" data-tag="修容">修容</button>
-                  <button class="tag" data-tag="眼妆">眼妆</button>
-                  <button class="tag" data-tag="眉毛">眉毛</button>
-                  <button class="tag" data-tag="唇妆">唇妆</button>
-                  <button class="tag" data-tag="腮红">腮红</button>
-                  <button class="tag" data-tag="高光">高光</button>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>满意度</label>
-                <div class="skin-rating" id="makeup-satisfaction">
-                  <button class="mood-btn" data-rating="1">😣</button>
-                  <button class="mood-btn" data-rating="2">😕</button>
-                  <button class="mood-btn" data-rating="3">😐</button>
-                  <button class="mood-btn" data-rating="4">🙂</button>
-                  <button class="mood-btn" data-rating="5">😍</button>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>笔记</label>
-                <textarea id="makeup-note" placeholder="今天的妆容心得、新尝试的技巧..." rows="3"></textarea>
-              </div>
-              <button class="btn btn-primary" id="btn-save-makeup">保存记录</button>
-            </div>
-
-            <!-- Technique Library -->
-            <div class="card">
-              <h3>📖 化妆技巧库</h3>
-              <div class="makeup-technique-list" id="makeup-technique-list">
-                <div class="strategy-item">
-                  <span class="strategy-icon">🖌️</span>
-                  <div class="strategy-content">
-                    <div class="strategy-title">面部修容基础</div>
-                    <div class="strategy-desc">在下颌线外侧使用比肤色深1-2度的修容，柔化面部轮廓。鼻侧修容可以让鼻子看起来更立体精致。</div>
-                    <span class="strategy-tag">修容</span>
-                  </div>
-                </div>
-                <div class="strategy-item">
-                  <span class="strategy-icon">👁️</span>
-                  <div class="strategy-content">
-                    <div class="strategy-title">放大双眼技巧</div>
-                    <div class="strategy-desc">浅色眼影涂满眼窝，深色眼影在眼尾三角区晕染。内眼线可以让睫毛看起来更浓密。卷翘睫毛是放大双眼最快的方式。</div>
-                    <span class="strategy-tag">眼妆</span>
-                  </div>
-                </div>
-                <div class="strategy-item">
-                  <span class="strategy-icon">💋</span>
-                  <div class="strategy-content">
-                    <div class="strategy-title">唇妆显嫩</div>
-                    <div class="strategy-desc">选择偏粉色/珊瑚色的唇膏，避免深色。用唇线笔画出比嘴唇稍大的唇形（不要过度），中间用浅色唇釉提亮。</div>
-                    <span class="strategy-tag">唇妆</span>
-                  </div>
-                </div>
-                <div class="strategy-item">
-                  <span class="strategy-icon">✨</span>
-                  <div class="strategy-content">
-                    <div class="strategy-title">遮盖胡茬青影</div>
-                    <div class="strategy-desc">第一步：用橘色/桃色遮瑕膏拍在青影区域，中和蓝紫色调。第二步：等30秒后用肤色遮瑕覆盖。第三步：用散粉定妆。少量多次是关键。</div>
-                    <span class="strategy-tag">遮瑕</span>
-                  </div>
-                </div>
-                <div class="strategy-item">
-                  <span class="strategy-icon">🌸</span>
-                  <div class="strategy-content">
-                    <div class="strategy-title">腮红位置改变脸型</div>
-                    <div class="strategy-desc">腮红打在颧骨偏上、向太阳穴方向扫，可以提拉面部线条。苹果肌位置打腮红显可爱。避免腮红位置太低。</div>
-                    <span class="strategy-tag">腮红</span>
-                  </div>
-                </div>
-                <div class="strategy-item">
-                  <span class="strategy-icon">📐</span>
-                  <div class="strategy-content">
-                    <div class="strategy-title">眉形调整</div>
-                    <div class="strategy-desc">稍弯的眉形比平直眉更显柔和。修掉眉毛下方的杂毛可以让眉骨更清晰。用眉笔一根根画出毛流感，比直接填色更自然。</div>
-                    <span class="strategy-tag">眉毛</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Makeup Log History -->
-            <div class="card">
-              <h3>妆容记录</h3>
-              <div class="makeup-history" id="makeup-history"></div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ============= Fashion ============= -->
-        <section class="page" id="page-fashion">
-          <div class="fashion-layout">
-            <!-- Today's Outfit -->
-            <div class="card">
-              <h3>👗 今日穿搭</h3>
-              <div class="form-group">
-                <label>场合</label>
-                <select id="outfit-occasion">
-                  <option value="daily">日常</option>
-                  <option value="work">工作/学校</option>
-                  <option value="date">约会</option>
-                  <option value="party">聚会</option>
-                  <option value="sport">运动</option>
-                  <option value="formal">正式场合</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>穿搭描述</label>
-                <textarea id="outfit-desc" placeholder="上衣、下装、鞋子、配饰..." rows="3"></textarea>
-              </div>
-              <div class="form-group">
-                <label>风格标签</label>
-                <div class="tag-group" id="outfit-styles">
-                  <button class="tag" data-tag="甜美">甜美</button>
-                  <button class="tag" data-tag="简约">简约</button>
-                  <button class="tag" data-tag="复古">复古</button>
-                  <button class="tag" data-tag="运动">运动</button>
-                  <button class="tag" data-tag="优雅">优雅</button>
-                  <button class="tag" data-tag="可爱">可爱</button>
-                  <button class="tag" data-tag="酷">酷</button>
-                  <button class="tag" data-tag="文艺">文艺</button>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>自信度</label>
-                <div class="skin-rating" id="outfit-confidence">
-                  <button class="mood-btn" data-rating="1">😰</button>
-                  <button class="mood-btn" data-rating="2">😕</button>
-                  <button class="mood-btn" data-rating="3">😐</button>
-                  <button class="mood-btn" data-rating="4">😊</button>
-                  <button class="mood-btn" data-rating="5">💃</button>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>心得</label>
-                <textarea id="outfit-note" placeholder="穿着感受、他人反应、想改进的地方..." rows="2"></textarea>
-              </div>
-              <button class="btn btn-primary" id="btn-save-outfit">保存穿搭</button>
-            </div>
-
-            <!-- Style Guide -->
-            <div class="card">
-              <h3>📐 体型穿搭指南</h3>
-              <div class="body-type-guide">
-                <div class="strategy-item">
-                  <span class="strategy-icon">🔶</span>
-                  <div class="strategy-content">
-                    <div class="strategy-title">宽肩修饰</div>
-                    <div class="strategy-desc">V领/大领口在视觉上拉长颈部线条。避免垫肩和船领。落肩袖可以柔化肩线。A字裙/伞裙平衡上下比例。</div>
-                  </div>
-                </div>
-                <div class="strategy-item">
-                  <span class="strategy-icon">📏</span>
-                  <div class="strategy-content">
-                    <div class="strategy-title">打造腰线</div>
-                    <div class="strategy-desc">腰带/收腰款式是关键。高腰下装 + 塞衣角可以制造腰线。短上衣配高腰裙/裤是黄金比例公式。</div>
-                  </div>
-                </div>
-                <div class="strategy-item">
-                  <span class="strategy-icon">🦵</span>
-                  <div class="strategy-content">
-                    <div class="strategy-title">腿型优化</div>
-                    <div class="strategy-desc">直筒裤/微喇裤修饰腿型。高跟鞋（哪怕3cm）能改变整体比例和走路姿态。裸色鞋延长腿部线条。</div>
-                  </div>
-                </div>
-                <div class="strategy-item">
-                  <span class="strategy-icon">🎨</span>
-                  <div class="strategy-content">
-                    <div class="strategy-title">色彩搭配法则</div>
-                    <div class="strategy-desc">全身不超过3种颜色。深色显瘦、浅色显膨胀。想突出的部位用亮色，想弱化的部位用深色。同色系搭配最安全。</div>
-                  </div>
-                </div>
-                <div class="strategy-item">
-                  <span class="strategy-icon">💍</span>
-                  <div class="strategy-content">
-                    <div class="strategy-title">配饰的力量</div>
-                    <div class="strategy-desc">项链/耳环可以引导视线到面部。腰带强调腰线。丝巾是提升精致感的利器。包包的大小要和身材比例协调。</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Outfit History -->
-            <div class="card">
-              <h3>穿搭记录</h3>
-              <div class="outfit-history" id="outfit-history"></div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ============= Posture ============= -->
-        <section class="page" id="page-posture">
-          <div class="posture-layout">
-            <!-- Posture Exercises -->
-            <div class="card">
-              <h3>🧍‍♀️ 仪态矫正训练</h3>
-              <p class="text-muted">好的仪态比任何服饰都更能展现气质。以下训练每天花10-15分钟。</p>
-              <div class="exercise-list">
-                <div class="exercise-step">
-                  <div class="exercise-num">1</div>
-                  <div>
-                    <strong>靠墙站立法（5分钟）</strong>
-                    <p class="text-muted">后脑勺、肩胛骨、臀部、小腿肚、脚后跟五点贴墙。收下巴，肩膀放松下沉。每天站5分钟，矫正体态。</p>
-                    <div class="exercise-timer">
-                      <span id="wall-timer">5:00</span>
-                      <button class="btn btn-sm btn-soft" onclick="Prism.startTimer('wall-timer', 300)">开始计时</button>
-                    </div>
-                  </div>
-                </div>
-                <div class="exercise-step">
-                  <div class="exercise-num">2</div>
-                  <div>
-                    <strong>开肩展胸（各30秒×3组）</strong>
-                    <p class="text-muted">双手在身后十指交扣，手臂伸直向上抬起。感受胸腔打开、肩胛骨靠拢。保持30秒，重复3次。</p>
-                    <div class="exercise-timer">
-                      <span id="shoulder-timer">0:30</span>
-                      <button class="btn btn-sm btn-soft" onclick="Prism.startTimer('shoulder-timer', 30)">开始计时</button>
-                    </div>
-                  </div>
-                </div>
-                <div class="exercise-step">
-                  <div class="exercise-num">3</div>
-                  <div>
-                    <strong>猫牛式脊柱灵活（10次）</strong>
-                    <p class="text-muted">四点跪姿。吸气时抬头挺胸（牛式），呼气时低头拱背（猫式）。缓慢流畅地交替，放松脊柱。</p>
-                  </div>
-                </div>
-                <div class="exercise-step">
-                  <div class="exercise-num">4</div>
-                  <div>
-                    <strong>走路姿态练习</strong>
-                    <p class="text-muted">想象头顶有根线把你往上拉。走路时脚跟先着地，步幅缩小，骨盆微微前倾。手臂自然摆动，不要外扩。对着镜子或录像检查。</p>
-                  </div>
-                </div>
-                <div class="exercise-step">
-                  <div class="exercise-num">5</div>
-                  <div>
-                    <strong>坐姿练习</strong>
-                    <p class="text-muted">双腿并拢或交叉（膝盖朝向一致），背部挺直但不僵硬。双手优雅放置。避免二郎腿大开或瘫坐。</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Stretching -->
-            <div class="card">
-              <h3>🤸 柔韧性拉伸</h3>
-              <p class="text-muted">增加身体柔韧性，让动作更流畅优雅。每个动作保持20-30秒。</p>
-              <div class="stretch-routine">
-                <div class="exercise-step">
-                  <div class="exercise-num">🧘</div>
-                  <div>
-                    <strong>颈部拉伸</strong>
-                    <p class="text-muted">头缓缓向左倾斜，右手轻压头侧。保持20秒，换边。然后低头、仰头各保持20秒。</p>
-                  </div>
-                </div>
-                <div class="exercise-step">
-                  <div class="exercise-num">🧘</div>
-                  <div>
-                    <strong>蝴蝶式髋部打开</strong>
-                    <p class="text-muted">坐姿，脚掌相对，膝盖向两侧打开。双手握脚，上身微微前倾。感受大腿内侧拉伸。</p>
-                  </div>
-                </div>
-                <div class="exercise-step">
-                  <div class="exercise-num">🧘</div>
-                  <div>
-                    <strong>鸽子式臀部拉伸</strong>
-                    <p class="text-muted">一腿前屈跪地，另一腿向后伸直。前腿的小腿尽量与身体平行。感受臀部深层拉伸。</p>
-                  </div>
-                </div>
-                <div class="exercise-step">
-                  <div class="exercise-num">🧘</div>
-                  <div>
-                    <strong>站立前屈</strong>
-                    <p class="text-muted">站立，双脚与肩同宽，从髋部折叠上身向下。膝盖可以微弯。感受背部和腿部后侧拉伸。</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Posture Log -->
-            <div class="card">
-              <h3>📝 仪态训练日志</h3>
-              <div class="form-group">
-                <label>今天做了什么训练？</label>
-                <textarea id="posture-log" placeholder="记录训练内容和感受..." rows="3"></textarea>
-              </div>
-              <div class="form-group">
-                <label>练习时长（分钟）</label>
-                <input type="number" id="posture-duration" placeholder="15" min="0">
-              </div>
-              <button class="btn btn-primary" id="btn-save-posture">保存记录</button>
-              <div class="posture-log-list" id="posture-log-list" style="margin-top:16px"></div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ============= Exercise ============= -->
-        <section class="page" id="page-exercise">
-          <div class="exercise-layout">
-            <!-- Workout Plans -->
-            <div class="card">
-              <h3>🏋️‍♀️ 女性化塑形训练</h3>
-              <p class="text-muted">目标是塑造更女性化的身体线条：收紧腰腹、提臀、柔化肩部线条。不做大重量训练，注重雕塑感。</p>
-              <div class="workout-tabs">
-                <button class="tag active" data-workout="full">全身</button>
-                <button class="tag" data-workout="lower">臀腿</button>
-                <button class="tag" data-workout="core">腰腹</button>
-                <button class="tag" data-workout="upper">上身</button>
-                <button class="tag" data-workout="yoga">瑜伽</button>
-              </div>
-              <div class="workout-plan" id="workout-plan"></div>
-            </div>
-
-            <!-- Workout Log -->
-            <div class="card">
-              <h3>📝 训练日志</h3>
-              <div class="form-group">
-                <label>训练内容</label>
-                <textarea id="workout-log" placeholder="做了哪些动作、组数、感受..." rows="3"></textarea>
-              </div>
-              <div class="form-row">
-                <div class="form-group" style="flex:1">
-                  <label>时长（分钟）</label>
-                  <input type="number" id="workout-duration" placeholder="30" min="0">
-                </div>
-                <div class="form-group" style="flex:1">
-                  <label>状态</label>
-                  <div class="tag-group single" id="workout-status">
-                    <button class="tag" data-tag="轻松">轻松</button>
-                    <button class="tag" data-tag="适中">适中</button>
-                    <button class="tag" data-tag="吃力">吃力</button>
-                  </div>
-                </div>
-              </div>
-              <button class="btn btn-primary" id="btn-save-workout">保存记录</button>
-              <div class="workout-history" id="workout-history" style="margin-top:16px"></div>
-            </div>
-
-            <!-- Exercise Tips -->
-            <div class="card">
-              <h3>💡 训练要点</h3>
-              <div class="tips-list">
-                <div class="tip-item"><strong>频率：</strong>每周3-5次，每次30-45分钟。休息日同样重要。</div>
-                <div class="tip-item"><strong>饮食配合：</strong>充足蛋白质（体重kg×1.2-1.6g）帮助塑形。不要节食，健康饮食比极端方法更有效。</div>
-                <div class="tip-item"><strong>臀部训练：</strong>臀桥、深蹲、侧抬腿是提臀三大动作。关键在于感受臀部发力，而不是腿部代偿。</div>
-                <div class="tip-item"><strong>腰腹核心：</strong>平板支撑、死虫式、鸟狗式。核心力量是良好体态的基础。</div>
-                <div class="tip-item"><strong>柔韧训练：</strong>瑜伽/普拉提对塑造流畅线条特别有帮助。推荐每周至少1次。</div>
-                <div class="tip-item"><strong>避免过度：</strong>避免大重量肩部和手臂训练，以免增加上身体积。选择轻重量多次数。</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ============= Daily Routine ============= -->
-        <section class="page" id="page-routine">
-          <div class="routine-layout">
-            <div class="card">
-              <h3>☀️ 晨间流程</h3>
-              <p class="text-muted">每天早上的例行步骤。坚持执行，形成本能。</p>
-              <div class="routine-list" id="morning-routine"></div>
-              <div class="form-row" style="margin-top:12px">
-                <input type="text" id="add-morning-step" placeholder="添加步骤...">
-                <button class="btn btn-secondary" id="btn-add-morning">添加</button>
-              </div>
-            </div>
-            <div class="card">
-              <h3>🌙 夜间流程</h3>
-              <p class="text-muted">每天晚上的例行步骤。好好结束每一天。</p>
-              <div class="routine-list" id="evening-routine"></div>
-              <div class="form-row" style="margin-top:12px">
-                <input type="text" id="add-evening-step" placeholder="添加步骤...">
-                <button class="btn btn-secondary" id="btn-add-evening">添加</button>
-              </div>
-            </div>
-            <div class="card">
-              <h3>📊 打卡统计</h3>
-              <div class="routine-stats" id="routine-stats"></div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ============= Body Journal ============= -->
-        <section class="page" id="page-body-journal">
-          <div class="body-journal-layout">
-            <div class="card">
-              <h3>📓 身体感受日记</h3>
-              <p class="text-muted">记录你对自己身体的感受、变化和观察。这是了解自己的重要方式。</p>
-              <div class="form-group">
-                <label>日期</label>
-                <input type="date" id="body-journal-date">
-              </div>
-              <div class="form-group">
-                <label>整体感受</label>
-                <div class="tag-group single" id="body-feeling">
-                  <button class="tag" data-tag="很不舒服">😣 很不舒服</button>
-                  <button class="tag" data-tag="有些不安">😕 有些不安</button>
-                  <button class="tag" data-tag="还可以">😐 还可以</button>
-                  <button class="tag" data-tag="比较满意">🙂 比较满意</button>
-                  <button class="tag" data-tag="感觉很好">😊 感觉很好</button>
-                </div>
-              </div>
-              <div class="form-group">
-                <label>想记录的内容</label>
-                <textarea id="body-journal-content" placeholder="今天的感受、变化、发现、困惑..." rows="6"></textarea>
-              </div>
-              <div class="form-group">
-                <label>关注的身体区域</label>
-                <div class="tag-group" id="body-areas">
-                  <button class="tag" data-tag="面部">面部</button>
-                  <button class="tag" data-tag="皮肤">皮肤</button>
-                  <button class="tag" data-tag="声音">声音</button>
-                  <button class="tag" data-tag="肩膀">肩膀</button>
-                  <button class="tag" data-tag="腰腹">腰腹</button>
-                  <button class="tag" data-tag="臀腿">臀腿</button>
-                  <button class="tag" data-tag="手部">手部</button>
-                  <button class="tag" data-tag="整体比例">整体比例</button>
-                  <button class="tag" data-tag="体毛">体毛</button>
-                  <button class="tag" data-tag="发型">发型</button>
-                </div>
-              </div>
-              <button class="btn btn-primary" id="btn-save-body-journal">保存日记</button>
-            </div>
-            <div class="card">
-              <h3>过往日记</h3>
-              <div class="body-journal-list" id="body-journal-list"></div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ============= Community ============= -->
-        <section class="page" id="page-community">
-          <div class="community-layout">
-            <div class="card">
-              <h3>分享你的经验</h3>
-              <p class="text-muted">匿名分享你的身体改造经验，帮助其他姐妹。</p>
-              <div class="form-group">
-                <select id="story-category">
-                  <option value="voice">声音训练</option>
-                  <option value="skin">护肤经验</option>
-                  <option value="makeup">化妆技巧</option>
-                  <option value="fashion">穿搭心得</option>
-                  <option value="exercise">锻炼经验</option>
-                  <option value="general">日常分享</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <textarea id="story-content" placeholder="写下你的经验..." rows="5"></textarea>
-              </div>
-              <button class="btn btn-primary" id="btn-share-story">匿名分享</button>
-            </div>
-            <div class="card">
-              <h3>社群花园 🌻</h3>
-              <div class="story-filters">
-                <button class="tag active" data-filter="all">全部</button>
-                <button class="tag" data-filter="voice">声音</button>
-                <button class="tag" data-filter="skin">护肤</button>
-                <button class="tag" data-filter="makeup">化妆</button>
-                <button class="tag" data-filter="fashion">穿搭</button>
-                <button class="tag" data-filter="exercise">锻炼</button>
-              </div>
-              <div class="stories-feed" id="stories-feed"></div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ============= Resources ============= -->
-        <section class="page" id="page-resources">
-          <div class="resources-layout">
-            <div class="card">
-              <h3>🎤 声音训练资源</h3>
-              <div class="resource-list">
-                <div class="resource-item"><div class="resource-title">TransVoiceLessons (YouTube)</div><div class="resource-desc">最受欢迎的跨性别女性声音训练频道，系统讲解共鸣、音高、语调。</div></div>
-                <div class="resource-item"><div class="resource-title">r/transvoice (Reddit)</div><div class="resource-desc">活跃的声音训练社区，可以分享录音获取反馈。</div></div>
-                <div class="resource-item"><div class="resource-title">Vocal Pitch Monitor App</div><div class="resource-desc">实时显示音高的手机应用，练习时监控音域。</div></div>
-              </div>
-            </div>
-            <div class="card">
-              <h3>💄 化妆学习</h3>
-              <div class="resource-list">
-                <div class="resource-item"><div class="resource-title">Wayne Goss (YouTube)</div><div class="resource-desc">专业化妆师，教程简洁实用，有很多适合新手的内容。</div></div>
-                <div class="resource-item"><div class="resource-title">NikkieTutorials</div><div class="resource-desc">知名跨性别美妆博主，技巧教程详细。</div></div>
-                <div class="resource-item"><div class="resource-title">Lisa Eldridge</div><div class="resource-desc">优雅派化妆教程大师，适合学习自然妆容。</div></div>
-              </div>
-            </div>
-            <div class="card">
-              <h3>🏋️ 锻炼与体态</h3>
-              <div class="resource-list">
-                <div class="resource-item"><div class="resource-title">Yoga With Adriene</div><div class="resource-desc">适合所有水平的瑜伽教程，对改善体态和柔韧性很有帮助。</div></div>
-                <div class="resource-item"><div class="resource-title">Blogilates</div><div class="resource-desc">女性化塑形运动教程，居家无器械可做。</div></div>
-              </div>
-            </div>
-            <div class="card">
-              <h3>📚 推荐书籍</h3>
-              <div class="resource-list">
-                <div class="resource-item"><div class="resource-title">《The Beauty of Dirty Skin》</div><div class="resource-desc">皮肤科学入门，了解皮肤运作原理。</div></div>
-                <div class="resource-item"><div class="resource-title">《The Curated Closet》</div><div class="resource-desc">打造个人风格衣橱的系统方法。</div></div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ============= Wellness / Emotional Support ============= -->
-        <section class="page" id="page-wellness">
-          <div class="wellness-layout">
-            <div class="card card-crisis">
-              <h3>🆘 紧急联系</h3>
-              <div class="crisis-contacts">
-                <div class="crisis-item">
-                  <strong>全国心理援助热线</strong>
-                  <span class="phone">400-161-9995</span>
-                  <a href="tel:400-161-9995" class="btn btn-sm btn-danger">拨打</a>
-                </div>
-                <div class="crisis-item">
-                  <strong>北京心理危机热线</strong>
-                  <span class="phone">010-82951332</span>
-                  <a href="tel:010-82951332" class="btn btn-sm btn-danger">拨打</a>
-                </div>
-                <div class="crisis-item">
-                  <strong>生命热线</strong>
-                  <span class="phone">400-821-1215</span>
-                  <a href="tel:400-821-1215" class="btn btn-sm btn-danger">拨打</a>
-                </div>
-              </div>
-            </div>
-
-            <div class="card">
-              <h3>🌈 情绪记录</h3>
-              <div class="mood-scale" id="mood-scale">
-                <button class="mood-btn" data-mood="1" data-label="很糟糕">😫</button>
-                <button class="mood-btn" data-mood="2" data-label="不太好">😔</button>
-                <button class="mood-btn" data-mood="3" data-label="一般">😐</button>
-                <button class="mood-btn" data-mood="4" data-label="还不错">🙂</button>
-                <button class="mood-btn" data-mood="5" data-label="很好">😊</button>
-              </div>
-              <div class="mood-detail hidden" id="mood-detail">
-                <div class="form-group">
-                  <label>相关因素</label>
-                  <div class="tag-group" id="mood-tags">
-                    <button class="tag" data-tag="身体焦虑">身体焦虑</button>
-                    <button class="tag" data-tag="社交压力">社交压力</button>
-                    <button class="tag" data-tag="进展顺利">进展顺利</button>
-                    <button class="tag" data-tag="被肯定">被肯定</button>
-                    <button class="tag" data-tag="挫败感">挫败感</button>
-                    <button class="tag" data-tag="性别焦虑">性别焦虑</button>
-                    <button class="tag" data-tag="自信满满">自信满满</button>
-                    <button class="tag" data-tag="孤独">孤独</button>
-                    <button class="tag" data-tag="有希望">有希望 🌱</button>
-                    <button class="tag" data-tag="被支持">被支持</button>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <textarea id="mood-note" placeholder="想说的话..." rows="2"></textarea>
-                </div>
-                <button class="btn btn-primary" id="btn-save-mood">保存</button>
-              </div>
-            </div>
-
-            <div class="card">
-              <h3>🧘 呼吸练习</h3>
-              <div class="breathing-visual" id="breathing-visual">
-                <div class="breath-circle" id="breath-circle"></div>
-                <div class="breath-text" id="breath-text">准备开始</div>
-              </div>
-              <div class="breathing-controls">
-                <select id="breath-pattern">
-                  <option value="478">4-7-8 放松呼吸</option>
-                  <option value="box">方形呼吸 (4-4-4-4)</option>
-                  <option value="calm">平静呼吸 (4-2-6)</option>
-                </select>
-                <button class="btn btn-primary" id="btn-start-breathing">开始练习</button>
-              </div>
-            </div>
-
-            <div class="card">
-              <h3>✨ 每日肯定</h3>
-              <div class="daily-affirmation" id="daily-affirmation"></div>
-              <button class="btn btn-ghost btn-sm" id="btn-new-affirmation">换一句 ✨</button>
-            </div>
-
-            <div class="card">
-              <h3>💜 自我关怀清单</h3>
-              <div class="selfcare-checklist" id="selfcare-checklist"></div>
-            </div>
-          </div>
-        </section>
+        <!-- Evening routine (shows after 4pm) -->
+        <div class="today-section" id="section-evening">// 晚间</div>
+        <div id="plan-evening" class="plan-card"></div>
 
       </div>
-    </main>
-  </div>
+    </div>
 
-  <input type="file" id="hidden-import" style="display:none" accept=".json">
+    <!-- ==================== VOICE PAGE ==================== -->
+    <div class="page" id="page-voice">
+      <div class="sub-page">
+        <div class="card">
+          <div class="card-title">🎤 声音训练</div>
+          <div class="pitch-monitor">
+            <div class="pitch-value" id="pitch-value-page">-- Hz</div>
+            <div class="pitch-label">实时音高监测</div>
+            <div class="pitch-indicator"></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:16px;justify-content:center">
+            <button class="btn btn-primary" onclick="App.startPitchMonitor()">🎤 开始监测</button>
+            <button class="btn btn-ghost hidden" id="btn-stop-pitch-page" onclick="App.stopPitchMonitor()">⏹ 停止</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">练习句子</div>
+          <div id="voice-sentences" style="display:flex;flex-direction:column;gap:8px">
+          </div>
+          <script>
+            // Render sentences inline
+            setTimeout(() => {
+              const el = document.getElementById('voice-sentences');
+              if (el) el.innerHTML = PrismData.voicePracticeSentences.map(s =>
+                `<div style="padding:10px 14px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.9rem;color:var(--text-secondary)">"${s}"</div>`
+              ).join('');
+            }, 1000);
+          </script>
+        </div>
+        <div class="card">
+          <div class="card-title">训练记录</div>
+          <div class="quick-log">
+            <input type="number" placeholder="时长(分钟)" id="voice-duration-page" style="max-width:120px">
+            <input type="text" placeholder="训练笔记..." id="voice-note-page">
+            <button class="btn btn-sm btn-primary" onclick="App.saveVoiceLog()">记录</button>
+          </div>
+          <div id="voice-log-list" style="margin-top:16px"></div>
+        </div>
+      </div>
+    </div>
 
-  <script src="js/data.js"></script>
-  <script src="js/store.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/app.js"></script>
+    <!-- ==================== SKIN PAGE ==================== -->
+    <div class="page" id="page-skin">
+      <div class="sub-page">
+        <div class="card">
+          <div class="card-title">🧴 护肤流程</div>
+          <div id="skin-routine-full"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">产品架</div>
+          <div class="quick-log">
+            <input type="text" placeholder="产品名称" id="product-name">
+            <select id="product-type" class="form-select" style="max-width:120px">
+              <option value="cleanser">洁面</option>
+              <option value="toner">化妆水</option>
+              <option value="serum">精华</option>
+              <option value="moisturizer">面霜</option>
+              <option value="sunscreen">防晒</option>
+              <option value="mask">面膜</option>
+              <option value="eye">眼霜</option>
+              <option value="other">其他</option>
+            </select>
+            <button class="btn btn-sm btn-primary" onclick="App.addProduct()">添加</button>
+          </div>
+          <div id="product-shelf" style="margin-top:12px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== MAKEUP PAGE ==================== -->
+    <div class="page" id="page-makeup">
+      <div class="sub-page">
+        <div class="card">
+          <div class="card-title">💄 妆容档案</div>
+          <div class="form-group">
+            <label class="form-label">妆容风格</label>
+            <input type="text" class="form-input" id="makeup-style" placeholder="日常妆 / 约会妆 / ...">
+          </div>
+          <div class="form-group">
+            <label class="form-label">使用技巧</label>
+            <div class="tags-row" id="makeup-techniques">
+              <span class="tag" data-tag="修容" onclick="this.classList.toggle('selected')">修容</span>
+              <span class="tag" data-tag="遮瑕" onclick="this.classList.toggle('selected')">遮瑕</span>
+              <span class="tag" data-tag="眼妆" onclick="this.classList.toggle('selected')">眼妆</span>
+              <span class="tag" data-tag="唇妆" onclick="this.classList.toggle('selected')">唇妆</span>
+              <span class="tag" data-tag="眉毛" onclick="this.classList.toggle('selected')">眉毛</span>
+              <span class="tag" data-tag="腮红" onclick="this.classList.toggle('selected')">腮红</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">笔记</label>
+            <textarea class="form-textarea" id="makeup-note" placeholder="今天的妆容心得..."></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="App.saveMakeupLog()">记录妆容</button>
+        </div>
+        <div class="card">
+          <div class="card-title">历史记录</div>
+          <div id="makeup-history"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== FASHION PAGE ==================== -->
+    <div class="page" id="page-fashion">
+      <div class="sub-page">
+        <div class="card">
+          <div class="card-title">👗 穿搭记录</div>
+          <div class="form-group">
+            <label class="form-label">场合</label>
+            <input type="text" class="form-input" id="outfit-occasion" placeholder="上班 / 约会 / 逛街 / ...">
+          </div>
+          <div class="form-group">
+            <label class="form-label">穿搭描述</label>
+            <textarea class="form-textarea" id="outfit-desc" placeholder="今天穿了什么..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">风格标签</label>
+            <div class="tags-row" id="outfit-styles">
+              <span class="tag" data-tag="休闲" onclick="this.classList.toggle('selected')">休闲</span>
+              <span class="tag" data-tag="甜美" onclick="this.classList.toggle('selected')">甜美</span>
+              <span class="tag" data-tag="知性" onclick="this.classList.toggle('selected')">知性</span>
+              <span class="tag" data-tag="运动" onclick="this.classList.toggle('selected')">运动</span>
+              <span class="tag" data-tag="优雅" onclick="this.classList.toggle('selected')">优雅</span>
+              <span class="tag" data-tag="可爱" onclick="this.classList.toggle('selected')">可爱</span>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="App.saveOutfitLog()">记录穿搭</button>
+        </div>
+        <div class="card">
+          <div class="card-title">历史记录</div>
+          <div id="outfit-history"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== EXERCISE PAGE ==================== -->
+    <div class="page" id="page-exercise">
+      <div class="sub-page">
+        <div id="workout-plan-full"></div>
+      </div>
+    </div>
+
+    <!-- ==================== JOURNAL PAGE ==================== -->
+    <div class="page" id="page-journal">
+      <div class="sub-page">
+        <div class="card">
+          <div class="card-title">📓 身体日记</div>
+          <div class="form-group">
+            <label class="form-label">身体感受</label>
+            <div class="tags-row" id="body-feeling">
+              <span class="tag" data-tag="舒适" onclick="this.classList.toggle('selected')">舒适</span>
+              <span class="tag" data-tag="疲惫" onclick="this.classList.toggle('selected')">疲惫</span>
+              <span class="tag" data-tag="有力量" onclick="this.classList.toggle('selected')">有力量</span>
+              <span class="tag" data-tag="僵硬" onclick="this.classList.toggle('selected')">僵硬</span>
+              <span class="tag" data-tag="轻盈" onclick="this.classList.toggle('selected')">轻盈</span>
+              <span class="tag" data-tag="紧张" onclick="this.classList.toggle('selected')">紧张</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">关注区域</label>
+            <div class="tags-row" id="body-areas">
+              <span class="tag" data-tag="声音" onclick="this.classList.toggle('selected')">声音</span>
+              <span class="tag" data-tag="皮肤" onclick="this.classList.toggle('selected')">皮肤</span>
+              <span class="tag" data-tag="体态" onclick="this.classList.toggle('selected')">体态</span>
+              <span class="tag" data-tag="臀腿" onclick="this.classList.toggle('selected')">臀腿</span>
+              <span class="tag" data-tag="腰腹" onclick="this.classList.toggle('selected')">腰腹</span>
+              <span class="tag" data-tag="整体" onclick="this.classList.toggle('selected')">整体</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">今天的感受</label>
+            <textarea class="form-textarea" id="body-journal-content" placeholder="写下你对自己身体的感受..."></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="App.saveBodyJournal()">保存日记</button>
+        </div>
+        <div class="card">
+          <div class="card-title">历史日记</div>
+          <div id="body-journal-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== COMMUNITY PAGE ==================== -->
+    <div class="page" id="page-community">
+      <div class="sub-page">
+        <div class="card">
+          <div class="card-title">🌻 匿名分享</div>
+          <div class="form-group">
+            <label class="form-label">分类</label>
+            <select id="story-category" class="form-select">
+              <option value="voice">声音训练</option>
+              <option value="skin">护肤经验</option>
+              <option value="makeup">化妆技巧</option>
+              <option value="fashion">穿搭心得</option>
+              <option value="exercise">锻炼经验</option>
+              <option value="general">日常分享</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <textarea class="form-textarea" id="story-content" placeholder="分享你的经验、心得、小技巧..."></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="App.shareStory()">匿名分享 🌻</button>
+        </div>
+        <div class="tags-row" style="margin-bottom:16px">
+          <span class="tag active" onclick="UI.renderCommunityPage('all');document.querySelectorAll('.tags-row .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">全部</span>
+          <span class="tag" onclick="UI.renderCommunityPage('voice');document.querySelectorAll('.tags-row .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">声音</span>
+          <span class="tag" onclick="UI.renderCommunityPage('makeup');document.querySelectorAll('.tags-row .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">化妆</span>
+          <span class="tag" onclick="UI.renderCommunityPage('fashion');document.querySelectorAll('.tags-row .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">穿搭</span>
+          <span class="tag" onclick="UI.renderCommunityPage('exercise');document.querySelectorAll('.tags-row .tag').forEach(t=>t.classList.remove('active'));this.classList.add('active')">锻炼</span>
+        </div>
+        <div id="stories-feed"></div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+
+</div><!-- /app -->
+
+<script src="js/data.js"></script>
+<script src="js/store.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+
 </body>
 </html>
