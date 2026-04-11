@@ -9,6 +9,7 @@ import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { ensureTunnel, cleanupTunnels } from "./ssh-tunnel.js";
+import { agentGet, agentPost, AgentError } from "./api-client.js";
 
 // ─── hosts.toml parsing ─────────────────────────────────────────────────
 
@@ -124,57 +125,10 @@ async function getEffectiveUrl(hostName: string, entry: HostEntry): Promise<stri
   return entry.url;
 }
 
-// ─── Agent API client ───────────────────────────────────────────────────
+// ─── Agent API client (re-exported from api-client.ts) ──────────────────
 
-async function agentGet(
-  hostName: string,
-  host: HostEntry,
-  path: string,
-  params: Record<string, string> = {}
-): Promise<any> {
-  const baseUrl = await getEffectiveUrl(hostName, host);
-  const url = new URL(path, baseUrl);
-  for (const [k, v] of Object.entries(params)) {
-    if (v) url.searchParams.set(k, v);
-  }
-
-  const headers: Record<string, string> = { Accept: "application/json" };
-  if (host.token) headers["Authorization"] = `Bearer ${host.token}`;
-
-  const res = await fetch(url.toString(), { headers });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Agent API ${res.status}: ${body || res.statusText}`);
-  }
-  return res.json();
-}
-
-async function agentPost(
-  hostName: string,
-  host: HostEntry,
-  path: string,
-  body: any
-): Promise<any> {
-  const baseUrl = await getEffectiveUrl(hostName, host);
-  const url = new URL(path, baseUrl);
-
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    "Content-Type": "application/json",
-  };
-  if (host.token) headers["Authorization"] = `Bearer ${host.token}`;
-
-  const res = await fetch(url.toString(), {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const respBody = await res.text().catch(() => "");
-    throw new Error(`Agent API ${res.status}: ${respBody || res.statusText}`);
-  }
-  return res.json();
-}
+// agentGet and agentPost are imported from ./api-client.js
+// They now include retry, timeout, and error classification.
 
 // ─── Tool definitions ─────────────────────────────────────────────────────
 
@@ -578,7 +532,7 @@ function formatDiffOutput(result: any): string {
 
 async function main() {
   const server = new Server(
-    { name: "nix-evo", version: "0.3.0" },
+    { name: "nix-evo", version: "0.3.2" },
     { capabilities: { tools: {} } }
   );
 
@@ -594,15 +548,17 @@ async function main() {
 
     try {
       const { name: hostName, entry: host } = resolveHost(a.host as string | undefined);
+      const baseUrl = await getEffectiveUrl(hostName, host);
+      const token = host.token;
       let result: any;
 
       switch (name) {
         case "system_snapshot":
-          result = await agentGet(hostName, host, "/api/snapshot", { host: a.host as string });
+          result = await agentGet(baseUrl, token, "/api/snapshot", { host: a.host as string });
           break;
 
         case "service_logs":
-          result = await agentGet(hostName, host, "/api/logs", {
+          result = await agentGet(baseUrl, token, "/api/logs", {
             host: a.host as string,
             unit: a.unit as string,
             lines: String(a.lines || 50),
@@ -610,21 +566,21 @@ async function main() {
           break;
 
         case "config_read":
-          result = await agentGet(hostName, host, "/api/config", {
+          result = await agentGet(baseUrl, token, "/api/config", {
             host: a.host as string,
             path: a.path as string,
           });
           break;
 
         case "package_info":
-          result = await agentGet(hostName, host, "/api/package", {
+          result = await agentGet(baseUrl, token, "/api/package", {
             host: a.host as string,
             name: a.name as string,
           });
           break;
 
         case "generation_diff":
-          result = await agentGet(hostName, host, "/api/generations", {
+          result = await agentGet(baseUrl, token, "/api/generations", {
             host: a.host as string,
             from: a.from as string,
             to: a.to as string,
@@ -632,20 +588,20 @@ async function main() {
           break;
 
         case "config_validate":
-          result = await agentPost(hostName, host, "/api/config/validate", {
+          result = await agentPost(baseUrl, token, "/api/config/validate", {
             host: a.host,
             config: a.config,
           });
           break;
 
         case "config_diff":
-          result = await agentPost(hostName, host, "/api/config/diff", {
+          result = await agentPost(baseUrl, token, "/api/config/diff", {
             config: a.config,
           });
           break;
 
         case "config_apply":
-          result = await agentPost(hostName, host, "/api/config/apply", {
+          result = await agentPost(baseUrl, token, "/api/config/apply", {
             host: a.host,
             config: a.config,
             message: a.message,
@@ -653,18 +609,18 @@ async function main() {
           break;
 
         case "rollback_list":
-          result = await agentGet(hostName, host, "/api/generations", { host: a.host as string });
+          result = await agentGet(baseUrl, token, "/api/generations", { host: a.host as string });
           break;
 
         case "rollback_apply":
-          result = await agentPost(hostName, host, "/api/rollback", {
+          result = await agentPost(baseUrl, token, "/api/rollback", {
             host: a.host,
             target: a.target,
           });
           break;
 
         case "config_generate":
-          result = await agentPost(hostName, host, "/api/config/generate", {
+          result = await agentPost(baseUrl, token, "/api/config/generate", {
             prompt: a.prompt,
             existing_config: a.existing_config,
             format: a.format || "snippet",
@@ -672,17 +628,17 @@ async function main() {
           break;
 
         case "backup_list":
-          result = await agentGet(hostName, host, "/api/backups", {});
+          result = await agentGet(baseUrl, token, "/api/backups", {});
           break;
 
         case "backup_create":
-          result = await agentPost(hostName, host, "/api/backup/create", {
+          result = await agentPost(baseUrl, token, "/api/backup/create", {
             label: a.label,
           });
           break;
 
         case "backup_restore":
-          result = await agentPost(hostName, host, "/api/backup/restore", {
+          result = await agentPost(baseUrl, token, "/api/backup/restore", {
             backup_id: a.backup_id,
             dry_run: a.dry_run,
           });
@@ -727,6 +683,16 @@ async function main() {
         content: [{ type: "text" as const, text }],
       };
     } catch (error) {
+      if (error instanceof AgentError) {
+        const retryHint = error.retryable ? "\n💡 这是临时性错误，可能需要重试。" : "";
+        return {
+          content: [{
+            type: "text" as const,
+            text: `❌ ${error.code}: ${error.message}${retryHint}`
+          }],
+          isError: true,
+        };
+      }
       const msg = error instanceof Error ? error.message : String(error);
       return {
         content: [{ type: "text" as const, text: `错误: ${msg}` }],
@@ -738,7 +704,7 @@ async function main() {
   // Start stdio transport
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("nix-evo MCP server v0.3.0 running on stdio");
+  console.error("nix-evo MCP server v0.3.2 running on stdio");
 }
 
 main().catch((err) => {

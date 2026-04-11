@@ -1,4 +1,12 @@
-# 日志
+## 2026-04-12 (续7) — Rounds 6-12: Integration tests, observability, AI config, backups, community, security, integrations
+- Round 6: MCP tool routing tests (tools.test.ts) — host resolution, request construction, validation, formatting
+- Round 7: Enhanced health handler with uptime, version info; command timeout support
+- Round 8: AI config generation (ai_config.rs) — template-based NixOS config from natural language, 9 patterns (nginx, docker, ssh, firewall, postgresql, redis, node, python, backup)
+- Round 9: Backup system (backup.rs) — snapshot /etc/nixos before apply, rotation policy (20 auto, 50 manual), restore with safety backup
+- Round 10: CONTRIBUTING.md, NixOS module README, nixpkgs PR template, example scripts (nginx, docker)
+- Round 11: config_test.rs (test-before-switch with auto-switch after delay), tls.rs (TLS config structure), SECURITY.md (threat model + hardening plan)
+- Round 12: INTEGRATIONS.md (multi-host, Docker, systemd-nspawn, Kubernetes, monitoring, CI/CD roadmap)
+
 
 ## 2026-04-12 (续6) — Round 5: v0.2 features
 - SSH 隧道自动建立：MCP 端 ssh-tunnel.ts，自动端口发现，超时处理，退出清理
