@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nix-evo Live Dashboard</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',monospace;background:#0d1117;color:#c9d1d9;padding:20px}
+  h1{color:#58a6ff;font-size:1.5em;margin-bottom:4px}
+  .subtitle{color:#8b949e;font-size:.85em;margin-bottom:20px}
+  .status-bar{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+  .status-pill{padding:4px 12px;border-radius:12px;font-size:.8em;font-weight:600}
+  .connected{background:#0d4429;color:#3fb950}
+  .disconnected{background:#4a1e1e;color:#f85149}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;margin-bottom:20px}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px}
+  .card h2{color:#58a6ff;font-size:.95em;margin-bottom:12px}
+  .gauge-container{display:flex;justify-content:center;align-items:center;gap:24px;flex-wrap:wrap}
+  .gauge{text-align:center}
+  .gauge canvas{display:block;margin:0 auto 4px}
+  .gauge .label{color:#8b949e;font-size:.75em}
+  .gauge .value{font-size:1.3em;font-weight:700;color:#c9d1d9}
+  .chart-container{position:relative;height:180px}
+  .chart-container canvas{width:100%!important;height:100%!important}
+  table{width:100%;border-collapse:collapse;font-size:.82em}
+  th{text-align:left;color:#8b949e;padding:6px 8px;border-bottom:1px solid #30363d}
+  td{padding:6px 8px;border-bottom:1px solid #21262d}
+  .badge{padding:2px 8px;border-radius:10px;font-size:.78em;font-weight:600}
+  .badge-active{background:#0d4429;color:#3fb950}
+  .badge-inactive{background:#4a1e1e;color:#f85149}
+  .badge-other{background:#2d333b;color:#8b949e}
+  .load-display{display:flex;gap:16px;justify-content:center}
+  .load-item{text-align:center}
+  .load-item .val{font-size:1.4em;font-weight:700;color:#c9d1d9}
+  .load-item .lbl{font-size:.75em;color:#8b949e}
+  .timestamp{color:#484f58;font-size:.75em;margin-top:16px;text-align:center}
+</style>
+</head>
+<body>
+<h1>&#9889; nix-evo Live Dashboard</h1>
+<div class="subtitle">Real-time system monitoring via WebSocket</div>
+<div class="status-bar">
+  <span id="status" class="status-pill disconnected">&#9679; Disconnected</span>
+  <span id="update-count" class="status-pill" style="background:#21262d;color:#8b949e">Updates: 0</span>
+</div>
+<div class="grid">
+  <div class="card">
+    <h2>&#128187; System Overview</h2>
+    <div class="gauge-container">
+      <div class="gauge"><canvas id="cpu-gauge" width="110" height="110"></canvas><div class="value" id="cpu-val">--</div><div class="label">CPU %</div></div>
+      <div class="gauge"><canvas id="mem-gauge" width="110" height="110"></canvas><div class="value" id="mem-val">--</div><div class="label">Memory %</div></div>
+      <div class="gauge"><canvas id="disk-gauge" width="110" height="110"></canvas><div class="value" id="disk-val">--</div><div class="label">Disk %</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>&#128202; Load Average</h2>
+    <div class="load-display">
+      <div class="load-item"><div class="val" id="load1">--</div><div class="lbl">1 min</div></div>
+      <div class="load-item"><div class="val" id="load5">--</div><div class="lbl">5 min</div></div>
+      <div class="load-item"><div class="val" id="load15">--</div><div class="lbl">15 min</div></div>
+    </div>
+  </div>
+  <div class="card"><h2>&#128200; CPU History</h2><div class="chart-container"><canvas id="cpu-chart"></canvas></div></div>
+  <div class="card"><h2>&#128200; Memory History</h2><div class="chart-container"><canvas id="mem-chart"></canvas></div></div>
+  <div class="card" style="grid-column:1/-1">
+    <h2>&#128295; Services</h2>
+    <table><thead><tr><th>Service</th><th>Active</th><th>Sub</th></tr></thead><tbody id="services-body"></tbody></table>
+  </div>
+</div>
+<div class="timestamp" id="last-update">Waiting for data...</div>
+<script>
+(function(){
+  class LineChart{
+    constructor(id,color,maxP){
+      this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d');
+      this.color=color;this.maxP=maxP||60;this.data=[];this.resize();
+      window.addEventListener('resize',()=>this.resize());
+    }
+    resize(){const r=this.canvas.parentElement.getBoundingClientRect();this.canvas.width=r.width;this.canvas.height=r.height}
+    push(v){this.data.push(v);if(this.data.length>this.maxP)this.data.shift();this.draw()}
+    draw(){
+      const{ctx,canvas,data,color,maxP}=this;
+      const W=canvas.width,H=canvas.height,pad={t:10,b:20,l:40,r:10};
+      const pW=W-pad.l-pad.r,pH=H-pad.t-pad.b;
+      ctx.clearRect(0,0,W,H);
+      ctx.strokeStyle='#21262d';ctx.lineWidth=1;
+      for(let i=0;i<=4;i++){const y=pad.t+(pH/4)*i;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();ctx.fillStyle='#484f58';ctx.font='10px monospace';ctx.fillText((100-i*25)+'%',4,y+3)}
+      if(data.length<2)return;
+      ctx.strokeStyle=color;ctx.lineWidth=2;ctx.lineJoin='round';ctx.beginPath();
+      for(let i=0;i<data.length;i++){const x=pad.l+(pW/(maxP-1))*i,y=pad.t+pH*(1-data[i]/100);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}
+      ctx.stroke();
+      const lx=pad.l+(pW/(maxP-1))*(data.length-1);ctx.lineTo(lx,pad.t+pH);ctx.lineTo(pad.l,pad.t+pH);ctx.closePath();ctx.globalAlpha=.1;ctx.fillStyle=color;ctx.fill();ctx.globalAlpha=1;
+    }
+  }
+  function drawGauge(id,pct,color){
+    const c=document.getElementById(id),x=c.getContext('2d'),cx=c.width/2,cy=c.height/2,r=Math.min(cx,cy)-8;
+    const sa=-Math.PI/2,ea=sa+(pct/100)*2*Math.PI;
+    x.clearRect(0,0,c.width,c.height);
+    x.beginPath();x.arc(cx,cy,r,0,2*Math.PI);x.strokeStyle='#21262d';x.lineWidth=8;x.stroke();
+    x.beginPath();x.arc(cx,cy,r,sa,ea);x.strokeStyle=color;x.lineWidth=8;x.lineCap='round';x.stroke();
+  }
+  function gc(p){return p<60?'#3fb950':p<85?'#d29922':'#f85149'}
+  const cpuC=new LineChart('cpu-chart','#58a6ff',60),memC=new LineChart('mem-chart','#3fb950',60);
+  let uc=0,ws;
+  function us(c){const e=document.getElementById('status');if(c){e.textContent='\u25CF Connected';e.className='status-pill connected'}else{e.textContent='\u25CF Disconnected';e.className='status-pill disconnected'}}
+  function rs(services){const tb=document.getElementById('services-body');tb.innerHTML='';for(const s of services){const c=s.active==='active'?'badge-active':s.active==='inactive'?'badge-inactive':'badge-other';const r=document.createElement('tr');r.innerHTML='<td>'+s.name+'</td><td><span class="badge '+c+'">'+s.active+'</span></td><td>'+s.sub+'</td>';tb.appendChild(r)}}
+  function onM(d){
+    if(d.error)return;uc++;document.getElementById('update-count').textContent='Updates: '+uc;
+    const cpu=d.cpu_usage_pct||0;drawGauge('cpu-gauge',cpu,gc(cpu));document.getElementById('cpu-val').textContent=cpu.toFixed(1)+'%';cpuC.push(cpu);
+    const mem=d.memory?.usage_pct||0;drawGauge('mem-gauge',mem,gc(mem));document.getElementById('mem-val').textContent=mem.toFixed(1)+'%';memC.push(mem);
+    const dk=d.disk?.[0]?.used_pct||0;drawGauge('disk-gauge',dk,gc(dk));document.getElementById('disk-val').textContent=dk.toFixed(1)+'%';
+    if(d.load_avg){document.getElementById('load1').textContent=d.load_avg[0]?.toFixed(2);document.getElementById('load5').textContent=d.load_avg[1]?.toFixed(2);document.getElementById('load15').textContent=d.load_avg[2]?.toFixed(2)}
+    if(d.services)rs(d.services);
+    const ts=d.timestamp&&!isNaN(d.timestamp)?new Date(Number(d.timestamp)*1000).toLocaleString():d.timestamp;
+    document.getElementById('last-update').textContent='Last update: '+ts;
+  }
+  function connect(){
+    const p=location.protocol==='https:'?'wss:':'ws:';
+    ws=new WebSocket(p+'//'+location.host+'/api/dashboard/ws?interval_secs=3');
+    ws.onopen=()=>us(true);ws.onclose=()=>{us(false);setTimeout(connect,3000)};ws.onerror=()=>us(false);
+    ws.onmessage=e=>{try{onM(JSON.parse(e.data))}catch(e){}};
+  }
+  connect();
+})();
+</script>
+</body>
+</html>
