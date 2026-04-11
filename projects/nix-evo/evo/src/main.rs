@@ -25,6 +25,12 @@ pub mod stream;
 pub mod predict;
 pub mod composer;
 pub mod doctor;
+pub mod dna;
+pub mod theater;
+pub mod chain;
+pub mod collab;
+pub mod bench;
+pub mod topology;
 
 use axum::{
     routing::{get, post},
@@ -140,6 +146,29 @@ async fn main() -> anyhow::Result<()> {
         .route("/health/score", get(health_score::handle_score))
         // Experimental v4: Config Streaming (WebSocket)
         .route("/stream/config", get(stream::handle_ws))
+        // Experimental v5: Nix Config DNA — Genetic Optimization
+        .route("/dna/evolve", post(dna::handle_evolve))
+        .route("/dna/population", get(dna::handle_population))
+        // Experimental v5: Config Theater — Replay & Undo
+        .route("/theater/record", post(theater::handle_record))
+        .route("/theater/replay", get(theater::handle_replay))
+        .route("/theater/undo", post(theater::handle_undo))
+        .route("/theater/branch", post(theater::handle_branch))
+        .route("/theater/branches", get(theater::handle_branches))
+        // Experimental v5: Config Blockchain
+        .route("/chain/verify", get(chain::handle_verify))
+        .route("/chain/history", get(chain::handle_history))
+        .route("/chain/add", post(chain::handle_add_block))
+        // Experimental v5: Collaborative Config Editing (WebSocket)
+        .route("/collab/ws", get(collab::handle_ws))
+        // Experimental v5: Config Benchmarking Suite
+        .route("/bench/run", post(bench::handle_run))
+        .route("/bench/results", get(bench::handle_results))
+        .route("/bench/compare", get(bench::handle_compare))
+        // Experimental v5: NixOS Topology Map
+        .route("/topology", get(topology::handle_topology))
+        .route("/topology/services", get(topology::handle_services))
+        .route("/topology/connections", get(topology::handle_connections))
         .with_state(state.clone());
 
     // Apply auth middleware to API routes if token is configured
@@ -162,6 +191,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/doctor", get(serve_doctor_html))
         .route("/composer", get(serve_composer_html))
         .route("/health", get(serve_health_html))
+        .route("/topology", get(serve_topology_html))
         .with_state(state.clone());
 
     let app = Router::new()
@@ -181,6 +211,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Doctor:    http://{addr}/doctor");
     tracing::info!("Composer:  http://{addr}/composer");
     tracing::info!("Health:    http://{addr}/health");
+    tracing::info!("Topology:  http://{addr}/topology");
     if has_token {
         tracing::info!("API token authentication enabled");
     } else {
@@ -237,5 +268,10 @@ async fn serve_composer_html() -> axum::response::Html<String> {
 /// Serve the health score HTML page
 async fn serve_health_html() -> axum::response::Html<String> {
     let html = include_str!("../static/health.html");
+    axum::response::Html(html.to_string())
+}
+/// Serve the topology HTML page
+async fn serve_topology_html() -> axum::response::Html<String> {
+    let html = include_str!("../static/topology.html");
     axum::response::Html(html.to_string())
 }
