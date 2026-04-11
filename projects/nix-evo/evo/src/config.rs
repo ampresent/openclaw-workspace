@@ -19,6 +19,11 @@ pub struct Config {
     /// Max log lines to return
     #[arg(long, default_value_t = 200)]
     pub max_log_lines: usize,
+
+    /// API token for authentication (optional). If set, requests must include
+    /// Authorization: Bearer <token> header.
+    #[arg(long, env = "NIX_EVO_TOKEN")]
+    pub api_token: Option<String>,
 }
 
 impl Config {

@@ -28,27 +28,27 @@ pub struct ValidationSummary {
 pub async fn handle(
     State(state): AppStateRef,
     Json(req): Json<ValidateRequest>,
-) -> Result<Json<ValidateResponse>, String> {
+) -> Result<Json<ValidateResponse>, AppError> {
+    // Validate: config must not be empty
+    if req.config.trim().is_empty() {
+        return Err(AppError::Validation {
+            field: "config".into(),
+            message: "NixOS 配置内容不能为空".into(),
+        });
+    }
+
     // Write config to temp file for validation
     let tmp_path = "/tmp/nix-evo-validate.nix";
-    tokio::fs::write(tmp_path, &req.config)
-        .await
-        .map_err(|e| format!("failed to write temp config: {e}"))?;
+    tokio::fs::write(tmp_path, &req.config).await.map_err(|e| {
+        AppError::IoError {
+            path: tmp_path.into(),
+            message: format!("无法写入临时配置文件: {e}"),
+        }
+    })?;
 
     // Run nixos-rebuild dry-build
-    let dry_output = run_cmd(
-        "nixos-rebuild",
-        &["dry-build", "--fast", "--flake", "false"],
-    )
-    .await;
-
-    // Also try without flake
-    let dry_output = match dry_output {
-        Ok(o) => o,
-        Err(_) => run_cmd("nixos-rebuild", &["dry-build", "--fast"])
-            .await
-            .unwrap_or_else(|e| format!("dry-build failed: {e}")),
-    };
+    // Try multiple invocation patterns
+    let dry_output = try_dry_build(&state.config.nixos_dir).await;
 
     let valid = !dry_output.contains("error:") && !dry_output.contains("trace:");
 
@@ -77,31 +77,121 @@ pub async fn handle(
     }))
 }
 
+/// Try multiple dry-build invocation strategies
+async fn try_dry_build(nixos_dir: &str) -> String {
+    // Strategy 1: flake-based (modern NixOS)
+    if std::path::Path::new(&format!("{}/flake.nix", nixos_dir)).exists() {
+        if let Ok(o) = run_cmd(
+            "nixos-rebuild",
+            &["dry-build", "--fast", "--flake", &format!(".#{}", infer_hostname())],
+        )
+        .await
+        {
+            return o;
+        }
+    }
+
+    // Strategy 2: try without flake
+    if let Ok(o) = run_cmd("nixos-rebuild", &["dry-build", "--fast", "--flake", "false"]).await {
+        return o;
+    }
+
+    // Strategy 3: basic invocation
+    if let Ok(o) = run_cmd("nixos-rebuild", &["dry-build", "--fast"]).await {
+        return o;
+    }
+
+    // Strategy 4: with impure flag (for some setups)
+    if let Ok(o) = run_cmd("nixos-rebuild", &["dry-build", "--fast", "--impure"]).await {
+        return o;
+    }
+
+    "所有 dry-build 策略均失败，请检查 NixOS 配置".to_string()
+}
+
+fn infer_hostname() -> String {
+    std::process::Command::new("hostname")
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|| "nixos".to_string())
+}
+
+/// Parse packages from nixos-rebuild dry-build output.
+///
+/// nixos-rebuild output has several formats:
+/// 1. "will be built: /nix/store/hash-pkg-version.drv"
+/// 2. "these derivations will be built:" followed by store paths
+/// 3. "will be fetched:" for cached packages
+/// 4. "/nix/store/... → /nix/store/..." (symlink changes)
+/// 5. "building 'x.drv'..."
 fn parse_dry_build_packages(output: &str) -> (Vec<String>, Vec<String>) {
     let mut added = Vec::new();
     let mut removed = Vec::new();
+    let mut in_build_list = false;
+    let mut in_fetch_list = false;
 
     for line in output.lines() {
-        let line = line.trim();
-        if line.starts_with("building") || line.starts_with("will be") {
+        let trimmed = line.trim();
+
+        // Detect section starts
+        if trimmed.contains("will be built:") || trimmed.contains("will be built:") {
+            in_build_list = true;
+            in_fetch_list = false;
             continue;
         }
-        // Look for "these N derivations will be built"
-        if line.contains("will be built") {
-            // Extract package names from following lines
+        if trimmed.contains("will be fetched:") || trimmed.contains("will be fetched:") {
+            in_fetch_list = true;
+            in_build_list = false;
             continue;
         }
-        // Look for removed packages
-        if line.contains("will be removed") || line.contains("removing") {
-            if let Some(pkg) = line.split(':').last() {
-                removed.push(pkg.trim().to_string());
+        if trimmed.contains("these derivations will be built:") {
+            in_build_list = true;
+            in_fetch_list = false;
+            continue;
+        }
+        if trimmed.contains("these paths will be fetched") {
+            in_fetch_list = true;
+            in_build_list = false;
+            continue;
+        }
+
+        // Blank line or new section ends the list
+        if trimmed.is_empty() || trimmed.starts_with("building") || trimmed.contains("will be") {
+            if trimmed.contains("will be") && !trimmed.contains("built:") && !trimmed.contains("fetched:") {
+                in_build_list = false;
+                in_fetch_list = false;
             }
         }
-        // New store paths
-        if line.contains("/nix/store/") && line.contains("→") {
-            let parts: Vec<&str> = line.split("→").collect();
+
+        // Parse store paths
+        if in_build_list || in_fetch_list {
+            if trimmed.contains("/nix/store/") {
+                if let Some(pkg) = extract_pkg_name(trimmed) {
+                    if !added.contains(&pkg) {
+                        added.push(pkg);
+                    }
+                }
+            }
+            continue;
+        }
+
+        // Look for removed packages (less common in dry-build)
+        if trimmed.contains("removing") || trimmed.contains("will be removed") {
+            if let Some(pkg) = extract_pkg_name(trimmed) {
+                removed.push(pkg);
+            }
+        }
+
+        // Arrow notation: old → new
+        if trimmed.contains("→") && trimmed.contains("/nix/store/") {
+            let parts: Vec<&str> = trimmed.split('→').collect();
             if parts.len() == 2 {
-                added.push(parts[1].trim().to_string());
+                if let Some(pkg) = extract_pkg_name(parts[1].trim()) {
+                    if !added.contains(&pkg) {
+                        added.push(pkg);
+                    }
+                }
             }
         }
     }
@@ -109,13 +199,38 @@ fn parse_dry_build_packages(output: &str) -> (Vec<String>, Vec<String>) {
     (added, removed)
 }
 
+/// Extract package name from a store path or line containing one.
+/// /nix/store/hash-pkg-version -> "pkg-version" (short form)
+fn extract_pkg_name(line: &str) -> Option<String> {
+    // Find /nix/store/ in the line
+    let start = line.find("/nix/store/")?;
+    let rest = &line[start + 11..]; // skip "/nix/store/"
+    // Take until next space, slash, or end marker
+    let end = rest.find(|c: char| c == ' ' || c == '\t' || c == '/' || c == ')').unwrap_or(rest.len());
+    let store_entry = &rest[..end];
+    // Strip hash prefix: "hash-pkg-version" -> "pkg-version"
+    if let Some(dash_pos) = store_entry.find('-') {
+        let name = &store_entry[dash_pos + 1..];
+        if !name.is_empty() {
+            return Some(name.to_string());
+        }
+    }
+    Some(store_entry.to_string())
+}
+
 fn parse_restarted_services(output: &str) -> Vec<String> {
     let mut services = Vec::new();
     for line in output.lines() {
-        let line = line.trim();
-        if line.contains("restarting") || line.contains("reload") {
-            if let Some(svc) = line.split_whitespace().find(|w| w.ends_with(".service")) {
-                services.push(svc.to_string());
+        let trimmed = line.trim();
+        if trimmed.contains("restarting") || trimmed.contains("reload") || trimmed.contains("restart of") {
+            // Look for .service units
+            for word in trimmed.split_whitespace() {
+                if word.ends_with(".service") {
+                    let svc = word.trim_end_matches('.');
+                    if !services.contains(&svc.to_string()) {
+                        services.push(svc.to_string());
+                    }
+                }
             }
         }
     }
@@ -125,16 +240,37 @@ fn parse_restarted_services(output: &str) -> Vec<String> {
 fn parse_stopped_services(output: &str) -> Vec<String> {
     let mut services = Vec::new();
     for line in output.lines() {
-        let line = line.trim();
-        if line.contains("stopping") {
-            if let Some(svc) = line.split_whitespace().find(|w| w.ends_with(".service")) {
-                services.push(svc.to_string());
+        let trimmed = line.trim();
+        if trimmed.contains("stopping") || trimmed.contains("stop of") {
+            for word in trimmed.split_whitespace() {
+                if word.ends_with(".service") {
+                    let svc = word.trim_end_matches('.');
+                    if !services.contains(&svc.to_string()) {
+                        services.push(svc.to_string());
+                    }
+                }
             }
         }
     }
     services
 }
 
+/// Risk assessment heuristic with detailed scoring.
+///
+/// Scoring:
+/// - Package removal: +3
+/// - Firewall/iptables/nftables change: +3
+/// - Boot loader change: +3
+/// - Disk/filesystem change: +3
+/// - Network config change: +2
+/// - Core service restart (nginx/sshd/network): +2 each
+/// - Any service restart/stop: +1
+/// - Any package addition: +1
+///
+/// Levels:
+/// - safe: score 0-1
+/// - moderate: score 2-4
+/// - dangerous: score 5+
 fn assess_risk(
     added: &[String],
     removed: &[String],
@@ -150,40 +286,49 @@ fn assess_risk(
         reasons.push(format!("将删除 {} 个包", removed.len()));
     }
 
-    if output.contains("firewall") || output.contains("iptables") || output.contains("nftables") {
+    let output_lower = output.to_lowercase();
+
+    if output_lower.contains("firewall") || output_lower.contains("iptables") || output_lower.contains("nftables") {
         score += 3;
         reasons.push("涉及防火墙规则变更".into());
     }
 
-    if output.contains("boot") || output.contains("grub") || output.contains("systemd-boot") {
+    if output_lower.contains("boot") || output_lower.contains("grub") || output_lower.contains("systemd-boot") || output_lower.contains("loader") {
         score += 3;
         reasons.push("涉及引导加载器变更".into());
     }
 
-    if output.contains("disk") || output.contains("parted") || output.contains("fs") {
+    if output_lower.contains("disk") || output_lower.contains("parted") || output_lower.contains("filesystem") || output_lower.contains("fs") || output_lower.contains("lvm") || output_lower.contains("zfs") {
         score += 3;
         reasons.push("涉及磁盘/文件系统变更".into());
     }
 
-    if output.contains("network") || output.contains("interfaces") {
+    if output_lower.contains("network") || output_lower.contains("interfaces") || output_lower.contains("interfaces") || output_lower.contains("dhcp") {
         score += 2;
         reasons.push("涉及网络配置变更".into());
     }
 
+    // Core services are high-risk to restart
+    let core_services = ["nginx", "sshd", "network", "firewall", "docker"];
     for svc in restart.iter().chain(stop.iter()) {
-        if svc.contains("nginx") || svc.contains("sshd") || svc.contains("network") {
-            score += 2;
-            reasons.push(format!("将重启核心服务: {svc}"));
+        for core in &core_services {
+            if svc.contains(core) {
+                score += 2;
+                reasons.push(format!("将重启核心服务: {svc}"));
+                break;
+            }
         }
     }
 
     if !restart.is_empty() || !stop.is_empty() {
+        let total = restart.len() + stop.len();
         score += 1;
-        reasons.push(format!("将重启 {} 个服务", restart.len() + stop.len()));
+        reasons.push(format!("将重启 {total} 个服务"));
     }
 
     if !added.is_empty() {
         score += 1;
+        // Don't add reason for just adding packages — it's the normal case
     }
 
     let level = if score >= 5 {
@@ -199,4 +344,86 @@ fn assess_risk(
     }
 
     (level.to_string(), reasons)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_dry_build_packages() {
+        let output = r#"
+these derivations will be built:
+  /nix/store/abc-nginx-1.24.2.drv
+  /nix/store/def-php83-8.3.0.drv
+building '/nix/store/abc-nginx-1.24.2.drv'...
+building '/nix/store/def-php83-8.3.0.drv'...
+"#;
+        let (added, _removed) = parse_dry_build_packages(output);
+        assert!(added.iter().any(|p| p.contains("nginx")));
+        assert!(added.iter().any(|p| p.contains("php83")));
+    }
+
+    #[test]
+    fn test_parse_dry_build_fetch() {
+        let output = r#"
+these paths will be fetched (23.45 MiB download, 89.12 MiB unpacked):
+  /nix/store/aaa-nixpkgs-24.05
+  /nix/store/bbb-somepackage-1.0
+"#;
+        let (added, _removed) = parse_dry_build_packages(output);
+        assert_eq!(added.len(), 2);
+    }
+
+    #[test]
+    fn test_assess_risk_safe() {
+        let (level, reasons) = assess_risk(
+            &["pkg-1.0".into()],
+            &[],
+            &[],
+            &[],
+            "building something",
+        );
+        assert_eq!(level, "safe");
+        assert!(reasons.iter().any(|r| r.contains("无破坏性")));
+    }
+
+    #[test]
+    fn test_assess_risk_dangerous() {
+        let (level, reasons) = assess_risk(
+            &[],
+            &["old-pkg".into()],
+            &["nginx.service".into()],
+            &[],
+            "firewall rules changed",
+        );
+        assert_eq!(level, "dangerous");
+        assert!(reasons.iter().any(|r| r.contains("删除")));
+        assert!(reasons.iter().any(|r| r.contains("防火墙")));
+        assert!(reasons.iter().any(|r| r.contains("nginx")));
+    }
+
+    #[test]
+    fn test_assess_risk_moderate() {
+        let (level, _reasons) = assess_risk(
+            &[],
+            &[],
+            &["someapp.service".into()],
+            &[],
+            "just a service restart",
+        );
+        assert_eq!(level, "moderate");
+    }
+
+    #[test]
+    fn test_extract_pkg_name() {
+        assert_eq!(
+            extract_pkg_name("/nix/store/abc123-nginx-1.24.2"),
+            Some("nginx-1.24.2".into())
+        );
+        assert_eq!(
+            extract_pkg_name("  /nix/store/abc123-my-pkg-2.0 (45.6 MiB)"),
+            Some("my-pkg-2.0".into())
+        );
+    }
 }

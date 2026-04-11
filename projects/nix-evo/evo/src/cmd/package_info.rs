@@ -19,25 +19,27 @@ pub struct PackageResponse {
 pub async fn handle(
     State(_state): AppStateRef,
     Query(query): Query<PackageQuery>,
-) -> Result<Json<PackageResponse>, String> {
-    // Try nix-env first, fallback to nix-store
+) -> Result<Json<PackageResponse>, AppError> {
+    if query.name.trim().is_empty() {
+        return Err(AppError::Validation {
+            field: "name".into(),
+            message: "包名不能为空".into(),
+        });
+    }
+
+    // Try nix-env first, fallback to nix search
     let output = run_cmd("nix-env", &["-qa", &format!("{}.*", query.name), "--json"])
         .await
-        .or_else(|_| {
-            // Try nix search
-            tokio::runtime::Handle::current().block_on(async {
-                run_cmd("nix", &["search", "nixpkgs", &query.name, "--json"]).await
-            })
+        .or_else(|_| async {
+            run_cmd("nix", &["search", "nixpkgs", &query.name, "--json"]).await
         })
+        .await
         .unwrap_or_default();
 
-    // Also check if it's installed
-    let installed = run_cmd(
-        "nix-store",
-        &["-qR", "/run/current-system"],
-    )
-    .await
-    .unwrap_or_default();
+    // Check if it's installed via nix-store
+    let installed = run_cmd("nix-store", &["-qR", "/run/current-system"])
+        .await
+        .unwrap_or_default();
 
     let path = installed
         .lines()
@@ -54,7 +56,6 @@ pub async fn handle(
 
 fn extract_version(json: &str) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(json).ok()?;
-    // Try to find version in first entry
     v.as_object()
         .and_then(|obj| obj.values().next())
         .and_then(|v| v.get("version"))
@@ -66,7 +67,10 @@ fn extract_description(json: &str) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(json).ok()?;
     v.as_object()
         .and_then(|obj| obj.values().next())
-        .and_then(|v| v.get("description").or_else(|| v.get("meta").and_then(|m| m.get("description"))))
+        .and_then(|v| {
+            v.get("description")
+                .or_else(|| v.get("meta").and_then(|m| m.get("description")))
+        })
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
 }

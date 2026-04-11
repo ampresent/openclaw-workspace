@@ -20,17 +20,27 @@ pub struct ApplyResponse {
 pub async fn handle(
     State(state): AppStateRef,
     Json(req): Json<ApplyRequest>,
-) -> Result<Json<ApplyResponse>, String> {
+) -> Result<Json<ApplyResponse>, AppError> {
     // If config provided, write it first
     if let Some(config_content) = &req.config {
+        if config_content.trim().is_empty() {
+            return Err(AppError::Validation {
+                field: "config".into(),
+                message: "配置内容不能为空".into(),
+            });
+        }
+
         let target = format!("{}/configuration.nix", state.config.nixos_dir);
         // Backup current config
         let backup = format!("{target}.bak");
         let _ = tokio::fs::copy(&target, &backup).await;
 
-        tokio::fs::write(&target, config_content)
-            .await
-            .map_err(|e| format!("failed to write config: {e}"))?;
+        tokio::fs::write(&target, config_content).await.map_err(|e| {
+            AppError::IoError {
+                path: target.clone(),
+                message: format!("无法写入配置文件: {e}"),
+            }
+        })?;
     }
 
     // Run nixos-rebuild switch
@@ -49,8 +59,7 @@ pub async fn handle(
         let _ = tokio::fs::write(&desc_path, msg).await;
     }
 
-    let prev_gen = generation.map(|g| g.saturating_sub(1)).unwrap_or(0);
-    let rollback_cmd = format!("nixos-rebuild switch --rollback");
+    let rollback_cmd = "nixos-rebuild switch --rollback".to_string();
 
     let summary = if success {
         if let Some(gen) = generation {

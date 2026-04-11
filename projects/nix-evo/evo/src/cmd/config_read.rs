@@ -17,14 +17,25 @@ pub struct ConfigResponse {
 pub async fn handle(
     State(state): AppStateRef,
     Query(query): Query<ConfigQuery>,
-) -> Result<Json<ConfigResponse>, String> {
+) -> Result<Json<ConfigResponse>, AppError> {
     let path = query
         .path
         .unwrap_or_else(|| format!("{}/configuration.nix", state.config.nixos_dir));
 
-    let content = tokio::fs::read_to_string(&path)
-        .await
-        .map_err(|e| format!("failed to read {path}: {e}"))?;
+    // Validate path: must be absolute and under /etc/nixos
+    if !path.starts_with("/etc/nixos/") && path != format!("{}/configuration.nix", state.config.nixos_dir) {
+        return Err(AppError::Validation {
+            field: "path".into(),
+            message: "配置文件路径必须在 /etc/nixos/ 下".into(),
+        });
+    }
+
+    let content = tokio::fs::read_to_string(&path).await.map_err(|e| {
+        AppError::IoError {
+            path: path.clone(),
+            message: format!("无法读取: {e}"),
+        }
+    })?;
 
     Ok(Json(ConfigResponse { path, content }))
 }

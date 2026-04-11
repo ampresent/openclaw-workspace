@@ -1,5 +1,7 @@
 pub mod config;
 pub mod cmd;
+pub mod error;
+pub mod auth;
 
 use axum::{
     routing::{get, post},
@@ -31,29 +33,46 @@ async fn main() -> anyhow::Result<()> {
     // CLI args
     let config = Config::from_args();
     let addr = config.bind_addr();
+    let has_token = config.api_token.is_some();
 
     let state = Arc::new(AppState { config });
 
+    // API routes (require auth if token is set)
+    let api_routes = Router::new()
+        .route("/snapshot", get(system_snapshot::handle))
+        .route("/logs", get(service_logs::handle))
+        .route("/config", get(config_read::handle))
+        .route("/package", get(package_info::handle))
+        .route("/generations", get(generation_diff::handle))
+        .route("/config/validate", post(config_validate::handle))
+        .route("/config/apply", post(config_apply::handle))
+        .route("/rollback", post(rollback::handle))
+        .with_state(state.clone());
+
+    // Apply auth middleware to API routes if token is configured
+    let api_routes = if has_token {
+        api_routes.layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth::auth_middleware,
+        ))
+    } else {
+        api_routes
+    };
+
     let app = Router::new()
-        // Diagnostic endpoints
-        .route("/api/snapshot", get(system_snapshot::handle))
-        .route("/api/logs", get(service_logs::handle))
-        .route("/api/config", get(config_read::handle))
-        .route("/api/package", get(package_info::handle))
-        .route("/api/generations", get(generation_diff::handle))
-        // Action endpoints
-        .route("/api/config/validate", post(config_validate::handle))
-        .route("/api/config/apply", post(config_apply::handle))
-        .route("/api/rollback", post(rollback::handle))
-        // Health
+        .nest("/api", api_routes)
         .route("/health", get(|| async { "ok" }))
         .layer(CorsLayer::permissive())
-        .layer(TraceLayer::new_for_http())
-        .with_state(state);
+        .layer(TraceLayer::new_for_http());
+
+    tracing::info!("nix-evo-agent listening on {addr}");
+    if has_token {
+        tracing::info!("API token authentication enabled");
+    } else {
+        tracing::warn!("No API token configured — all requests allowed");
+    }
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    tracing::info!("nix-evo-agent listening on {addr}");
-
     axum::serve(listener, app).await?;
     Ok(())
 }

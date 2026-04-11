@@ -45,9 +45,13 @@ pub struct FailedService {
 pub async fn handle(
     State(_state): AppStateRef,
     Query(_query): Query<HostQuery>,
-) -> Result<Json<SnapshotResponse>, String> {
+) -> Result<Json<SnapshotResponse>, AppError> {
     // Hostname
-    let hostname = run_cmd("hostname", &[]).await.unwrap_or_default().trim().to_string();
+    let hostname = run_cmd("hostname", &[])
+        .await
+        .unwrap_or_else(|_| String::new())
+        .trim()
+        .to_string();
 
     // NixOS version
     let nixos_version = run_cmd("nixos-version", &["--configuration-revision"])
@@ -58,10 +62,18 @@ pub async fn handle(
         .to_string();
 
     // Kernel
-    let kernel = run_cmd("uname", &["-r"]).await.unwrap_or_default().trim().to_string();
+    let kernel = run_cmd("uname", &["-r"])
+        .await
+        .unwrap_or_default()
+        .trim()
+        .to_string();
 
     // Uptime
-    let uptime = run_cmd("uptime", &["-p"]).await.unwrap_or_default().trim().to_string();
+    let uptime = run_cmd("uptime", &["-p"])
+        .await
+        .unwrap_or_default()
+        .trim()
+        .to_string();
 
     // List running services
     let services_raw = run_cmd(
@@ -90,10 +102,12 @@ pub async fn handle(
         .collect();
 
     // Disk usage
-    let df_raw = run_cmd("df", &["-h", "--output=target,pcent"]).await.unwrap_or_default();
+    let df_raw = run_cmd("df", &["-h", "--output=target,pcent"])
+        .await
+        .unwrap_or_default();
     let disk: Vec<DiskUsage> = df_raw
         .lines()
-        .skip(1) // skip header
+        .skip(1)
         .filter_map(|line| {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 2 {
@@ -158,15 +172,20 @@ fn parse_memory(raw: &str) -> MemoryInfo {
                 return MemoryInfo {
                     total: parts[1].to_string(),
                     used: parts[2].to_string(),
-                    available: parts[6].to_string(),
+                    // free -h on newer versions puts available at index 6
+                    available: if parts.len() >= 7 {
+                        parts[6].to_string()
+                    } else {
+                        parts[3].to_string()
+                    },
                 };
             }
         }
     }
     MemoryInfo {
-        total: "unknown".into(),
-        used: "unknown".into(),
-        available: "unknown".into(),
+        total: "未知".into(),
+        used: "未知".into(),
+        available: "未知".into(),
     }
 }
 
