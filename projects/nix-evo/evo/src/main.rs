@@ -4,6 +4,7 @@ pub mod error;
 pub mod auth;
 pub mod ai_config;
 pub mod backup;
+pub mod docker;
 pub mod tracing_middleware;
 pub mod limiter;
 
@@ -79,6 +80,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/backup/create", post(backup::create_backup))
         .route("/backup/restore", post(backup::restore_backup))
         .route("/backup/rotate", post(backup::rotate_backups));
+
+    // Docker integration routes
+    let api_routes = api_routes
+        .route("/docker/status", get(docker::docker_status))
+        .route("/docker/compose-validate", post(docker::compose_validate));
 
     // AI config generation routes
     let api_routes = api_routes
