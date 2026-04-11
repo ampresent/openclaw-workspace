@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# rescue-diag — 诊断主入口
+# 用法: rescue-diag [模块名|all] [目标路径]
+#   模块名: disk, boot, services, memory, network, packages, kernel
+#   目标路径: 宿主系统挂载点 (默认 /mnt/rescue-target)
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+MODULES_DIR="$SCRIPT_DIR/modules"
+OUTPUT_DIR="${RESCUE_OUTPUT_DIR:-/tmp/rescue-diag-output}"
+TARGET="${2:-/mnt/rescue-target}"
+
+# 颜色
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+usage() {
+    echo "用法: rescue-diag <模块|all> [目标路径]"
+    echo ""
+    echo "模块:"
+    echo "  disk       磁盘状态 (P0)"
+    echo "  boot       启动问题 (P0)"
+    echo "  services   服务状态 (P1)"
+    echo "  memory     内存分析 (P1)"
+    echo "  network    网络诊断 (P2)"
+    echo "  packages   包管理器 (P2)"
+    echo "  kernel     内核状态 (P3)"
+    echo "  all        全部诊断"
+    echo ""
+    echo "环境变量:"
+    echo "  RESCUE_OUTPUT_DIR  输出目录 (默认 /tmp/rescue-diag-output)"
+    echo "  RESCUE_TARGET      目标系统路径 (默认 /mnt/rescue-target)"
+    exit 1
+}
+
+run_module() {
+    local module="$1"
+    local module_path="$MODULES_DIR/${module}.sh"
+    local output_file="$OUTPUT_DIR/${module}.json"
+
+    if [ ! -f "$module_path" ]; then
+        echo -e "${RED}✗ 模块不存在: $module${NC}" >&2
+        return 1
+    fi
+
+    echo -e "${CYAN}▶ 运行诊断: ${module}${NC}"
+    local start_time
+    start_time=$(date +%s%N)
+
+    if bash "$module_path" "$TARGET" > "$output_file" 2>"$OUTPUT_DIR/${module}.stderr"; then
+        local end_time duration_ms
+        end_time=$(date +%s%N)
+        duration_ms=$(( (end_time - start_time) / 1000000 ))
+        echo -e "${GREEN}✓ ${module} 完成 (${duration_ms}ms)${NC}"
+        return 0
+    else
+        local end_time duration_ms
+        end_time=$(date +%s%N)
+        duration_ms=$(( (end_time - start_time) / 1000000 ))
+        echo -e "${YELLOW}⚠ ${module} 完成但有警告 (${duration_ms}ms)${NC}"
+        return 0  # 警告不算失败
+    fi
+}
+
+generate_report() {
+    echo ""
+    echo -e "${CYAN}═══ 综合诊断报告 ═══${NC}"
+    echo ""
+
+    # 汇总所有模块输出为最终 JSON
+    local report="$OUTPUT_DIR/report.json"
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    # 收集所有模块结果
+    local modules_json="["
+    local first=true
+    for f in "$OUTPUT_DIR"/*.json; do
+        [ -f "$f" ] || continue
+        local basename_f
+        basename_f=$(basename "$f" .json)
+        [ "$basename_f" = "report" ] && continue
+
+        if $first; then
+            first=false
+        else
+            modules_json+=","
+        fi
+        modules_json+=$(cat "$f")
+    done
+    modules_json+="]"
+
+    cat > "$report" <<EOF
+{
+  "version": "1.0",
+  "timestamp": "$timestamp",
+  "target": "$TARGET",
+  "hostname": "$(hostname)",
+  "kernel": "$(uname -r)",
+  "modules": $modules_json
+}
+EOF
+
+    echo -e "${GREEN}报告已生成: $report${NC}"
+    echo ""
+    echo "下一步: 使用模型分析报告"
+    echo "  python3 src/repair-engine/analyzer.py $report"
+}
+
+# --- 主逻辑 ---
+MODULE="${1:-}"
+[ -z "$MODULE" ] && usage
+
+mkdir -p "$OUTPUT_DIR"
+
+if [ "$MODULE" = "all" ]; then
+    echo -e "${CYAN}═══ 全系统诊断 ═══${NC}"
+    echo -e "目标: $TARGET"
+    echo -e "输出: $OUTPUT_DIR"
+    echo ""
+
+    for mod in disk boot services memory network packages kernel; do
+        run_module "$mod" || true
+    done
+
+    generate_report
+else
+    run_module "$MODULE"
+    echo ""
+    echo "单模块结果: $OUTPUT_DIR/${MODULE}.json"
+fi

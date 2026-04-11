@@ -1,0 +1,34 @@
+# rescue.toml — 救援系统配置
+
+[model]
+# 模型文件路径 (GGUF 格式)
+model_path = "models/qwen2.5-7b-instruct-q4_k_m.gguf"
+# 模型名称 (用于 API 调用)
+model_name = "qwen2.5"
+# llama.cpp 目录
+llama_dir = "third_party/llama.cpp"
+
+[model.server]
+host = "127.0.0.1"
+port = 8081
+context_size = 4096
+# 线程数 (0 = 自动检测)
+threads = 0
+
+[rescue]
+# 目标系统挂载点
+target_path = "/mnt/rescue-target"
+# 诊断报告输出目录
+output_dir = "/tmp/rescue-reports"
+# 是否自动确认修复 (默认 false)
+auto_yes = false
+# 诊断超时（秒）
+diag_timeout = 600
+
+[openclaw]
+# OpenClaw 配置目录
+config_dir = "/root/.openclaw"
+# 是否启用远程连接
+remote_enabled = false
+# 远程连接地址
+# remote_url = "https://your-openclaw-instance.com"
