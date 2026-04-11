@@ -35,6 +35,7 @@ pub mod timetravel;
 pub mod chaos;
 pub mod patterns;
 pub mod impact;
+pub mod dist_sync;
 
 use axum::{
     routing::{get, post},
@@ -189,6 +190,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/patterns/:id", get(patterns::handle_get))
         // Experimental v6: Config Impact Analyzer
         .route("/impact/analyze", post(impact::handle_analyze))
+        // Experimental v6: Distributed Config Sync
+        .route("/sync/init", post(dist_sync::handle_init))
+        .route("/sync/push", post(dist_sync::handle_push))
+        .route("/sync/status", get(dist_sync::handle_status))
+        .route("/sync/config", get(dist_sync::handle_config))
         .with_state(state.clone());
 
     // Apply auth middleware to API routes if token is configured
