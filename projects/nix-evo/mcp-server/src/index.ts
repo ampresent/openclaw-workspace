@@ -31,6 +31,10 @@ import {
   formatProvision,
   formatRemoteSync,
 } from "./conda_tools_v3.js";
+import {
+  CONDA_TOOLS_V4,
+  handleCondaToolV4,
+} from "./conda_tools_v4.js";
 
 // ─── hosts.toml parsing ─────────────────────────────────────────────────
 
@@ -295,6 +299,7 @@ const TOOLS: Tool[] = [
   },
   ...CONDA_TOOLS,
   ...CONDA_TOOLS_V3,
+  ...CONDA_TOOLS_V4,
 ];
 
 // ─── Risk assessment layer (MCP-side) ─────────────────────────────────────
@@ -542,6 +547,35 @@ async function main() {
           result = await agentPost(hostName, host, "/api/env/pull", { remote_host: { name: "remote", api_url: a.remote_url, api_token: a.remote_token }, remote_env: a.remote_env, local_env_name: a.local_env_name, overwrite: a.overwrite });
           break;
 
+        // V4 tools
+        case "env_branch":
+          result = await agentPost(hostName, host, "/api/env/branch", { source: a.source, branch_name: a.branch_name, description: a.description });
+          break;
+        case "env_diff":
+          result = await agentGet(hostName, host, "/api/env/diff", { env_a: a.env_a, env_b: a.env_b });
+          break;
+        case "env_merge":
+          result = await agentPost(hostName, host, "/api/env/merge", { source: a.source, target: a.target, strategy: a.strategy });
+          break;
+        case "conda_sbom":
+          result = await agentGet(hostName, host, "/api/conda/sbom", { env: a.env, format: a.format });
+          break;
+        case "conda_verify":
+          result = await agentPost(hostName, host, "/api/conda/verify", { env: a.env, packages: a.packages });
+          break;
+        case "conda_to_nix":
+          result = await agentPost(hostName, host, "/api/conda/to-nix", { env: a.env, environment_yml: a.environment_yml, output_dir: a.output_dir });
+          break;
+        case "conda_optimize":
+          result = await agentGet(hostName, host, "/api/conda/optimize", { env: a.env, check_disk: a.check_disk });
+          break;
+        case "conda_multiarch":
+          result = await agentGet(hostName, host, `/api/conda/multiarch/${a.env}`, { env: a.env, target_arch: a.target_arch });
+          break;
+        case "conda_analytics":
+          result = await agentGet(hostName, host, "/api/conda/analytics", { env: a.env, impact_package: a.impact_package });
+          break;
+
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
@@ -612,6 +646,54 @@ async function main() {
         case "env_pull":
           text = formatRemoteSync(result);
           break;
+        // V4 formatters
+        case "env_branch":
+          text = `✅ Environment branched: ${result.source} → ${result.branch_name}\n  Packages: ${result.package_count}\n  Path: ${result.path || 'unknown'}`;
+          break;
+        case "env_diff":
+          text = `🔍 Environment Diff: ${result.env_a} vs ${result.env_b}\n  Similarity: ${result.similarity_percent}%\n  Only in ${result.env_a}: ${result.packages_only_in_a.length} packages\n  Only in ${result.env_b}: ${result.packages_only_in_b.length} packages\n  Version diffs: ${result.version_differences.length}\n  Channel diffs: ${result.channel_differences.length}`;
+          if (result.packages_only_in_a.length) text += '\n\n  Only in ' + result.env_a + ':\n' + result.packages_only_in_a.slice(0, 10).map((p: any) => `    - ${p.name} ${p.version}`).join('\n');
+          if (result.packages_only_in_b.length) text += '\n\n  Only in ' + result.env_b + ':\n' + result.packages_only_in_b.slice(0, 10).map((p: any) => `    + ${p.name} ${p.version}`).join('\n');
+          break;
+        case "env_merge":
+          text = `🔀 Merge complete: ${result.source} → ${result.target} (strategy: ${result.strategy})\n  Added: ${result.packages_added.length} packages\n  Updated: ${result.packages_updated.length} packages\n  Conflicts: ${result.packages_conflict.length}`;
+          if (result.packages_added.length) text += '\n\n  Added:\n' + result.packages_added.slice(0, 10).map((p: string) => `    + ${p}`).join('\n');
+          break;
+        case "conda_sbom":
+          text = `🔐 SBOM (${result.format}) for ${result.environment}\n  Total: ${result.total_packages} packages\n  Trusted: ${result.trusted_packages}\n  Untrusted: ${result.untrusted_packages}`;
+          if (result.untrusted_channels.length) text += '\n\n  ⚠️ Untrusted:\n' + result.untrusted_channels.slice(0, 10).map((p: any) => `    - ${p.package} (${p.channel}, risk: ${p.risk_level})`).join('\n');
+          text += '\n\n  BOM: ' + JSON.stringify(result.bom, null, 2).slice(0, 500) + '...';
+          break;
+        case "conda_verify":
+          text = `🔐 Verification: ${result.environment}\n  Checked: ${result.total_checked}\n  ✅ Verified: ${result.verified}\n  ❌ Failed: ${result.failed}`;
+          if (result.failed > 0) text += '\n\n  Failed:\n' + result.results.filter((r: any) => !r.verified).map((r: any) => `    - ${r.name}: ${r.details}`).join('\n');
+          break;
+        case "conda_to_nix":
+          text = `📦 Conda → Nix conversion complete\n  Output: ${result.output_dir}/flake.nix\n  Packages: ${result.total_packages} total, ${result.mapped_count} mapped`;
+          if (result.unmapped_packages.length) text += '\n  ⚠️ Unmapped: ' + result.unmapped_packages.join(', ');
+          text += '\n\n  Mapped packages:\n' + result.mapped_packages.slice(0, 15).map((p: any) => `    ${p.conda_name} → ${p.nix_name}${p.exact_match ? '' : ' (?)'}`).join('\n');
+          break;
+        case "conda_optimize":
+          text = `🏃 Optimization Report: ${result.environment}\n  Health Score: ${result.health_score}/100\n  Packages: ${result.total_packages}${result.env_size_mb ? ' (' + result.env_size_mb + ' MB)' : ''}\n  Channels: ${result.dependency_stats.unique_channels}`;
+          if (result.findings.length) text += '\n\n  Findings:\n' + result.findings.map((f: any) => `    ${f.severity === 'critical' ? '🔴' : f.severity === 'warning' ? '🟡' : 'ℹ️'} [${f.category}] ${f.message}`).join('\n');
+          if (result.suggestions.length) text += '\n\n  Suggestions:\n' + result.suggestions.map((s: any) => `    💡 ${s.action}: ${s.rationale}${s.command ? '\n      $ ' + s.command : ''}`).join('\n');
+          if (result.potentially_unused.length) text += '\n\n  Potentially unused: ' + result.potentially_unused.join(', ');
+          break;
+        case "conda_multiarch":
+          text = `🌐 Multi-arch: ${result.environment} (${result.current_arch} → ${result.target_arch})\n  Migration feasible: ${result.migration_feasible ? '✅' : '❌'}\n  Score: ${result.migration_score}%\n  Available: ${result.available.length}/${result.total_packages}\n  Unavailable: ${result.unavailable.length}`;
+          if (result.blockers.length) text += '\n\n  Blockers:\n' + result.blockers.map((b: string) => `    ❌ ${b}`).join('\n');
+          if (result.suggestions.length) text += '\n\n  Suggestions:\n' + result.suggestions.map((s: string) => `    💡 ${s}`).join('\n');
+          break;
+        case "conda_analytics":
+          text = `📊 Analytics${result.environment ? ': ' + result.environment : ' (all envs)'}\n  Packages: ${result.ecosystem_overview.total_packages} across ${result.ecosystem_overview.total_environments} envs\n  Channels: ${result.ecosystem_overview.unique_channels}\n  Python: ${result.ecosystem_overview.python_versions.join(', ') || 'N/A'}`;
+          if (result.top_packages.length) text += '\n\n  🏆 Top packages:\n' + result.top_packages.slice(0, 10).map((p: any, i: number) => `    ${i + 1}. ${p.name} ${p.version} (score: ${p.importance_score}, rev deps: ${p.reverse_dep_count})`).join('\n');
+          if (result.impact_analysis) {
+            const ia = result.impact_analysis;
+            text += `\n\n  💥 Impact of removing ${ia.target_package}:\n    Direct: ${ia.direct_dependents.length} | Transitive: ${ia.transitive_dependents.length} | Total: ${ia.total_affected}\n    ${ia.safe_to_remove ? '✅ Safe' : '❌ NOT safe'} (${ia.risk_level} risk)`;
+          }
+          if (result.risk_indicators.length) text += '\n\n  ⚠️ Risks:\n' + result.risk_indicators.map((r: any) => `    [${r.severity}] ${r.message}`).join('\n');
+          break;
+
         default:
           text = JSON.stringify(result, null, 2);
       }
