@@ -88,3 +88,11 @@ impl From<std::io::Error> for AppError {
         }
     }
 }
+
+impl From<serde_json::Error> for AppError {
+    fn from(e: serde_json::Error) -> Self {
+        Self::Internal {
+            message: format!("JSON error: {}", e),
+        }
+    }
+}

@@ -23,6 +23,12 @@ pub mod conda_to_nix;
 pub mod conda_optimize;
 pub mod conda_multiarch;
 pub mod conda_analytics;
+pub mod conda_sim;
+pub mod conda_watch;
+pub mod conda_matrix;
+pub mod conda_build;
+pub mod conda_version;
+pub mod conda_cloud;
 
 use axum::{
     routing::{get, post, delete},
@@ -133,6 +139,16 @@ async fn main() -> anyhow::Result<()> {
         .route("/conda/analytics", get(conda_analytics::analytics_handler))
 
         .route("/conda/lock", post(conda_lock::lock_handler))
+        // V5 — Advanced simulation .route("/conda/lock", post(conda_lock::lock_handler)) cloud
+        .route("/conda/simulate", post(conda_sim::simulate_handler))
+        .route("/conda/watch", get(conda_watch::watch_handler))
+        .route("/conda/watch/check", post(conda_watch::watch_check_handler))
+        .route("/conda/compare", post(conda_matrix::compare_handler))
+        .route("/conda/build", post(conda_build::build_handler))
+        .route("/conda/build/status", get(conda_build::build_status_handler))
+        .route("/conda/version/commit", post(conda_version::commit_handler))
+        .route("/conda/version/log", get(conda_version::log_handler))
+        .route("/conda/cloud/sync", post(conda_cloud::sync_handler))
         .with_state(state.clone());
 
     let api_routes = if has_token {
@@ -147,6 +163,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         // Conda health dashboard
         .route("/dashboard/conda", get(|| async { axum::response::Html(include_str!("../static/conda-dashboard.html")) }))
+        .route("/dashboard/conda-matrix", get(|| async { axum::response::Html(include_str!("../static/conda-matrix.html")) }))
         .route("/dashboard/conda-analytics", get(|| async { axum::response::Html(include_str!("../static/conda-analytics.html")) }))
 
         .nest("/api", api_routes)
