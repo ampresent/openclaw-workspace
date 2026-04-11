@@ -270,6 +270,20 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: "config_generate",
+    description: "根据自然语言描述生成 NixOS 配置片段。支持 nginx、docker、ssh、firewall、postgresql 等常见模式。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        prompt: { type: "string", description: "自然语言描述，如 '安装 nginx 并启用 SSL'" },
+        existing_config: { type: "string", description: "可选，现有配置内容（增量修改模式）" },
+        format: { type: "string", description: "输出格式: 'snippet' 或 'full'", default: "snippet" },
+      },
+      required: ["prompt"],
+    },
+  },
+  {
     name: "rollback_list",
     description: "列出可用的 NixOS generation。",
     inputSchema: {
@@ -290,6 +304,42 @@ const TOOLS: Tool[] = [
         target: { type: "number", description: "目标 generation 编号（不指定则回滚到上一个）" },
       },
       required: [],
+    },
+  },
+  {
+    name: "backup_list",
+    description: "列出所有配置备份。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "backup_create",
+    description: "创建配置备份（在 apply 前自动创建安全备份）。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        label: { type: "string", description: "备份标签" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "backup_restore",
+    description: "从备份恢复配置。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        backup_id: { type: "string", description: "备份 ID" },
+        dry_run: { type: "boolean", description: "是否只预览不执行", default: false },
+      },
+      required: ["backup_id"],
     },
   },
 ];
@@ -506,6 +556,31 @@ async function main() {
           });
           break;
 
+        case "config_generate":
+          result = await agentPost(hostName, host, "/api/config/generate", {
+            prompt: a.prompt,
+            existing_config: a.existing_config,
+            format: a.format || "snippet",
+          });
+          break;
+
+        case "backup_list":
+          result = await agentGet(hostName, host, "/api/backups", {});
+          break;
+
+        case "backup_create":
+          result = await agentPost(hostName, host, "/api/backup/create", {
+            label: a.label,
+          });
+          break;
+
+        case "backup_restore":
+          result = await agentPost(hostName, host, "/api/backup/restore", {
+            backup_id: a.backup_id,
+            dry_run: a.dry_run,
+          });
+          break;
+
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
@@ -519,11 +594,20 @@ async function main() {
         case "config_validate":
           text = `${formatValidateOutput(result)}\n\n---\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
           break;
+        case "config_generate":
+          text = formatGenerateOutput(result);
+          break;
         case "generation_diff":
           text = `${formatGenerations(result)}\n\n---\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
           break;
         case "rollback_list":
           text = `${formatRollbackList(result)}\n\n---\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
+          break;
+        case "backup_list":
+          text = formatBackupList(result);
+          break;
+        case "backup_restore":
+          text = formatBackupRestore(result);
           break;
         default:
           text = JSON.stringify(result, null, 2);

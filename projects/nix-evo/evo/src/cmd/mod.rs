@@ -8,6 +8,7 @@ pub mod config_apply;
 pub mod rollback;
 
 use axum::extract::{Query, State};
+use axum::Json;
 use serde::Deserialize;
 use std::sync::Arc;
 use crate::AppState;
@@ -39,6 +40,31 @@ pub async fn run_cmd(cmd: &str, args: &[&str]) -> Result<String, AppError> {
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+/// Health response with version and system info
+#[derive(serde::Serialize)]
+struct HealthResponse {
+    status: &'static str,
+    version: &'static str,
+    nixos: bool,
+    uptime_secs: u64,
+}
+
+pub async fn health_handler() -> Json<HealthResponse> {
+    let nixos = std::path::Path::new("/etc/NIXOS").exists();
+    let uptime_secs = std::fs::read_to_string("/proc/uptime")
+        .ok()
+        .and_then(|s| s.split_whitespace().next().and_then(|s| s.parse::<f64>().ok()))
+        .map(|u| u as u64)
+        .unwrap_or(0);
+
+    Json(HealthResponse {
+        status: "ok",
+        version: env!("CARGO_PKG_VERSION"),
+        nixos,
+        uptime_secs,
+    })
 }
 
 /// App state type alias for handlers

@@ -58,6 +58,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/backup/restore", post(backup::restore_backup))
         .route("/backup/rotate", post(backup::rotate_backups));
 
+    // AI config generation routes
+    let api_routes = api_routes
+        .route("/config/generate", post(ai_config::handle));
+
     // Apply auth middleware to API routes if token is configured
     let api_routes = if has_token {
         api_routes.layer(axum::middleware::from_fn_with_state(
@@ -70,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .nest("/api", api_routes)
-        .route("/health", get(|| async { "ok" }))
+        .route("/health", get(cmd::health_handler))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http());
 
