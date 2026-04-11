@@ -17,6 +17,12 @@ pub mod env_repair;
 pub mod pkg_risk;
 pub mod env_templates;
 pub mod env_remote;
+pub mod env_branch;
+pub mod conda_sbom;
+pub mod conda_to_nix;
+pub mod conda_optimize;
+pub mod conda_multiarch;
+pub mod conda_analytics;
 
 use axum::{
     routing::{get, post, delete},
@@ -110,6 +116,22 @@ async fn main() -> anyhow::Result<()> {
         .route("/env/pull", post(env_remote::pull_handler))
 
 
+        // Environment branching
+        .route("/env/branch", post(env_branch::branch_handler))
+        .route("/env/diff", get(env_branch::diff_handler))
+        .route("/env/merge", post(env_branch::merge_handler))
+        // Supply chain security
+        .route("/conda/sbom", get(conda_sbom::sbom_handler))
+        .route("/conda/verify", post(conda_sbom::verify_handler))
+        // Conda to Nix conversion
+        .route("/conda/to-nix", post(conda_to_nix::to_nix_handler))
+        // Runtime optimizer
+        .route("/conda/optimize", get(conda_optimize::optimize_handler))
+        // Multi-architecture support
+        .route("/conda/multiarch/:env", get(conda_multiarch::multiarch_handler))
+        // Ecosystem analytics
+        .route("/conda/analytics", get(conda_analytics::analytics_handler))
+
         .route("/conda/lock", post(conda_lock::lock_handler))
         .with_state(state.clone());
 
@@ -125,6 +147,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         // Conda health dashboard
         .route("/dashboard/conda", get(|| async { axum::response::Html(include_str!("../static/conda-dashboard.html")) }))
+        .route("/dashboard/conda-analytics", get(|| async { axum::response::Html(include_str!("../static/conda-analytics.html")) }))
 
         .nest("/api", api_routes)
         .route("/health", get(|| async { "ok" }))
