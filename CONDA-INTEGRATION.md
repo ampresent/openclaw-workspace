@@ -276,3 +276,131 @@ Full conda/micromamba environment management integrated into nix-evo-agent (Rust
 4. **Health scoring**: Weighted score penalizes mixed channels, duplicates, and bloat
 5. **BFS impact analysis**: Transitive dependency walk reveals true blast radius of package removal
 6. **Architecture detection**: `uname -m` → conda platform mapping for cross-arch planning
+
+## V5 — The Final Frontier: Simulation, Watch, Matrix, Build, Versioning & Cloud (11 endpoints, 9 MCP tools, 6 Rust modules) 🆕
+
+### 🧪 Conda Environment Simulation (`conda_sim.rs`)
+- "What if I install package X?" — simulate the solve without actually doing it
+- Supports install, remove, update, update-all actions via `--dry-run`
+- Parses dry-run output to extract predicted changes: installs, removals, updates, downgrades
+- Conflict detection for known problematic pairs (tensorflow/pytorch, pillow variants, OpenCV variants)
+- Risk assessment scoring (0-100): considers conflict-prone packages, blast radius, downgrades, multi-channel
+- Dependency tree approximation from current environment state
+- Download/disk size estimation from dry-run output
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/conda/simulate` | POST | Simulate package operations (dry-run) |
+
+**MCP Tool:** `conda_simulate`
+
+### 🔄 Auto-Conda-Forge Monitor (`conda_watch.rs`)
+- Monitor conda-forge for newer versions of pinned packages
+- Config stored at `/var/lib/nix-evo/conda-watch.json`
+- Uses `conda search --channel --json` for real version checks
+- Version jump classification: major/minor/patch
+- Auto-generates PR-like change proposals with risk assessment
+- Changelog URLs to conda-forge feedstock repos
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/conda/watch` | GET | Get watch config |
+| `/api/conda/watch/check` | POST | Run immediate version check |
+
+**MCP Tools:** `conda_watch`, `conda_watch_check`
+
+### 📊 Environment Comparison Matrix (`conda_matrix.rs` + `conda-matrix.html`)
+- Compare N environments side by side
+- Per-package version grid across all environments
+- Pairwise compatibility scoring: shared/unique/mismatched counts
+- Overall weighted compatibility score
+- Filter: all packages, differences only, with missing packages
+- Unique packages per environment identification
+- Interactive dark-theme dashboard at `/dashboard/conda-matrix`
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/conda/compare` | POST | Compare N environments |
+
+**MCP Tool:** `conda_compare`
+
+### 🏭 Conda Build Automation (`conda_build.rs`)
+- Wrap conda-build or boa for building custom packages
+- Tracks build status: queued → running → success/failed
+- Build history with timestamps, logs, and artifact paths
+- Auto-discovers output artifacts (.tar.bz2, .conda)
+- Build ID generation with timestamp prefix
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/conda/build` | POST | Start a package build |
+| `/api/conda/build/status` | GET | Build status/history |
+
+**MCP Tools:** `conda_build`, `conda_build_status`
+
+### 🧬 Conda Environment Versioning (`conda_version.rs`)
+- Git-like version control for conda environments
+- Commit: captures full package state, Python version, fingerprint
+- SHA-256 fingerprint from sorted package name+version pairs
+- Diff from previous commit: added/removed/updated packages
+- Tags support for marking stable/release versions
+- Persistent storage at `/var/lib/nix-evo/conda-versions/<env>/`
+- Each commit saved as separate JSON file + index
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/conda/version/commit` | POST | Commit environment snapshot |
+| `/api/conda/version/log` | GET | Version history |
+
+**MCP Tools:** `conda_version_commit`, `conda_version_log`
+
+### 🌐 Conda Cloud Sync (`conda_cloud.rs`)
+- Sync environment state to cloud storage
+- Supported providers: S3, GCS, MinIO, Local (fallback)
+- Config at `/var/lib/nix-evo/conda-cloud-config.json`
+- Direction: push/pull/both
+- Dry-run mode for preview
+- Backup manifest tracking: env name, timestamp, path, package count
+- Builds appropriate CLI commands per provider (aws s3 cp, gsutil cp, mc cp)
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/conda/cloud/sync` | POST | Sync envs to/from cloud |
+
+**MCP Tool:** `conda_cloud_sync`
+
+## Total API Endpoints: 55
+
+| Version | Endpoints | MCP Tools | Rust Files |
+|---|---|---|---|
+| V1 | 8 | 6 | conda.rs, cmd/conda_handlers.rs |
+| V2 | 14 | 7 | conda_diag.rs, hybrid.rs, conda_lock.rs, venv_bridge.rs, env_sync.rs, env_test.rs, resolver.rs, build_cache.rs |
+| V3 | 13 | 12 | env_fingerprint.rs, env_migrate.rs, env_repair.rs, pkg_risk.rs, env_templates.rs, env_remote.rs |
+| V4 | 9 | 9 | env_branch.rs, conda_sbom.rs, conda_to_nix.rs, conda_optimize.rs, conda_multiarch.rs, conda_analytics.rs |
+| V5 | 11 | 9 | conda_sim.rs, conda_watch.rs, conda_matrix.rs, conda_build.rs, conda_version.rs, conda_cloud.rs |
+| **Total** | **55** | **50** | **28 Rust + 5 TS** |
+
+## Dependencies (Cargo.toml)
+- `sha2 = "0.10"` — SHA-256 hashing for fingerprints & versioning
+- `hex = "0.4"` — Hex encoding
+- `chrono = { version = "0.4", features = ["serde"] }` — Timestamps
+- `reqwest = { version = "0.12", features = ["json"] }` — Remote HTTP calls
+- `serde_json = "1"` — JSON parsing for conda search output & cloud manifests
+
+## Key Design Decisions (V5)
+
+1. **Dry-run parsing**: Micromamba `+`/`-` format and conda "will be installed" format both supported
+2. **Conflict detection**: Known mutually-exclusive pairs (tensorflow/pytorch, pillow variants) trigger warnings before install
+3. **Version jump classification**: Semantic versioning aware — major jumps flagged as higher risk
+4. **Git-like versioning**: Full environment snapshots with SHA-256 fingerprints and diff-from-previous
+5. **Cloud provider abstraction**: Unified API across S3/GCS/MinIO/Local with provider-specific CLI generation
+6. **Build tracking**: In-memory store with build ID, status lifecycle, and artifact discovery
+7. **Compatibility scoring**: `(shared - mismatches) / total_unique * 100` for pairwise env comparison
+
+## Dashboard Endpoints
+
+| Path | Description |
+|---|---|
+| `/dashboard/conda` | Environment health dashboard |
+| `/dashboard/conda-analytics` | Ecosystem analytics dashboard |
+| `/dashboard/conda-matrix` | Environment comparison matrix |
