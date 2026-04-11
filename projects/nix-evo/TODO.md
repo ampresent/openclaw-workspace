@@ -1,35 +1,20 @@
 # TODO
 
-## v0.1 — 最小可用
+## v0.3.1 — 已完成
 
-- [x] nix-evo-agent Rust 项目骨架 (axum HTTP server)
-- [x] `system_snapshot` — systemctl + 磁盘/内存 + 最近失败服务
-- [x] `service_logs` — journalctl 封装
-- [x] `config_read` — 读 /etc/nixos/ 配置文件
-- [x] `package_info` — nix-store / nix 查询封装
-- [x] `generation_diff` — nixos-rebuild generations + diff
-- [x] `config_validate` — nixos-rebuild dry-build + 摘要解析 + 风险评估
-- [x] `config_apply` — nixos-rebuild switch + generation 记录
-- [x] `rollback_list` / `rollback_apply` — generation 管理
-- [x] MCP server — stdio transport, JSON-RPC 2.0, 9 tools
-- [x] hosts.toml — 多主机连接配置 (MCP 侧)
-- [x] 认证 — 可选 Bearer token (--api-token / NIX_EVO_TOKEN)
-- [x] 错误类型 — AppError 枚举 + 中文错误消息
-- [x] 单元测试 — 风险评估 + 包解析 + hosts.toml 解析
-- [x] SSH 隧道 — MCP 端自动建立 (ssh-tunnel.ts)
-- [x] 文档 — QUICKSTART.md + DESIGN.md 实现细节
-- [ ] Cargo.lock — 需要 cargo generate-lockfile
-- [ ] NixOS 集成测试 — 需要 NixOS 机器编译 + 运行
+- [x] 配置 diff 端点 — LCS-based unified diff
+- [x] 请求计数器 — AtomicU64 for tracing
+- [x] 命令超时 — 120s default, configurable
+- [x] MCP 13 tools — 添加 config_diff, config_generate, backup_list, backup_create, backup_restore
+- [x] NixOS module 增强 — systemd hardening, 更多配置选项
+- [x] flake.nix 改进 — flake-utils, apps, devShells, formatter
+- [x] 强化健康检查 — version + nixos detection + uptime
 
-## v0.2 — 增强
+## v0.4 — 下一步
 
-- [ ] nixos-rebuild test 后再 switch（自动测试）— 设计文档已就绪
-- [ ] secrets 管理集成 (agenix/sops-nix) — 设计文档已就绪
-- [ ] nixpkgs 源码级修改工具
-- [ ] TUI 看板
-
-## v0.3 — 扩展
-
-- [ ] 多机编排
-- [ ] webhook 触发（GitHub/Gitea）
-- [ ] 配置模板/共享模块
+- [ ] MCP 的 config_diff/config_generate 与 agent 对接
+- [ ] WebSocket 支持 — 流式日志
+- [ ] 请求 ID header (X-Request-Id) 传递
+- [ ] Rate limiting (tower-governor)
+- [ ] 多文件配置管理 (imports)
+- [ ] 配置模板系统 (常见场景的 snippet 库)

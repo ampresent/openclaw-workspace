@@ -47,31 +47,71 @@ in
       default = null;
       description = "Path to file containing API token (one line, no trailing newline)";
     };
+
+    maxLogLines = mkOption {
+      type = types.int;
+      default = 200;
+      description = "Maximum log lines to return per request";
+    };
+
+    logLevel = mkOption {
+      type = types.enum [ "trace" "debug" "info" "warn" "error" ];
+      default = "info";
+      description = "Logging level";
+    };
+
+    extraArgs = mkOption {
+      type = types.listOf types.str;
+      default = [];
+      description = "Extra CLI arguments passed to nix-evo-agent";
+    };
   };
 
   config = mkIf cfg.enable {
     systemd.services.nix-evo-agent = {
-      description = "nix-evo-agent — NixOS diagnostic agent";
+      description = "nix-evo-agent — NixOS diagnostic agent for AI";
       wantedBy = [ "multi-user.target" ];
       after = [ "network.target" ];
 
+      environment = {
+        RUST_LOG = "nix_evo_agent=${cfg.logLevel},tower_http=${cfg.logLevel}";
+      };
+
       serviceConfig = {
-        ExecStart = "${cfg.package}/bin/nix-evo-agent"
-          + " --host ${cfg.host}"
-          + " --port ${toString cfg.port}"
-          + " --nixos-dir ${cfg.nixosDir}"
-          + optionalString (cfg.tokenFile != null) " --api-token $(cat ${cfg.tokenFile})";
+        ExecStart = concatStringsSep " " ([
+          "${cfg.package}/bin/nix-evo-agent"
+          "--host ${cfg.host}"
+          "--port ${toString cfg.port}"
+          "--nixos-dir ${cfg.nixosDir}"
+          "--max-log-lines ${toString cfg.maxLogLines}"
+        ] ++ optional (cfg.tokenFile != null) "--api-token $(cat ${cfg.tokenFile})"
+          ++ cfg.extraArgs);
+
         Restart = "on-failure";
         RestartSec = 5;
+        StartLimitIntervalSec = 60;
+        StartLimitBurst = 5;
 
         # Security hardening
         DynamicUser = true;
-        SupplementaryGroups = [ "systemd-journal" ];  # for reading logs
+        SupplementaryGroups = [ "systemd-journal" ];
         ProtectSystem = "strict";
-        # Allow reading configs and writing nix-evo-description files
-        ReadWritePaths = [ "/tmp" cfg.nixosDir "/nix/var/nix/profiles" ];
+        ProtectHome = true;
+        ReadWritePaths = [ "/tmp" cfg.nixosDir "/nix/var/nix/profiles" "/var/lib/nix-evo" ];
         PrivateTmp = true;
         NoNewPrivileges = true;
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectControlGroups = true;
+        RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        MemoryDenyWriteExecute = true;
+        LockPersonality = true;
+        SystemCallFilter = [ "@system-service" "~@privileged" ];
+        CapabilityBoundingSet = [ "" ];
+        AmbientCapabilities = [ "" ];
       };
 
       path = with pkgs; [
@@ -83,7 +123,9 @@ in
         diffutils
         jq
         hostname
-        utillinux  # for uptime, free
+        util-linux
+        rsync
+        findutils
       ];
     };
 

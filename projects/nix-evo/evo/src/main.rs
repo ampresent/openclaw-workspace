@@ -76,7 +76,9 @@ async fn main() -> anyhow::Result<()> {
 
     // AI config generation routes
     let api_routes = api_routes
-        .route("/config/generate", post(ai_config::handle));
+        .route("/config/generate", post(ai_config::handle))
+        .route("/config/test", post(config_test::handle))
+        .route("/config/test/cancel", post(config_test::cancel_test));
 
     // Apply auth middleware to API routes if token is configured
     let api_routes = if has_token {
