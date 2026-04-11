@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod build;
 pub mod freeze;
 pub mod init;

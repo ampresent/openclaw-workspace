@@ -67,16 +67,21 @@ evo 用户 (uid)       → 构建进程 / Claude Code 操作
                       无系统目录写权限
 ```
 
-### 本地小模型集成
+### 本地小模型集成（可选）
 
-参考 small-model-lab 项目，本地模型负责：
+如配置了 `local_model`，用于：
 - 截获 stderr，识别"命令不存在" / "参数错误"
-- 生成意图识别提示
-- 分流决策：直接回答 vs 启动 Claude Code 开发流
+- 生成意图识别提示（低延迟）
+- 分流决策：直接回答 vs 启动远程模型开发流
 
-### Claude Code 集成
+未配置时，所有 AI 任务由远程模型处理。
 
-- 通过 API 或 CLI 调用
-- 输入：源码 Diff + 错误日志 + 用户意图描述
-- 输出：标准 Patch 格式
-- 运行在 `evo` 用户下，沙箱隔离
+### 远程 AI 模型集成
+
+- OpenAI-compatible API (base_url + model + api_key)
+- 读取 `.evo/config.toml` 的 `[ai]` 配置
+- 支持的 AI 任务：
+  - 源码分析：阅读 patch 上下文，解释变更
+  - 补丁生成：根据错误日志 + 源码 diff 生成 patch
+  - 冲突解决：分析 rebase 冲突，给出解决建议
+  - 意图识别：分析命令错误，建议是否启动开发流

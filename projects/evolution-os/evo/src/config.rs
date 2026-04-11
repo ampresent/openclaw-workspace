@@ -33,6 +33,8 @@ pub fn resolve_root(explicit: Option<&str>) -> Result<PathBuf> {
 pub struct EvoConfig {
     pub rocky_version: String,
     pub frozen: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai: Option<crate::cmd::ai::AiConfig>,
 }
 
 impl Default for EvoConfig {
@@ -40,6 +42,7 @@ impl Default for EvoConfig {
         Self {
             rocky_version: "9".into(),
             frozen: false,
+            ai: None,
         }
     }
 }

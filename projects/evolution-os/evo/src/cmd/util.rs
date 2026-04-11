@@ -140,3 +140,16 @@ pub fn has_changes(src: &Path) -> bool {
         Err(_) => true,
     }
 }
+
+/// Get next patch number in the stack.
+pub fn next_patch_number(root: &Path, package: &str) -> Result<u32> {
+    let patches_dir = root.join("patches").join(package);
+    let patches = list_patches(&patches_dir)?;
+    if patches.is_empty() {
+        return Ok(1);
+    }
+    let last = patches.last().unwrap();
+    let name = last.file_stem().unwrap().to_string_lossy();
+    let num_str = name.split('-').next().unwrap_or("0");
+    Ok(num_str.parse::<u32>().unwrap_or(0) + 1)
+}

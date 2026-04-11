@@ -39,6 +39,11 @@ enum Commands {
     Tag(cmd::tag::TagArgs),
     /// Freeze evolution (disable AI hooks and builds)
     Freeze(cmd::freeze::FreezeArgs),
+    /// AI-powered analysis, patch generation, and conflict resolution
+    Ai {
+        #[command(subcommand)]
+        cmd: cmd::ai::AiCmd,
+    },
 }
 
 fn main() {
@@ -52,6 +57,7 @@ fn main() {
         Commands::Rebase(args) => cmd::rebase::run(args, cli.root.as_deref()),
         Commands::Tag(args) => cmd::tag::run(args, cli.root.as_deref()),
         Commands::Freeze(args) => cmd::freeze::run(args, cli.root.as_deref()),
+        Commands::Ai { cmd } => cmd::ai::run(cmd, cli.root.as_deref()),
     };
 
     if let Err(e) = result {
