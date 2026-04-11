@@ -1,66 +1,17 @@
 # USER.md - About Your Human
 
----
+_Learn about the person you're helping. Update this as you go._
 
-## 基本信息
+- **Name:**
+- **What to call them:**
+- **Pronouns:** _(optional)_
+- **Timezone:**
+- **Notes:**
 
-- **职业**: 程序员
-- **居住地**: 上海
-- **时区**: Asia/Shanghai
-- **语言**: 简体中文
+## Context
 
----
-
-## 家庭情况
-
-| 成员 | 年龄 | 备注 |
-|------|------|------|
-| 父亲 | 58 岁 | - |
+_(What do they care about? What projects are they working on? What annoys them? What makes them laugh? Build this over time.)_
 
 ---
 
-## 投资组合
-
-| 资产类别 | 持仓程度 | 备注 |
-|----------|----------|------|
-| 🏢 公司内部私募员工基金 | **大量** | 主要持仓 |
-| 🥇 黄金 | **大量** | 主要持仓 |
-| 🇺🇸 美股 | **少量** | 辅助持仓 |
-
----
-
-## 关注领域
-
-- 科技行业趋势、AI/算力发展
-- 金融市场动态
-- 上海本地政策
-- 旅游资讯
-
----
-
-## 个人兴趣
-
-- 🎵 **音乐**：深度爵士 + 日本噪音/迷幻 + 暗黑工业/新古典（详见 `memory/music-preferences.md`）
-- 🎹 **钢琴**：大七和弦入门中（projects/piano-practice/）
-- ✈️ **旅游**：喜欢旅行，关注机票酒店优惠
-- 🎷 **爵士演出**：关注上海爵士现场
-
----
-
-## 重点监控场馆
-
-| 优先级 | 场馆 |
-|--------|------|
-| ⭐⭐⭐ | Blue Note Shanghai、前滩 31 |
-| ⭐⭐ | JZ Club、林肯中心 Jazz Club、西岸大剧院 |
-
----
-
-## 待办
-
-- 2026-05-17 参加永乐婚礼
-- 需订 4/6 机票
-
----
-
-*最后更新：2026-04-01*
+The more you know, the better you can help. But remember — you're learning about a person, not building a dossier. Respect the difference.

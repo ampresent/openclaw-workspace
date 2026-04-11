@@ -92,3 +92,4 @@ LOG_*.md
 *.avi
 *.mov
 .git-credentials
+.github-token

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "sysadmin-toolbox": {
+      "name": "Sysadmin Toolbox",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=sysadmin-toolbox",
+      "source": "skillhub",
+      "version": "1.1.0"
+    },
+    "system-info": {
+      "name": "System Info",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=system-info",
+      "source": "skillhub",
+      "version": "1.0.0"
+    }
+  }
+}
