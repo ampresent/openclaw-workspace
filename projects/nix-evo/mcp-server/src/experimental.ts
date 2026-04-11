@@ -92,7 +92,25 @@ export function getExperimentalTools(hosts: Record<string, HostEntry>) {
           interval_secs: {
             type: "number",
             description: "采样间隔秒数，默认 3",
-            default: 3,
+            case "config_diff": {
+        const body: Record<string, any> = {};
+        if (args.config_a) body.config_a = args.config_a;
+        if (args.config_b) body.config_b = args.config_b;
+        result = await agentPost(hosts, host, "/api/config/diff", body);
+        text = formatConfigDiff(result);
+        break;
+      }
+
+      case "service_deps": {
+        const params: Record<string, string> = {};
+        if (args.focus) params.focus = args.focus;
+        if (args.depth) params.depth = String(args.depth);
+        result = await agentGet(hosts, host, "/api/deps", params);
+        text = formatDepGraph(result);
+        break;
+      }
+
+      default: 3,
           },
         },
         required: [],
@@ -117,7 +135,25 @@ export function getExperimentalTools(hosts: Record<string, HostEntry>) {
           limit: {
             type: "number",
             description: "返回条数上限，默认 50",
-            default: 50,
+            case "config_diff": {
+        const body: Record<string, any> = {};
+        if (args.config_a) body.config_a = args.config_a;
+        if (args.config_b) body.config_b = args.config_b;
+        result = await agentPost(hosts, host, "/api/config/diff", body);
+        text = formatConfigDiff(result);
+        break;
+      }
+
+      case "service_deps": {
+        const params: Record<string, string> = {};
+        if (args.focus) params.focus = args.focus;
+        if (args.depth) params.depth = String(args.depth);
+        result = await agentGet(hosts, host, "/api/deps", params);
+        text = formatDepGraph(result);
+        break;
+      }
+
+      default: 50,
           },
         },
         required: [],
@@ -158,6 +194,65 @@ export function getExperimentalTools(hosts: Record<string, HostEntry>) {
           extra_inputs: {
             type: "object",
             description: '额外的 flake inputs，如 {"home-manager": "github:nix-community/home-manager"}',
+          },
+        },
+        required: [],
+      },
+    },
+    {
+      name: "config_diff",
+      description:
+        "深度对比两个 NixOS 配置的差异。自动检测服务增删、包变更、网络和安全配置变化，并给出风险评估。支持传入配置内容或比较 generation。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          host: { type: "string", description: hostParamDesc },
+          config_a: {
+            type: "string",
+            description: "第一个配置内容（不传则从磁盘读取当前配置）",
+          },
+          config_b: {
+            type: "string",
+            description: "第二个配置内容（必传）",
+          },
+        },
+        required: ["config_b"],
+      },
+    },
+    {
+      name: "service_deps",
+      description:
+        "分析 systemd 服务依赖关系图。可以查看指定服务的依赖链、检测循环依赖、评估服务故障影响范围。用于排查服务启动顺序问题。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          host: { type: "string", description: hostParamDesc },
+          focus: {
+            type: "string",
+            description: "聚焦某个服务的依赖子图，如 sshd.service",
+          },
+          depth: {
+            type: "number",
+            description: "最大遍历深度，默认 3",
+            case "config_diff": {
+        const body: Record<string, any> = {};
+        if (args.config_a) body.config_a = args.config_a;
+        if (args.config_b) body.config_b = args.config_b;
+        result = await agentPost(hosts, host, "/api/config/diff", body);
+        text = formatConfigDiff(result);
+        break;
+      }
+
+      case "service_deps": {
+        const params: Record<string, string> = {};
+        if (args.focus) params.focus = args.focus;
+        if (args.depth) params.depth = String(args.depth);
+        result = await agentGet(hosts, host, "/api/deps", params);
+        text = formatDepGraph(result);
+        break;
+      }
+
+      default: 3,
           },
         },
         required: [],
@@ -212,6 +307,24 @@ export async function handleExperimentalTool(
         if (args.extra_inputs) body.extra_inputs = args.extra_inputs;
         result = await agentPost(hosts, host, "/api/flake/convert", body);
         text = formatFlakeResult(result);
+        break;
+      }
+
+      case "config_diff": {
+        const body: Record<string, any> = {};
+        if (args.config_a) body.config_a = args.config_a;
+        if (args.config_b) body.config_b = args.config_b;
+        result = await agentPost(hosts, host, "/api/config/diff", body);
+        text = formatConfigDiff(result);
+        break;
+      }
+
+      case "service_deps": {
+        const params: Record<string, string> = {};
+        if (args.focus) params.focus = args.focus;
+        if (args.depth) params.depth = String(args.depth);
+        result = await agentGet(hosts, host, "/api/deps", params);
+        text = formatDepGraph(result);
         break;
       }
 
@@ -333,6 +446,87 @@ function formatFlakeResult(data: any): string {
   parts.push("\`\`\`nix");
   parts.push(data.flake_nix);
   parts.push("\`\`\`");
+
+  return parts.join("\n");
+}
+
+
+function formatConfigDiff(data: any): string {
+  const parts: string[] = [];
+
+  parts.push("🔍 配置对比分析");
+  parts.push(\`   \${data.summary}\`);
+
+  const risk = data.risk_assessment;
+  const badge = risk.level === "dangerous" ? "🔴 高风险" :
+                risk.level === "moderate" ? "🟡 中等风险" : "🟢 安全";
+  parts.push(\`   风险: \${badge} (分数: \${risk.score}/100)\`);
+  parts.push(\`   建议: \${risk.recommendation}\`);
+
+  if (risk.factors?.length) {
+    parts.push("\n⚠️ 风险因素:");
+    for (const f of risk.factors) {
+      parts.push(\`   • [\${f.severity}] \${f.description}\`);
+    }
+  }
+
+  const s = data.structured;
+  if (s?.services_added?.length) {
+    parts.push(\`\n✅ 新增服务: \${s.services_added.join(", ")}\`);
+  }
+  if (s?.services_removed?.length) {
+    parts.push(\`\n❌ 删除服务: \${s.services_removed.join(", ")}\`);
+  }
+  if (s?.packages_added?.length) {
+    parts.push(\`\n📦 新增包: \${s.packages_added.join(", ")}\`);
+  }
+  if (s?.packages_removed?.length) {
+    parts.push(\`\n🗑️ 删除包: \${s.packages_removed.join(", ")}\`);
+  }
+  if (s?.networking_changed?.length) {
+    parts.push(\`\n🌐 网络变更: \${s.networking_changed.join(", ")}\`);
+  }
+
+  parts.push("\n📝 Unified Diff:");
+  parts.push("\`\`\`");
+  parts.push(data.unified_diff || "(no differences)");
+  parts.push("\`\`\`");
+
+  return parts.join("\n");
+}
+
+function formatDepGraph(data: any): string {
+  const parts: string[] = [];
+
+  parts.push(\`🔗 服务依赖图 (共 \${data.total_services} 个服务)\`);
+
+  if (data.critical_path?.length) {
+    parts.push(\`\n🎯 关键路径: \${data.critical_path.join(" → ")}\`);
+  }
+
+  if (data.circular_deps?.length) {
+    parts.push("\n⚠️ 循环依赖:");
+    for (const cycle of data.circular_deps) {
+      parts.push(\`   🔄 \${cycle.join(" → ")}\`);
+    }
+  }
+
+  if (data.failed_impact?.length) {
+    parts.push(\`\n💥 故障影响范围: \${data.failed_impact.join(", ")}\`);
+  }
+
+  if (data.nodes?.length) {
+    parts.push("\n📊 服务状态:");
+    const shown = data.nodes.slice(0, 20);
+    for (const n of shown) {
+      const icon = n.active ? "✅" : "❌";
+      const deps = n.dependencies.length > 0 ? \` (依赖: \${n.dependencies.slice(0, 3).join(", ")})\` : "";
+      parts.push(\`   \${icon} \${n.name}\${deps}\`);
+    }
+    if (data.nodes.length > 20) {
+      parts.push(\`   ... 及其他 \${data.nodes.length - 20} 个服务\`);
+    }
+  }
 
   return parts.join("\n");
 }

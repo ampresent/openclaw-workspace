@@ -4,8 +4,19 @@ pub mod error;
 pub mod auth;
 pub mod dashboard;
 pub mod audit;
+pub mod audit_middleware;
 pub mod healer;
 pub mod flake;
+pub mod configdiff;
+pub mod depgraph;
+pub mod chaos;
+
+#[cfg(test)]
+mod audit_tests;
+#[cfg(test)]
+mod flake_tests;
+#[cfg(test)]
+mod integration_tests;
 pub mod cluster;
 pub mod marketplace;
 pub mod deps;
@@ -71,6 +82,15 @@ async fn main() -> anyhow::Result<()> {
         .route("/healer/status", get(healer::handle_status))
         // Experimental: Flake converter
         .route("/flake/convert", post(flake::handle_convert))
+        // Experimental: Config Diff Engine
+        .route("/config/diff", post(configdiff::handle_diff))
+        // Experimental: Service Dependency Graph
+        .route("/deps", get(depgraph::handle_deps))
+        // Experimental: Chaos Engineering
+        .route("/chaos/experiments", get(chaos::handle_list_experiments))
+        .route("/chaos/start", post(chaos::handle_start_experiment))
+        .route("/chaos/stop", post(chaos::handle_stop_experiment))
+        .route("/chaos/history", get(chaos::handle_history))
         // Experimental v2: Multi-Cluster Orchestrator
         .route("/cluster/deploy", post(cluster::handle_deploy))
         .route("/cluster/status", get(cluster::handle_status))
@@ -99,6 +119,12 @@ async fn main() -> anyhow::Result<()> {
     } else {
         api_routes
     };
+
+    // Add audit logging middleware to all API routes
+    let api_routes = api_routes.layer(axum::middleware::from_fn_with_state(
+        state.clone(),
+        audit_middleware::audit_middleware,
+    ));
 
     // Static files for dashboard
     let static_routes = Router::new()
