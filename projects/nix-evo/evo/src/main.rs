@@ -9,7 +9,6 @@ pub mod healer;
 pub mod flake;
 pub mod configdiff;
 pub mod depgraph;
-pub mod chaos;
 
 #[cfg(test)]
 mod audit_tests;
@@ -91,10 +90,6 @@ async fn main() -> anyhow::Result<()> {
         // Experimental: Service Dependency Graph
         .route("/deps", get(depgraph::handle_deps))
         // Experimental: Chaos Engineering
-        .route("/chaos/experiments", get(chaos::handle_list_experiments))
-        .route("/chaos/start", post(chaos::handle_start_experiment))
-        .route("/chaos/stop", post(chaos::handle_stop_experiment))
-        .route("/chaos/history", get(chaos::handle_history))
         // Experimental v2: Multi-Cluster Orchestrator
         .route("/cluster/deploy", post(cluster::handle_deploy))
         .route("/cluster/status", get(cluster::handle_status))
