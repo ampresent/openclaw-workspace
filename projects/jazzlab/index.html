@@ -23,6 +23,7 @@
       <div class="nav-item" data-page="guitar"><span class="nav-icon">🎸</span><span>吉他指板</span></div>
       <div class="nav-separator"></div>
       <div class="nav-item" data-page="metronome"><span class="nav-icon">🥁</span><span>节拍器</span></div>
+      <div class="nav-item" data-page="comping"><span class="nav-icon">🎶</span><span>Comping</span></div>
       <div class="nav-item" data-page="ear"><span class="nav-icon">👂</span><span>听音训练</span></div>
       <div class="nav-item" data-page="standards"><span class="nav-icon">📖</span><span>爵士标准曲</span></div>
       <div class="nav-separator"></div>
@@ -62,6 +63,17 @@
         <div class="card" onclick="navigateTo('theory')">
           <div class="section-title">📚 乐理指南</div>
           <p style="color:var(--text-dim);font-size:14px">爵士和声核心概念：II-V-I、三全音替代、Voice Leading、Reharmonization</p>
+        </div>
+      </div>
+      <div class="info-panel" style="border-color:var(--gold-dim)">
+        <h3>⚡ 快速参考：II-V-I 和弦速查</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-top:12px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:13px;padding:8px;background:var(--bg-input);border-radius:6px"><strong>C 调</strong>: Dm7 → G7 → Cmaj7</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:13px;padding:8px;background:var(--bg-input);border-radius:6px"><strong>Bb 调</strong>: Cm7 → F7 → Bbmaj7</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:13px;padding:8px;background:var(--bg-input);border-radius:6px"><strong>F 调</strong>: Gm7 → C7 → Fmaj7</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:13px;padding:8px;background:var(--bg-input);border-radius:6px"><strong>Eb 调</strong>: Fm7 → Bb7 → Ebmaj7</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:13px;padding:8px;background:var(--bg-input);border-radius:6px"><strong>Ab 调</strong>: Bbm7 → Eb7 → Abmaj7</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:13px;padding:8px;background:var(--bg-input);border-radius:6px"><strong>D 调</strong>: Em7 → A7 → Dmaj7</div>
         </div>
       </div>
     </div>
@@ -226,6 +238,28 @@
           <button class="btn btn-sm" onclick="adjustBPM(5)">+5</button>
         </div>
       </div>
+    </div>
+
+    <!-- COMPING PATTERNS -->
+    <div class="page" id="page-comping">
+      <div class="page-title">🎶 Comping 节奏模式</div>
+      <div class="page-subtitle">爵士伴奏节奏型练习库 — 点击播放，跟着节拍器一起练习</div>
+      <div class="controls-row">
+        <div class="control-group">
+          <span class="control-label">根音</span>
+          <select id="comping-root">
+            <option value="0">C</option><option value="2">D</option><option value="4">E</option>
+            <option value="5">F</option><option value="7">G</option><option value="9">A</option>
+            <option value="11">B</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <span class="control-label">BPM</span>
+          <input type="number" id="comping-bpm" value="120" min="60" max="240" style="width:80px">
+        </div>
+        <button class="btn btn-gold btn-lg" id="comping-play-btn" onclick="toggleComping()">▶ 播放</button>
+      </div>
+      <div id="comping-patterns"></div>
     </div>
 
     <!-- EAR TRAINING -->
@@ -1076,6 +1110,132 @@ function tapTempo() {
   setTimeout(() => { if (Date.now() - tapTimes[tapTimes.length-1] > 3000) tapTimes = []; }, 3000);
 }
 
+// --- Comping Patterns ---
+const COMPING_PATTERNS = [
+  {
+    name: '基础 Swing Comping',
+    desc: '经典四拍 swing 伴奏，每拍一个和弦',
+    bpm: 140,
+    pattern: [1,0,1,0,1,0,1,0], // 8 eighth notes
+    chords: ['m7','7','maj7','7'],
+  },
+  {
+    name: 'Charleston 节奏',
+    desc: 'Charleston 特有的切分节奏',
+    bpm: 150,
+    pattern: [1,0,0,1,0,0,1,0],
+    chords: ['m7','7','maj7','7'],
+  },
+  {
+    name: 'Off-beat Comping',
+    desc: '所有反拍弹奏，制造推动力',
+    bpm: 140,
+    pattern: [0,1,0,1,0,1,0,1],
+    chords: ['m7','7','maj7','7'],
+  },
+  {
+    name: 'Freddie Green 风格',
+    desc: '大乐队吉他手的四拍稳定节奏',
+    bpm: 180,
+    pattern: [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],
+    chords: ['maj7','7','m7','7'],
+  },
+  {
+    name: 'Latin Comping',
+    desc: 'Bossa Nova / Latin 风格的伴奏',
+    bpm: 130,
+    pattern: [1,0,0,1,0,0,1,0,0,1,0,0,1,0,1,0],
+    chords: ['maj7','7','m7','7'],
+  },
+  {
+    name: '万丹 Comping',
+    desc: '节拍紧凑的切分伴奏，适合 medium swing',
+    bpm: 150,
+    pattern: [1,0,1,1,0,0,1,0],
+    chords: ['m7','7','maj7','7'],
+  },
+  {
+    name: 'Sparse / Space',
+    desc: '留白多，每个和弦之间有呼吸空间',
+    bpm: 120,
+    pattern: [1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0],
+    chords: ['m7','7','maj7','7'],
+  },
+  {
+    name: 'Double-time Comping',
+    desc: '快速的八分音符密集伴奏',
+    bpm: 100,
+    pattern: [1,1,1,1,1,1,1,1],
+    chords: ['m7','7','maj7','7'],
+  },
+];
+
+let compingRunning = false;
+let compingTimer = null;
+let compingBeat = 0;
+let compingPatternIdx = 0;
+
+function renderCompingPatterns() {
+  const container = document.getElementById('comping-patterns');
+  container.innerHTML = '';
+  COMPING_PATTERNS.forEach((p, idx) => {
+    const card = document.createElement('div');
+    card.className = 'info-panel';
+    card.style.cursor = 'pointer';
+    card.style.marginBottom = '12px';
+    // Visual pattern
+    const patternVis = p.pattern.map(b => b ? '■' : '□').join(' ');
+    card.innerHTML = `
+      <h3>${p.name}</h3>
+      <div class="formula">${p.desc} · ♩=${p.bpm}</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:16px;letter-spacing:2px;color:var(--text-dim);margin-top:8px">${patternVis}</div>
+    `;
+    card.onclick = () => {
+      compingPatternIdx = idx;
+      if (compingRunning) stopComping();
+      startComping();
+    };
+    container.appendChild(card);
+  });
+}
+
+function startComping() {
+  ensureAudio();
+  const p = COMPING_PATTERNS[compingPatternIdx];
+  const bpm = parseInt(document.getElementById('comping-bpm').value) || p.bpm;
+  const root = parseInt(document.getElementById('comping-root').value);
+  compingRunning = true;
+  compingBeat = 0;
+  document.getElementById('comping-play-btn').textContent = '⏸ 停止';
+
+  const beatMs = 60000 / bpm / 2; // eighth note
+  function tick() {
+    if (!compingRunning) return;
+    const patIdx = compingBeat % p.pattern.length;
+    const chordIdx = Math.floor(patIdx / (p.pattern.length / p.chords.length)) % p.chords.length;
+    if (p.pattern[patIdx]) {
+      const ct = CHORD_TYPES[p.chords[chordIdx]];
+      if (ct) {
+        playChord(48 + root, ct.intervals, beatMs / 1000 * 0.9);
+      }
+    }
+    compingBeat++;
+    compingTimer = setTimeout(tick, beatMs);
+  }
+  tick();
+}
+
+function stopComping() {
+  compingRunning = false;
+  clearTimeout(compingTimer);
+  document.getElementById('comping-play-btn').textContent = '▶ 播放';
+}
+
+function toggleComping() {
+  if (compingRunning) stopComping();
+  else startComping();
+}
+
 // --- Ear Training ---
 let earState = { correct: 0, wrong: 0, streak: 0, mode: 'chord-quality', currentAnswer: null };
 
@@ -1637,6 +1797,7 @@ function navigateTo(page) {
   if (page === 'standards') filterStandards();
   if (page === 'theory') showTheorySection('harmony');
   if (page === 'circle') buildCircleOfFifths();
+  if (page === 'comping') renderCompingPatterns();
 }
 
 // --- Populate selects ---
