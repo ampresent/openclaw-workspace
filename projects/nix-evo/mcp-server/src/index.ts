@@ -257,6 +257,18 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: "config_diff",
+    description: "对比新配置与当前配置的差异（行级 diff）。在 apply 前用于确认具体改动。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        config: { type: "string", description: "新的 NixOS 配置内容" },
+      },
+      required: ["config"],
+    },
+  },
+  {
     name: "config_apply",
     description: "应用 NixOS 配置变更（执行 nixos-rebuild switch）。会生成新的 generation，支持回滚。",
     inputSchema: {
@@ -540,6 +552,28 @@ function formatBackupRestore(result: any): string {
   return parts.join("\n");
 }
 
+function formatDiffOutput(result: any): string {
+  const parts: string[] = [];
+
+  if (!result.has_changes) {
+    return "✅ 配置无变更";
+  }
+
+  parts.push(`📝 ${result.summary}\n`);
+
+  for (const f of result.files_changed || []) {
+    parts.push(`📄 ${f.path} (${f.status}, ${f.diff_lines} 行变更)`);
+  }
+
+  if (result.diff) {
+    parts.push(`\n\`\`\`diff`);
+    parts.push(result.diff);
+    parts.push("```");
+  }
+
+  return parts.join("\n");
+}
+
 // ─── Main server ──────────────────────────────────────────────────────────
 
 async function main() {
@@ -604,6 +638,12 @@ async function main() {
           });
           break;
 
+        case "config_diff":
+          result = await agentPost(hostName, host, "/api/config/diff", {
+            config: a.config,
+          });
+          break;
+
         case "config_apply":
           result = await agentPost(hostName, host, "/api/config/apply", {
             host: a.host,
@@ -660,6 +700,9 @@ async function main() {
           break;
         case "config_validate":
           text = `${formatValidateOutput(result)}\n\n---\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
+          break;
+        case "config_diff":
+          text = formatDiffOutput(result);
           break;
         case "config_generate":
           text = formatGenerateOutput(result);

@@ -20,6 +20,21 @@ use cmd::*;
 /// Shared application state passed to all handlers
 pub struct AppState {
     pub config: Config,
+    /// Monotonic request counter for tracing
+    pub request_count: std::sync::atomic::AtomicU64,
+}
+
+impl AppState {
+    pub fn new(config: Config) -> Self {
+        Self {
+            config,
+            request_count: std::sync::atomic::AtomicU64::new(0),
+        }
+    }
+
+    pub fn next_request_id(&self) -> u64 {
+        self.request_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1
+    }
 }
 
 #[tokio::main]
@@ -37,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
     let addr = config.bind_addr();
     let has_token = config.api_token.is_some();
 
-    let state = Arc::new(AppState { config });
+    let state = Arc::new(AppState::new(config));
 
     // API routes (require auth if token is set)
     let api_routes = Router::new()
@@ -48,6 +63,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/generations", get(generation_diff::handle))
         .route("/config/validate", post(config_validate::handle))
         .route("/config/apply", post(config_apply::handle))
+        .route("/config/diff", post(config_diff::handle))
         .route("/rollback", post(rollback::handle))
         .with_state(state.clone());
 

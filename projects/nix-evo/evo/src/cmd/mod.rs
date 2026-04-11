@@ -6,6 +6,9 @@ pub mod generation_diff;
 pub mod config_validate;
 pub mod config_apply;
 pub mod rollback;
+pub mod config_diff;
+pub mod config_test;
+pub mod ai_config;
 
 use axum::extract::{Query, State};
 use axum::Json;
@@ -20,26 +23,55 @@ pub struct HostQuery {
     pub host: Option<String>,
 }
 
-/// Helper: run a shell command and return stdout
+/// Default command timeout in seconds
+const CMD_TIMEOUT_SECS: u64 = 120;
+
+/// Helper: run a shell command with timeout and return stdout
 pub async fn run_cmd(cmd: &str, args: &[&str]) -> Result<String, AppError> {
-    let output = tokio::process::Command::new(cmd)
+    run_cmd_with_timeout(cmd, args, CMD_TIMEOUT_SECS).await
+}
+
+/// Helper: run a shell command with configurable timeout
+pub async fn run_cmd_with_timeout(
+    cmd: &str,
+    args: &[&str],
+    timeout_secs: u64,
+) -> Result<String, AppError> {
+    let child = tokio::process::Command::new(cmd)
         .args(args)
-        .output()
-        .await
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
         .map_err(|e| AppError::CommandFailed {
             command: cmd.to_string(),
             message: format!("无法执行: {e}"),
         })?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(AppError::CommandFailed {
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(timeout_secs),
+        child.wait_with_output(),
+    )
+    .await
+    {
+        Ok(Ok(output)) => {
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(AppError::CommandFailed {
+                    command: cmd.to_string(),
+                    message: format!("退出码 {}: {}", output.status, stderr.trim()),
+                });
+            }
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        }
+        Ok(Err(e)) => Err(AppError::CommandFailed {
             command: cmd.to_string(),
-            message: format!("退出码 {}: {}", output.status, stderr.trim()),
-        });
+            message: format!("执行错误: {e}"),
+        }),
+        Err(_) => Err(AppError::CommandFailed {
+            command: cmd.to_string(),
+            message: format!("命令超时 (>{timeout_secs}s)"),
+        }),
     }
-
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
 /// Health response with version and system info
