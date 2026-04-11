@@ -280,6 +280,77 @@ fn resolve_conflicts(root: &Path, config: &crate::config::EvoConfig, args: &AiRe
     Ok(())
 }
 
+/// Public entrypoint for AI conflict resolution (called from rebase --ai).
+///
+/// Checks both .rej files and git merge conflict markers, then sends
+/// all context to the AI model for resolution suggestions.
+pub fn resolve_conflicts_ai(
+    root: &Path,
+    config: &crate::config::EvoConfig,
+    package: &str,
+) -> Result<()> {
+    let src = root.join("src").join(package);
+    if !src.exists() {
+        bail!("package '{}' not found", package);
+    }
+
+    let system = r#"You are an expert Linux systems programmer resolving source code conflicts.
+Analyze the conflicts and provide a step-by-step resolution plan.
+If a fix can be expressed as shell commands (git checkout --ours/ours, sed, etc.), include them.
+Be concise and actionable."#;
+
+    let mut context = String::new();
+
+    // Collect .rej files
+    let rej_files = find_reject_files(&src);
+    for rej in &rej_files {
+        if let Ok(content) = std::fs::read_to_string(rej) {
+            context.push_str(&format!("=== REJECT: {} ===\n{}\n\n", rej.display(), content));
+        }
+    }
+
+    // Collect git conflict markers (unmerged files)
+    let status_output = super::util::git_output(&src, &["diff", "--name-only", "--diff-filter=U"])
+        .unwrap_or_default();
+    if !status_output.is_empty() {
+        context.push_str("=== UNMERGED FILES ===\n");
+        context.push_str(&status_output);
+        context.push_str("\n\n");
+
+        for file in status_output.lines() {
+            let file_path = src.join(file);
+            if let Ok(content) = std::fs::read_to_string(&file_path) {
+                // Only include files with conflict markers
+                if content.contains("<<<<<<<") {
+                    context.push_str(&format!("=== CONFLICT: {} ===\n{}\n\n", file, content));
+                }
+            }
+        }
+    }
+
+    // Collect git apply failure info
+    let diff_stat = super::util::git_output(&src, &["diff", "--stat"]).unwrap_or_default();
+    if !diff_stat.is_empty() {
+        context.push_str(&format!("=== CURRENT DIFF STAT ===\n{}\n\n", diff_stat));
+    }
+
+    if context.is_empty() {
+        println!("{} no conflicts found in {}", "→".dimmed(), package);
+        return Ok(());
+    }
+
+    let user = format!(
+        "Package: {}\n\n{}\n\nHow should these conflicts be resolved?",
+        package, context
+    );
+
+    println!("{} asking AI for conflict resolution...", "→".dimmed());
+    let response = call_model(config, system, &user)?;
+    println!();
+    println!("{}", response);
+    Ok(())
+}
+
 fn show_config(config: &crate::config::EvoConfig) -> Result<()> {
     
     let ai = config.ai.clone().unwrap_or_else(|| AiConfig::default());

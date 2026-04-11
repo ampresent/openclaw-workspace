@@ -46,7 +46,7 @@ evo ai analyze/patch/resolve/config  # AI 驱动
 
 ## 待办
 
-- [ ] build: patch apply 改用 `git apply` 支持新增文件
-- [ ] `.evo/config.toml` 自动从 OpenClaw 复制 AI 配置
-- [ ] `evo ai resolve` — rebase 冲突时自动调用
+- [x] build: patch apply 改用 `git apply` 支持新增文件
+- [x] `.evo/config.toml` 自动从 OpenClaw 复制 AI 配置
+- [x] `evo ai resolve` — rebase 冲突时自动调用（`evo rebase --ai`）
 - [ ] TUI 看板 (ratatui)

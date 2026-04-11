@@ -95,8 +95,8 @@ pub fn apply_patches(src: &Path, patches: &[PathBuf]) -> Result<(usize, Vec<Stri
 
     for patch in patches {
         let name = patch.file_name().unwrap().to_string_lossy().to_string();
-        let result = Command::new("patch")
-            .args(["-p1", "--forward", "--no-backup-if-mismatch", "-i"])
+        let result = Command::new("git")
+            .args(["apply", "--whitespace=nowarn"])
             .arg(patch)
             .current_dir(src)
             .output()?;

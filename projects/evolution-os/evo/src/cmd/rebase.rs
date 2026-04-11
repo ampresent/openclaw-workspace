@@ -20,6 +20,10 @@ pub struct RebaseArgs {
     /// Keep the downloaded src.rpm for inspection
     #[arg(long)]
     keep_srpm: bool,
+
+    /// Auto-resolve conflicts with AI
+    #[arg(long)]
+    ai: bool,
 }
 
 pub fn run(args: RebaseArgs, root: Option<&str>) -> Result<()> {
@@ -37,6 +41,7 @@ pub fn run(args: RebaseArgs, root: Option<&str>) -> Result<()> {
     }
 
     let mut results = RebaseResults::default();
+    let mut conflict_packages: Vec<String> = Vec::new();
 
     for pkg in &packages {
         println!();
@@ -65,6 +70,7 @@ pub fn run(args: RebaseArgs, root: Option<&str>) -> Result<()> {
                         println!("    conflict: {}", c);
                     }
                     results.conflicts += 1;
+                    conflict_packages.push(pkg.clone());
                 }
             }
             Err(e) => {
@@ -82,13 +88,33 @@ pub fn run(args: RebaseArgs, root: Option<&str>) -> Result<()> {
     println!("  conflicts:  {}", results.conflicts);
     println!("  failed:     {}", results.failed);
 
-    if results.conflicts > 0 {
-        println!();
-        println!(
-            "{} {} package(s) have conflicts. Resolve manually or use AI assist.",
-            "⚠".yellow(),
-            results.conflicts
-        );
+    // Auto-resolve conflicts with AI if --ai flag is set
+    if !conflict_packages.is_empty() {
+        if args.ai {
+            println!();
+            println!("{} invoking AI conflict resolver...", "→".dimmed());
+            match crate::config::load_config(&root) {
+                Ok(config) => {
+                    for pkg in &conflict_packages {
+                        println!();
+                        println!("{} resolving {}...", "→".dimmed(), pkg);
+                        if let Err(e) = super::ai::resolve_conflicts_ai(&root, &config, pkg) {
+                            println!("{} AI resolve failed for {}: {}", "✗".red(), pkg, e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("{} could not load AI config: {}", "⚠".yellow(), e);
+                }
+            }
+        } else {
+            println!();
+            println!(
+                "{} {} package(s) have conflicts. Use `evo rebase --ai` for auto-resolution.",
+                "⚠".yellow(),
+                results.conflicts
+            );
+        }
     }
 
     Ok(())
@@ -234,9 +260,9 @@ fn rebase_package(root: &Path, package: &str, args: &RebaseArgs) -> Result<Rebas
 
             print!("    {} {}...", "→".dimmed(), name);
 
-            let result = Command::new("patch")
-                .args(["-p1", "--forward", "--no-backup-if-mismatch"])
-                .arg("-i")
+            // git apply supports new files, renames, and binary diffs
+            let result = Command::new("git")
+                .args(["apply", "--whitespace=nowarn"])
                 .arg(&patch_path)
                 .current_dir(&src)
                 .output()?;
@@ -245,25 +271,26 @@ fn rebase_package(root: &Path, package: &str, args: &RebaseArgs) -> Result<Rebas
                 println!(" {}", "ok".green());
                 applied += 1;
             } else {
-                // Check if it partially applied
-                let reject_check = Command::new("patch")
-                    .args(["-p1", "--dry-run", "-i"])
+                // Check if patch could apply with 3-way merge
+                let check = Command::new("git")
+                    .args(["apply", "--check", "--whitespace=nowarn"])
                     .arg(&patch_path)
                     .current_dir(&src)
                     .output()?;
 
-                if reject_check.status.success() {
-                    // Conflicts but patch can still apply with fuzz
-                    let stderr = String::from_utf8_lossy(&result.stderr);
-                    if stderr.contains("saving rejects") {
+                if check.status.success() {
+                    // Try with 3-way merge as fallback
+                    let retry = Command::new("git")
+                        .args(["apply", "--3way", "--whitespace=nowarn"])
+                        .arg(&patch_path)
+                        .current_dir(&src)
+                        .output()?;
+                    if retry.status.success() {
+                        println!(" {}", "ok (3way)".yellow());
+                        applied += 1;
+                    } else {
                         println!(" {}", "CONFLICT".red());
-                        conflicts.push(name.clone());
-
-                        // Show conflict hints
-                        let rej_file = src.join(format!("{}.rej", "unknown"));
-                        if rej_file.exists() {
-                            println!("      rejects: {}", rej_file.display());
-                        }
+                        conflicts.push(name);
                     }
                 } else {
                     println!(" {}", "FAILED".red());

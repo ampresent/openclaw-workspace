@@ -99,11 +99,19 @@ evolve-tool: unrecognized option '--render-gif'
 是否分析 evolve-tool 源码以增加该参数？[Y/n]
 ```
 
-**场景 B：命令不存在**
+**场景 B：Rebase 冲突自动解决**
 ```
-$ deploy-k8s-app
-Command 'deploy-k8s-app' not found
-未找到该命令。是否需要创建名为 'deploy-k8s-app' 的新软件包骨架？
+$ evo rebase --ai
+  → fetching upstream src.rpm...
+  → applying new base source...
+  → reapplying 3 patches...
+    → 0001-custom-sched.patch ok
+    → 0002-evo-hook.patch CONFLICT
+    → 0003-another.patch ok
+  rebase: upstream update (2 patches, 1 conflicts)
+  → invoking AI conflict resolver...
+  → resolving kernel...
+  [AI suggests resolution steps...]
 ```
 
 ### 4.3 进化暂停开关

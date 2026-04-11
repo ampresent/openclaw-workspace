@@ -296,9 +296,9 @@ fn apply_patches(root: &Path, args: &PatchApplyArgs) -> Result<()> {
         let name = patch.file_name().unwrap().to_string_lossy();
         print!("  {} {}...", "→".dimmed(), name);
 
-        let result = Command::new("patch")
-            .args(["-p1", "--forward", "--no-backup-if-mismatch"])
-            .arg("-i")
+        // git apply supports new files, renames, and binary diffs
+        let result = Command::new("git")
+            .args(["apply", "--whitespace=nowarn"])
             .arg(patch)
             .current_dir(&src)
             .output()?;
