@@ -33,6 +33,7 @@ pub mod bench;
 pub mod topology;
 pub mod timetravel;
 pub mod chaos;
+pub mod patterns;
 
 use axum::{
     routing::{get, post},
@@ -182,6 +183,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/chaos/start", post(chaos::handle_start))
         .route("/chaos/status", get(chaos::handle_chaos_status))
         .route("/chaos/report", get(chaos::handle_report))
+        // Experimental v6: Nix Config Pattern Library
+        .route("/patterns", get(patterns::handle_list))
+        .route("/patterns/:id", get(patterns::handle_get))
         .with_state(state.clone());
 
     // Apply auth middleware to API routes if token is configured
