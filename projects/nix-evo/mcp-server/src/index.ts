@@ -185,6 +185,18 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: "config_list",
+    description: "列出 NixOS 配置目录中的所有文件和 import 结构。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        dir: { type: "string", description: "配置目录路径，默认 /etc/nixos" },
+      },
+      required: [],
+    },
+  },
+  {
     name: "package_info",
     description: "查询已安装包的详细信息。",
     inputSchema: {
@@ -539,6 +551,45 @@ function formatDiffOutput(result: any): string {
   return parts.join("\n");
 }
 
+function formatConfigList(result: any): string {
+  const parts: string[] = [];
+
+  parts.push(`📂 配置目录: ${result.config_dir} (${result.total_files} 个文件)\n`);
+
+  const nixFiles = result.files?.filter((f: any) => f.is_nix) || [];
+  const otherFiles = result.files?.filter((f: any) => !f.is_nix) || [];
+
+  if (nixFiles.length > 0) {
+    parts.push(`📄 Nix 配置文件:`);
+    for (const f of nixFiles) {
+      const size = f.size_bytes > 1024
+        ? `${(f.size_bytes / 1024).toFixed(1)}K`
+        : `${f.size_bytes}B`;
+      parts.push(`  ${f.name} (${size})`);
+    }
+  }
+
+  if (result.imports?.length > 0) {
+    parts.push(`\n🔗 Import 结构:`);
+    for (const imp of result.imports) {
+      const src = imp.source.split('/').pop();
+      parts.push(`  ${src}:`);
+      for (const i of imp.imports) {
+        parts.push(`    → ${i}`);
+      }
+    }
+  }
+
+  if (otherFiles.length > 0) {
+    parts.push(`\n📎 其他文件:`);
+    for (const f of otherFiles) {
+      parts.push(`  ${f.name}`);
+    }
+  }
+
+  return parts.join("\n");
+}
+
 // ─── Main server ──────────────────────────────────────────────────────────
 
 async function main() {
@@ -584,6 +635,12 @@ async function main() {
           result = await agentGet(baseUrl, token, "/api/config", {
             host: a.host as string,
             path: a.path as string,
+          });
+          break;
+
+        case "config_list":
+          result = await agentGet(baseUrl, token, "/api/config/list", {
+            dir: a.dir as string,
           });
           break;
 
@@ -677,6 +734,9 @@ async function main() {
           break;
         case "config_diff":
           text = formatDiffOutput(result);
+          break;
+        case "config_list":
+          text = formatConfigList(result);
           break;
         case "config_generate":
           text = formatGenerateOutput(result);

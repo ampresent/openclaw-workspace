@@ -67,6 +67,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/snapshot", get(system_snapshot::handle))
         .route("/logs", get(service_logs::handle))
         .route("/config", get(config_read::handle))
+        .route("/config/list", get(config_list::handle))
         .route("/package", get(package_info::handle))
         .route("/generations", get(generation_diff::handle))
         .route("/config/validate", post(config_validate::handle))
