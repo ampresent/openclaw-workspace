@@ -8,6 +8,7 @@ pub mod docker;
 pub mod cicd;
 pub mod observability;
 pub mod dev;
+pub mod api_version;
 pub mod tracing_middleware;
 pub mod limiter;
 
@@ -132,8 +133,12 @@ async fn main() -> anyhow::Result<()> {
         api_routes
     };
 
+    // Version info endpoint (no auth)
+    let version_routes = Router::new()
+        .route("/versions", get(api_version::list_versions));
+
     let app = Router::new()
-        .nest("/api", api_routes)
+        .nest("/api", api_routes.merge(version_routes))
         .route("/health", get(cmd::health_handler))
         .layer(CorsLayer::permissive())
         .layer(axum::middleware::from_fn(tracing_middleware::request_tracing))
