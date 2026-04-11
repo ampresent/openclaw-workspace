@@ -19,6 +19,12 @@ pub mod config_builder;
 pub mod capacity;
 pub mod gitops;
 pub mod plugin;
+pub mod health_score;
+pub mod compat;
+pub mod stream;
+pub mod predict;
+pub mod composer;
+pub mod doctor;
 
 use axum::{
     routing::{get, post},
@@ -57,6 +63,10 @@ async fn main() -> anyhow::Result<()> {
     // Start self-healer background task
     healer::start_background_task();
     tracing::info!("Self-healer background task started");
+
+    // Start config file stream watcher
+    stream::start_file_watcher();
+    tracing::info!("Config file stream watcher started");
 
     // API routes (require auth if token is set)
     let api_routes = Router::new()
@@ -116,6 +126,20 @@ async fn main() -> anyhow::Result<()> {
         // Experimental v3: Plugin System
         .route("/plugins", get(plugin::handle_list))
         .route("/plugins/health", get(plugin::handle_health))
+        // Experimental v4: AI-Powered Nix Doctor
+        .route("/doctor/diagnose", post(doctor::handle_diagnose))
+        .route("/doctor/knowledge", get(doctor::handle_knowledge))
+        // Experimental v4: Service Orchestration Composer
+        .route("/compose", post(composer::handle_compose))
+        .route("/compose/status", get(composer::handle_status))
+        // Experimental v4: Predictive Failure Detection
+        .route("/predict/alerts", get(predict::handle_alerts))
+        // Experimental v4: Cross-Distro Compatibility
+        .route("/compat/translate", post(compat::handle_translate))
+        // Experimental v4: System Health Score
+        .route("/health/score", get(health_score::handle_score))
+        // Experimental v4: Config Streaming (WebSocket)
+        .route("/stream/config", get(stream::handle_ws))
         .with_state(state.clone());
 
     // Apply auth middleware to API routes if token is configured
@@ -135,6 +159,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/timeline", get(serve_timeline_html))
         .route("/security", get(serve_security_html))
         .route("/builder", get(serve_builder_html))
+        .route("/doctor", get(serve_doctor_html))
+        .route("/composer", get(serve_composer_html))
+        .route("/health", get(serve_health_html))
         .with_state(state.clone());
 
     let app = Router::new()
@@ -151,6 +178,9 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Builder:   http://{addr}/builder");
     tracing::info!("Deps:      http://{addr}/deps");
     tracing::info!("Timeline:  http://{addr}/timeline");
+    tracing::info!("Doctor:    http://{addr}/doctor");
+    tracing::info!("Composer:  http://{addr}/composer");
+    tracing::info!("Health:    http://{addr}/health");
     if has_token {
         tracing::info!("API token authentication enabled");
     } else {
@@ -189,5 +219,23 @@ async fn serve_security_html() -> axum::response::Html<String> {
 /// Serve the config builder HTML page
 async fn serve_builder_html() -> axum::response::Html<String> {
     let html = include_str!("../static/builder.html");
+    axum::response::Html(html.to_string())
+}
+
+/// Serve the doctor HTML page
+async fn serve_doctor_html() -> axum::response::Html<String> {
+    let html = include_str!("../static/doctor.html");
+    axum::response::Html(html.to_string())
+}
+
+/// Serve the composer HTML page
+async fn serve_composer_html() -> axum::response::Html<String> {
+    let html = include_str!("../static/composer.html");
+    axum::response::Html(html.to_string())
+}
+
+/// Serve the health score HTML page
+async fn serve_health_html() -> axum::response::Html<String> {
+    let html = include_str!("../static/health.html");
     axum::response::Html(html.to_string())
 }
