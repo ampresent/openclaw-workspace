@@ -313,3 +313,59 @@ Seven new MCP tools wrapping all V2 features:
 - Metrics uses `AtomicU64` + `RwLock` for thread-safe lock-free counting
 - `/metrics` endpoint is deliberately outside auth (standard for Prometheus)
 - MCP tools include human-readable formatting + raw JSON for all responses
+
+---
+
+## Round 2: Tests, New Features, and Tooling
+
+### New Features (3)
+
+#### Feature 6: Config Diff Engine (`configdiff.rs`)
+Deep configuration comparison with structured analysis:
+- Parses NixOS configs into sections (services, packages, networking, security)
+- Generates unified diff between two configurations
+- Risk scoring (0-100) with categorized factors
+- Detects service additions/removals, package changes, network/security modifications
+- **Endpoint:** `POST /api/config/diff`
+
+#### Feature 7: Service Dependency Graph (`depgraph.rs`)
+BFS-based systemd dependency analyzer:
+- Builds dependency graph from `systemctl show` data
+- Detects circular dependencies via DFS
+- Finds critical path (longest dependency chain)
+- Calculates failure impact (what breaks if X goes down)
+- **Endpoint:** `GET /api/deps?focus=sshd.service&depth=3`
+
+#### Feature 8: Chaos Engineering (`chaos.rs`)
+Controlled fault injection for resilience testing:
+- Kill services, stop processes, saturate CPU, fill disk, drop packets
+- Configurable intensity and duration
+- Auto-recovery after experiment
+- Experiment history tracking
+- **Endpoints:** `GET /api/chaos/experiments`, `POST /api/chaos/start`, `POST /api/chaos/stop`
+
+### Test Suites (5 files, ~50 tests)
+
+| File | Type | Count | Coverage |
+|------|------|-------|----------|
+| `audit_tests.rs` | Rust unit | 13 | Audit log: serialization, hashing, filtering, action extraction |
+| `flake_tests.rs` | Rust unit | 12 | Flake converter: hostname, services, legacy refs, generation |
+| `integration_tests.rs` | Rust HTTP | 11 | All endpoints: routes, errors, CORS, JSON format |
+| `experimental.test.ts` | TypeScript | ~30 | All MCP tools: mock API, multi-host, error handling |
+| `integration_test.sh` | Shell E2E | ~20 | Full endpoint suite with JSON assertions |
+
+### Tooling
+
+- **`bench.py`** — Python benchmark: latency p50/p95/p99, RPS, concurrency stress test
+- **`audit_middleware.rs`** — Automatic audit logging for every API call
+- **`integration_test.sh`** — Runnable against live agent with colored output
+
+### Updated MCP Tools
+
+6 total experimental tools now:
+- `dashboard_subscribe` — live metrics
+- `audit_query` — audit logs
+- `healer_status` — self-healer state
+- `flake_convert` — flake.nix generation
+- `config_diff` — deep config comparison (NEW)
+- `service_deps` — dependency graph (NEW)
