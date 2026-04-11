@@ -34,6 +34,7 @@ pub mod topology;
 pub mod timetravel;
 pub mod chaos;
 pub mod patterns;
+pub mod impact;
 
 use axum::{
     routing::{get, post},
@@ -186,6 +187,8 @@ async fn main() -> anyhow::Result<()> {
         // Experimental v6: Nix Config Pattern Library
         .route("/patterns", get(patterns::handle_list))
         .route("/patterns/:id", get(patterns::handle_get))
+        // Experimental v6: Config Impact Analyzer
+        .route("/impact/analyze", post(impact::handle_analyze))
         .with_state(state.clone());
 
     // Apply auth middleware to API routes if token is configured
