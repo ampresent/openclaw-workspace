@@ -128,9 +128,9 @@ fn render_static(report: &StatusReport) {
     println!(
         "║  Frozen:      {:<43} ║",
         if report.frozen {
-            "yes ⛔".to_string()
+            "yes".red().bold().to_string()
         } else {
-            "no".to_string()
+            "no".dimmed().to_string()
         }
     );
     println!(
@@ -317,7 +317,7 @@ fn draw_tui(frame: &mut Frame, app: &App) {
         .split(size);
 
     // ── Header ──
-    let frozen_str = if app.report.frozen { "⛔ FROZEN" } else { "🟢 LIVE" };
+    let frozen_str = if app.report.frozen { "FROZEN" } else { "LIVE" };
     let header_text = vec![
         Line::from(vec![
             Span::styled("  Evolution OS", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),

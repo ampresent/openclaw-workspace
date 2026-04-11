@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-"""Record evo TUI via tmux capture-pane → MP4 video."""
+"""Record evo TUI via tmux capture-pane → MP4 video with Unicode fallback."""
 
-import subprocess, os, time
-from PIL import Image, ImageDraw, ImageFont
+import subprocess, os, time, sys
 
-FONT_SIZE = 14
-CHAR_W = int(FONT_SIZE * 0.6)
-CHAR_H = FONT_SIZE + 4
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from gif_utils import (
+    load_fonts, CHAR_W, CHAR_H, FONT_SIZE,
+    ANSI_COLORS, CHAR_REPLACEMENTS, char_supported,
+)
+from PIL import Image, ImageDraw
+
 COLS, ROWS = 100, 30
 PAD = 12
 BG = (18, 18, 24)
 FG = (204, 204, 204)
 
-# ANSI colors
+# ANSI foreground color names → RGB
 FG_MAP = {
     'black': (0,0,0), 'red': (205,49,49), 'green': (13,188,121),
     'yellow': (229,229,16), 'blue': (36,114,200), 'magenta': (188,63,188),
@@ -27,20 +30,9 @@ SESSION = "evo-tui-test"
 EVO = "/root/.openclaw/workspace/projects/evolution-os/evo/target/release/evo"
 
 
-def get_fonts():
-    try:
-        return (
-            ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", FONT_SIZE),
-            ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf", FONT_SIZE),
-            ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16),
-        )
-    except Exception:
-        f = ImageFont.load_default()
-        return f, f, f
-
-
 def parse_tmux_capture(text):
-    """Parse tmux capture-pane output (plain text with [Xm codes)."""
+    """Parse tmux capture-pane output with Unicode fallback."""
+    mono, _, _, _ = load_fonts()
     lines = text.split('\n')
     result = []
     for line in lines:
@@ -85,28 +77,43 @@ def parse_tmux_capture(text):
                             bg = FG_MAP.get(names[c-100])
                     i = j + 1
                     continue
-            parsed.append((line[i], fg, bg, bold))
+
+            ch = line[i]
+            # Apply Unicode fallback
+            if ord(ch) >= 128 and not char_supported(mono, ch):
+                if ch in CHAR_REPLACEMENTS:
+                    repl_text, repl_color_code = CHAR_REPLACEMENTS[ch]
+                    # Get replacement color
+                    repl_fg = fg
+                    if repl_color_code is not None:
+                        repl_fg = ANSI_COLORS.get(repl_color_code)
+                    for rc in repl_text:
+                        parsed.append((rc, repl_fg, bg, bold))
+                else:
+                    parsed.append(('?', fg, bg, bold))
+            else:
+                parsed.append((ch, fg, bg, bold))
             i += 1
         result.append(parsed)
     return result
 
 
 def render_frame(parsed_lines, title, step_label):
+    mono, mono_bold, font_title, _ = load_fonts()
     w = COLS * CHAR_W + PAD * 2
     title_h = 38
     h = ROWS * CHAR_H + PAD * 2 + title_h
     img = Image.new('RGB', (w, h), BG)
     draw = ImageDraw.Draw(img)
-    font, font_bold, font_title = get_fonts()
 
     # Title
     draw.rectangle([0, 0, w, title_h], fill=(30, 30, 38))
-    draw.text((PAD, 10), f"\U0001f3ae  evo status --live  |  {title}", fill=(41,184,219), font=font_title)
+    draw.text((PAD, 10), f"\u25cf  evo status --live  |  {title}", fill=(41,184,219), font=font_title)
     draw.line([(0, title_h), (w, title_h)], fill=(50,50,60), width=1)
 
     # Step label (bottom-right)
     draw.text((w - PAD - len(step_label) * CHAR_W, h - PAD - CHAR_H),
-              step_label, fill=(100,100,100), font=font)
+              step_label, fill=(100,100,100), font=mono)
 
     # Render lines
     for r, line_chars in enumerate(parsed_lines):
@@ -118,7 +125,7 @@ def render_frame(parsed_lines, title, step_label):
             if bg:
                 draw.rectangle([x, y, x+CHAR_W, y+CHAR_H], fill=bg)
             if ch != ' ':
-                f = font_bold if bold else font
+                f = mono_bold if bold else mono
                 draw.text((x, y+1), ch, fill=fg or FG, font=f)
             x += CHAR_W
     return img
@@ -142,19 +149,19 @@ def main():
 
     frames = []
     actions = [
-        (1.0, "\U0001f3ae TUI 加载中"),
-        (1.5, "\u2460 初始看板"),
-        (0.3, "\u2461 按 ↓"),
-        (0.8, "\u2462 选择 gcc"),
-        (0.3, "\u2463 按 Enter"),
-        (1.2, "\u2464 展开 Patch 详情"),
-        (0.3, "\u2465 按 r"),
-        (1.0, "\u2466 刷新状态"),
-        (0.3, "\u2467 按 f"),
-        (1.2, "\u2468 冻结系统"),
-        (0.3, "\u2469 再按 f"),
-        (1.0, "\u246a 解冻"),
-        (0.5, "\u246b 退出"),
+        (1.0, "\u25cf TUI \u52a0\u8f7d\u4e2d"),
+        (1.5, "\u2460 \u521d\u59cb\u770b\u677f"),
+        (0.3, "\u2461 \u6309 \u2193"),
+        (0.8, "\u2462 \u9009\u62e9 gcc"),
+        (0.3, "\u2463 \u6309 Enter"),
+        (1.2, "\u2464 \u5c55\u5f00 Patch \u8be6\u60c5"),
+        (0.3, "\u2465 \u6309 r"),
+        (1.0, "\u2466 \u5237\u65b0\u72b6\u6001"),
+        (0.3, "\u2467 \u6309 f"),
+        (1.2, "\u2468 \u51bb\u7ed3\u7cfb\u7edf"),
+        (0.3, "\u2469 \u518d\u6309 f"),
+        (1.0, "\u246a \u89e3\u51bb"),
+        (0.5, "\u246b \u9000\u51fa"),
     ]
 
     key_seq = [
@@ -204,7 +211,7 @@ def main():
     )
     if r.returncode == 0:
         size_kb = os.path.getsize(mp4_path) / 1024
-        print(f"\n✅ Video: {mp4_path} ({size_kb:.0f} KB)")
+        print(f"\n\u2705 Video: {mp4_path} ({size_kb:.0f} KB)")
     else:
         print(f"Error: {r.stderr[:200]}")
 

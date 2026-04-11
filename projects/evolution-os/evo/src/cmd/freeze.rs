@@ -22,10 +22,10 @@ pub fn run(args: FreezeArgs, root: Option<&str>) -> Result<()> {
     if args.status {
         if lock_path.exists() {
             let since = std::fs::read_to_string(&lock_path).unwrap_or_default();
-            println!("System is {} (since {})", "FROZEN ⛔".red().bold(), since.trim());
+            println!("System is {} (since {})", "FROZEN".red().bold(), since.trim());
             println!("Run `evo freeze --unfreeze` to resume evolution.");
         } else {
-            println!("System is {} — evolution active", "live 🟢".green().bold());
+            println!("System is {} — evolution active", "LIVE".green().bold());
         }
         return Ok(());
     }
