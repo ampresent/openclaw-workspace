@@ -7,6 +7,7 @@ pub mod backup;
 pub mod docker;
 pub mod cicd;
 pub mod observability;
+pub mod dev;
 pub mod tracing_middleware;
 pub mod limiter;
 
@@ -105,6 +106,15 @@ async fn main() -> anyhow::Result<()> {
         .route("/observability/alerts/check", post(observability::check_alerts))
         .route("/observability/alerts/rules", post(observability::upsert_alert_rule))
         .route("/observability/config", get(observability::get_observability_config));
+
+    // Developer experience routes
+    let api_routes = api_routes
+        .route("/dev/mode", post(dev::toggle_dev_mode))
+        .route("/dev/status", get(dev::dev_status))
+        .route("/dev/mock/service", post(dev::mock_service))
+        .route("/dev/mock/generation", post(dev::mock_apply))
+        .route("/dev/mock/reset", post(dev::mock_reset))
+        .route("/dev/mock/snapshot", get(dev::mock_snapshot));
 
     // AI config generation routes
     let api_routes = api_routes
