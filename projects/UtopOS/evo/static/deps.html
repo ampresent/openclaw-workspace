@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nix-evo · Config Dependency Graph</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'SF Mono', 'Fira Code', monospace; background: #0d1117; color: #c9d1d9; overflow: hidden; height: 100vh; }
+header { background: #161b22; border-bottom: 1px solid #30363d; padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
+header h1 { font-size: 16px; color: #58a6ff; }
+header .controls { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+header input, header select, header button {
+  background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; padding: 6px 12px;
+  border-radius: 6px; font-size: 13px; font-family: inherit;
+}
+header button { background: #238636; border-color: #238636; cursor: pointer; }
+header button:hover { background: #2ea043; }
+#canvas-container { width: 100%; height: calc(100vh - 52px); position: relative; }
+svg { width: 100%; height: 100%; }
+.tooltip {
+  position: absolute; background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+  padding: 10px 14px; font-size: 12px; pointer-events: none; display: none; z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.tooltip .name { color: #58a6ff; font-weight: bold; font-size: 14px; }
+.tooltip .kind { color: #8b949e; font-size: 11px; text-transform: uppercase; }
+.tooltip .status { margin-top: 4px; }
+.legend {
+  position: absolute; bottom: 16px; right: 16px; background: #161b22; border: 1px solid #30363d;
+  border-radius: 8px; padding: 12px; font-size: 11px;
+}
+.legend div { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.legend .swatch { width: 12px; height: 12px; border-radius: 3px; }
+.status-bar {
+  position: absolute; bottom: 16px; left: 16px; background: #161b22; border: 1px solid #30363d;
+  border-radius: 8px; padding: 10px 14px; font-size: 12px;
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔍 Config Dependency Graph</h1>
+  <div class="controls">
+    <input id="config-path" type="text" value="/etc/nixos/configuration.nix" placeholder="Config path" style="width:280px">
+    <select id="depth">
+      <option value="3">Depth 3</option>
+      <option value="5" selected>Depth 5</option>
+      <option value="10">Depth 10</option>
+    </select>
+    <button onclick="loadGraph()">Load Graph</button>
+    <button onclick="loadDemo()">Demo</button>
+    <select id="format" onchange="if(graphData)renderGraph(graphData)">
+      <option value="force">Force Layout</option>
+      <option value="tree">Tree Layout</option>
+    </select>
+  </div>
+</header>
+<div id="canvas-container">
+  <svg id="graph"></svg>
+  <div class="tooltip" id="tooltip"></div>
+  <div class="legend">
+    <div><div class="swatch" style="background:#4CAF50"></div> Enabled Service</div>
+    <div><div class="swatch" style="background:#90CAF9"></div> Disabled Service</div>
+    <div><div class="swatch" style="background:#FFCC80"></div> Library</div>
+    <div><div class="swatch" style="background:#CE93D8"></div> Runtime</div>
+    <div><div class="swatch" style="background:#B0BEC5"></div> Tool</div>
+  </div>
+  <div class="status-bar" id="status-bar">Ready</div>
+</div>
+<script>
+let graphData = null;
+const svg = document.getElementById('graph');
+const tooltip = document.getElementById('tooltip');
+const statusBar = document.getElementById('status-bar');
+
+async function loadGraph() {
+  const path = document.getElementById('config-path').value;
+  const depth = document.getElementById('depth').value;
+  statusBar.textContent = 'Loading...';
+  try {
+    const res = await fetch(`/api/deps/graph?config_path=${encodeURIComponent(path)}&depth=${depth}&format=json`);
+    graphData = await res.json();
+    renderGraph(graphData);
+    statusBar.textContent = `${graphData.nodes.length} nodes, ${graphData.edges.length} edges`;
+  } catch (e) {
+    statusBar.textContent = 'Error: ' + e.message;
+  }
+}
+
+function loadDemo() {
+  graphData = {
+    nodes: [
+      { id: 'nginx', label: 'nginx', kind: 'service', enabled: true },
+      { id: 'phpfpm', label: 'phpfpm', kind: 'service', enabled: true },
+      { id: 'postgresql', label: 'postgresql', kind: 'service', enabled: true },
+      { id: 'redis', label: 'redis', kind: 'service', enabled: true },
+      { id: 'openssh', label: 'openssh', kind: 'service', enabled: true },
+      { id: 'prometheus', label: 'prometheus', kind: 'service', enabled: false },
+      { id: 'grafana', label: 'grafana', kind: 'service', enabled: false },
+      { id: 'php', label: 'php', kind: 'runtime', enabled: false },
+      { id: 'openssl', label: 'openssl', kind: 'library', enabled: false },
+      { id: 'pcre', label: 'pcre', kind: 'library', enabled: false },
+      { id: 'zlib', label: 'zlib', kind: 'library', enabled: false },
+      { id: 'libxml2', label: 'libxml2', kind: 'library', enabled: false },
+      { id: 'systemd', label: 'systemd', kind: 'runtime', enabled: false },
+      { id: 'iptables', label: 'iptables', kind: 'tool', enabled: false },
+    ],
+    edges: [
+      { from: 'nginx', to: 'openssl', kind: 'requires' },
+      { from: 'nginx', to: 'pcre', kind: 'requires' },
+      { from: 'nginx', to: 'zlib', kind: 'requires' },
+      { from: 'phpfpm', to: 'php', kind: 'requires' },
+      { from: 'phpfpm', to: 'nginx', kind: 'uses' },
+      { from: 'php', to: 'openssl', kind: 'requires' },
+      { from: 'php', to: 'libxml2', kind: 'requires' },
+      { from: 'postgresql', to: 'openssl', kind: 'requires' },
+      { from: 'postgresql', to: 'systemd', kind: 'uses' },
+      { from: 'postgresql', to: 'zlib', kind: 'requires' },
+      { from: 'redis', to: 'systemd', kind: 'uses' },
+      { from: 'openssh', to: 'openssl', kind: 'requires' },
+      { from: 'openssh', to: 'systemd', kind: 'uses' },
+      { from: 'prometheus', to: 'systemd', kind: 'uses' },
+      { from: 'grafana', to: 'systemd', kind: 'uses' },
+    ],
+    dot: ''
+  };
+  renderGraph(graphData);
+  statusBar.textContent = `Demo: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges`;
+}
+
+const colors = {
+  service: '#90CAF9',
+  service_enabled: '#4CAF50',
+  library: '#FFCC80',
+  runtime: '#CE93D8',
+  tool: '#B0BEC5',
+  default: '#E0E0E0'
+};
+
+function getNodeColor(node) {
+  if (node.enabled) return colors.service_enabled;
+  return colors[node.kind] || colors.default;
+}
+
+function renderGraph(data) {
+  const container = document.getElementById('canvas-container');
+  const W = container.clientWidth;
+  const H = container.clientHeight;
+  const mode = document.getElementById('format').value;
+
+  // Build adjacency for physics
+  const nodeMap = {};
+  data.nodes.forEach(n => { nodeMap[n.id] = { ...n, x: W/2 + (Math.random()-0.5)*400, y: H/2 + (Math.random()-0.5)*400, vx: 0, vy: 0 }; });
+  const adjList = {};
+  data.nodes.forEach(n => adjList[n.id] = []);
+  data.edges.forEach(e => {
+    if (adjList[e.from]) adjList[e.from].push(e.to);
+    if (adjList[e.to]) adjList[e.to].push(e.from);
+  });
+
+  if (mode === 'tree') {
+    // Simple tree layout
+    const roots = data.nodes.filter(n => !data.edges.some(e => e.to === n.id));
+    const layers = [];
+    const visited = new Set();
+    let current = roots.length ? roots : [data.nodes[0]];
+    while (current.length && visited.size < data.nodes.length) {
+      layers.push(current);
+      current.forEach(n => visited.add(n.id));
+      const next = [];
+      current.forEach(n => {
+        data.edges.filter(e => e.from === n.id).forEach(e => {
+          if (!visited.has(e.to)) next.push(nodeMap[e.to]);
+        });
+      });
+      current = next;
+    }
+    layers.forEach((layer, li) => {
+      const y = 80 + li * (H - 160) / Math.max(layers.length - 1, 1);
+      layer.forEach((n, ni) => {
+        n.x = W / 2 + (ni - (layer.length-1)/2) * 160;
+        n.y = y;
+      });
+    });
+  } else {
+    // Force-directed simulation
+    for (let iter = 0; iter < 300; iter++) {
+      const nodes = Object.values(nodeMap);
+      // Repulsion
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i+1; j < nodes.length; j++) {
+          let dx = nodes[j].x - nodes[i].x;
+          let dy = nodes[j].y - nodes[i].y;
+          let dist = Math.sqrt(dx*dx + dy*dy) || 1;
+          let force = 5000 / (dist * dist);
+          let fx = dx/dist * force;
+          let fy = dy/dist * force;
+          nodes[i].x -= fx; nodes[i].y -= fy;
+          nodes[j].x += fx; nodes[j].y += fy;
+        }
+      }
+      // Attraction along edges
+      data.edges.forEach(e => {
+        const a = nodeMap[e.from], b = nodeMap[e.to];
+        if (!a || !b) return;
+        let dx = b.x - a.x, dy = b.y - a.y;
+        let dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        let force = (dist - 150) * 0.01;
+        let fx = dx/dist * force, fy = dy/dist * force;
+        a.x += fx; a.y += fy;
+        b.x -= fx; b.y -= fy;
+      });
+      // Center gravity
+      nodes.forEach(n => {
+        n.x += (W/2 - n.x) * 0.01;
+        n.y += (H/2 - n.y) * 0.01;
+      });
+    }
+  }
+
+  // Render SVG
+  let svgContent = `<defs>
+    <marker id="arrow" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,3 L0,6" fill="#484f58" />
+    </marker>
+  </defs>`;
+
+  // Edges
+  data.edges.forEach(e => {
+    const a = nodeMap[e.from], b = nodeMap[e.to];
+    if (!a || !b) return;
+    const dash = e.kind === 'uses' ? 'stroke-dasharray="6,4"' : '';
+    const opacity = e.kind === 'requires' ? '0.8' : '0.5';
+    // Shorten line to not overlap node circles
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const dist = Math.sqrt(dx*dx+dy*dy) || 1;
+    const r = 28;
+    const x1 = a.x + dx/dist*r, y1 = a.y + dy/dist*r;
+    const x2 = b.x - dx/dist*r, y2 = b.y - dy/dist*r;
+    svgContent += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#484f58" stroke-width="1.5" ${dash} opacity="${opacity}" marker-end="url(#arrow)" />`;
+    // Label
+    const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+    svgContent += `<text x="${mx}" y="${my-6}" fill="#8b949e" font-size="9" text-anchor="middle">${e.kind}</text>`;
+  });
+
+  // Nodes
+  data.nodes.forEach(n => {
+    const nd = nodeMap[n.id];
+    const color = getNodeColor(n);
+    const stroke = n.enabled ? '#ffffff' : 'none';
+    const sw = n.enabled ? 2 : 0;
+    svgContent += `<g class="node" data-id="${n.id}" style="cursor:pointer">
+      <circle cx="${nd.x}" cy="${nd.y}" r="26" fill="${color}" stroke="${stroke}" stroke-width="${sw}" opacity="0.9" />
+      <text x="${nd.x}" y="${nd.y+4}" fill="#0d1117" font-size="11" font-weight="bold" text-anchor="middle">${n.label.length>10?n.label.slice(0,9)+'…':n.label}</text>
+      <text x="${nd.x}" y="${nd.y+42}" fill="#8b949e" font-size="9" text-anchor="middle">${n.kind}</text>
+    </g>`;
+  });
+
+  svg.innerHTML = svgContent;
+
+  // Tooltip events
+  svg.querySelectorAll('.node').forEach(el => {
+    el.addEventListener('mouseenter', e => {
+      const id = el.dataset.id;
+      const n = data.nodes.find(x => x.id === id);
+      if (!n) return;
+      const deps = data.edges.filter(x => x.from === id).map(x => `${x.to} (${x.kind})`);
+      const revDeps = data.edges.filter(x => x.to === id).map(x => x.from);
+      tooltip.innerHTML = `
+        <div class="name">${n.id}</div>
+        <div class="kind">${n.kind} · ${n.enabled ? '✅ enabled' : '○ available'}</div>
+        ${deps.length ? `<div class="status">Depends on: ${deps.join(', ')}</div>` : ''}
+        ${revDeps.length ? `<div class="status">Required by: ${revDeps.join(', ')}</div>` : ''}
+      `;
+      tooltip.style.display = 'block';
+    });
+    el.addEventListener('mousemove', e => {
+      tooltip.style.left = (e.clientX + 12) + 'px';
+      tooltip.style.top = (e.clientY - 10) + 'px';
+    });
+    el.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+  });
+}
+
+// Load demo on start
+window.addEventListener('load', () => { loadDemo(); });
+window.addEventListener('resize', () => { if(graphData) renderGraph(graphData); });
+</script>
+</body>
+</html>

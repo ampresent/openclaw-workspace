@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NixOS Topology Map</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#0a0e1a;color:#e2e8f0;overflow:hidden;height:100vh}
+.header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:rgba(15,23,42,.95);border-bottom:1px solid rgba(99,102,241,.2);backdrop-filter:blur(10px);z-index:10;position:relative}
+.header h1{font-size:18px;font-weight:600;background:linear-gradient(135deg,#818cf8,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header .meta{font-size:12px;color:#64748b}
+.canvas-wrap{position:relative;width:100%;height:calc(100vh - 52px)}
+svg{width:100%;height:100%}
+.node{cursor:pointer;transition:filter .2s}
+.node:hover{filter:brightness(1.3) drop-shadow(0 0 12px rgba(99,102,241,.5))}
+.node-circle{transition:all .3s}
+.edge-line{stroke-width:1.5;fill:none;opacity:.6;transition:opacity .2s}
+.edge-line:hover{opacity:1;stroke-width:2.5}
+.tooltip{position:fixed;background:rgba(15,23,42,.95);border:1px solid rgba(99,102,241,.3);border-radius:8px;padding:12px 16px;font-size:13px;pointer-events:none;z-index:100;max-width:320px;backdrop-filter:blur(10px);display:none;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.tooltip h3{font-size:14px;margin-bottom:6px;color:#a5b4fc}
+.tooltip .row{display:flex;justify-content:space-between;margin:3px 0;gap:12px}
+.tooltip .label{color:#64748b}
+.tooltip .value{color:#e2e8f0;font-weight:500}
+.legend{position:absolute;bottom:16px;left:16px;background:rgba(15,23,42,.9);border:1px solid rgba(99,102,241,.15);border-radius:10px;padding:12px 16px;font-size:12px}
+.legend-item{display:flex;align-items:center;gap:8px;margin:4px 0}
+.legend-dot{width:10px;height:10px;border-radius:50%}
+.controls{position:absolute;top:16px;right:16px;display:flex;gap:8px}
+.controls button{background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);color:#a5b4fc;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;transition:all .2s}
+.controls button:hover{background:rgba(99,102,241,.3)}
+.stats{position:absolute;bottom:16px;right:16px;background:rgba(15,23,42,.9);border:1px solid rgba(99,102,241,.15);border-radius:10px;padding:12px 16px;font-size:12px}
+.stats .stat{margin:3px 0}.stats .stat .num{font-size:18px;font-weight:700;color:#818cf8}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>🗺️ NixOS Topology Map</h1>
+<div class="meta" id="meta">Loading...</div>
+</div>
+<div class="canvas-wrap">
+<svg id="topology"></svg>
+<div class="tooltip" id="tooltip"></div>
+<div class="legend">
+<div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div>Service</div>
+<div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Database</div>
+<div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Reverse Proxy</div>
+<div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Cache</div>
+<div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div>Queue</div>
+<div class="legend-item"><div class="legend-dot" style="background:#06b6d4"></div>Storage</div>
+<div class="legend-item"><div class="legend-dot" style="background:#f97316"></div>Network</div>
+</div>
+<div class="controls">
+<button onclick="refresh()">⟳ Refresh</button>
+<button onclick="autoLayout()">⊞ Auto Layout</button>
+<button onclick="togglePhysics()">⚡ Physics</button>
+</div>
+<div class="stats" id="stats"></div>
+</div>
+<script>
+const svg=document.getElementById('topology');
+const tooltip=document.getElementById('tooltip');
+const typeColors={Service:'#6366f1',Database:'#f59e0b',ReverseProxy:'#10b981',Cache:'#ef4444',Queue:'#8b5cf6',Storage:'#06b6d4',Network:'#f97316',LoadBalancer:'#ec4899',Other:'#64748b'};
+const statusColors={running:'#10b981',stopped:'#64748b',failed:'#ef4444',degraded:'#f59e0b',listening:'#6366f1',healthy:'#10b981',down:'#ef4444'};
+let nodes=[],edges=[],physics=true,dragNode=null,offset={x:0,y:0};
+
+async function fetchTopology(){
+try{const r=await fetch('/api/topology');const d=await r.json();return d}catch(e){return mockTopology()}
+}
+function mockTopology(){
+return{hostname:'demo-server',generated_at:new Date().toISOString(),
+nodes:[
+{id:'svc-nginx',name:'nginx',node_type:'ReverseProxy',status:'running',ports:[{port:80,protocol:'tcp',bind_address:'0.0.0.0'},{port:443,protocol:'tcp',bind_address:'0.0.0.0'}],dependencies:[],metadata:{}},
+{id:'svc-postgresql',name:'postgresql',node_type:'Database',status:'running',ports:[{port:5432,protocol:'tcp',bind_address:'127.0.0.1'}],dependencies:[],metadata:{}},
+{id:'svc-redis',name:'redis',node_type:'Cache',status:'running',ports:[{port:6379,protocol:'tcp',bind_address:'127.0.0.1'}],dependencies:[],metadata:{}},
+{id:'svc-node-app',name:'node-app',node_type:'Service',status:'running',ports:[{port:3000,protocol:'tcp',bind_address:'127.0.0.1'}],dependencies:['svc-postgresql','svc-redis'],metadata:{}},
+{id:'svc-sshd',name:'sshd',node_type:'Service',status:'running',ports:[{port:22,protocol:'tcp',bind_address:'0.0.0.0'}],dependencies:[],metadata:{}},
+{id:'svc-docker',name:'docker',node_type:'Network',status:'running',ports:[],dependencies:[],metadata:{}},
+{id:'svc-grafana',name:'grafana',node_type:'Service',status:'running',ports:[{port:3001,protocol:'tcp',bind_address:'0.0.0.0'}],dependencies:['svc-postgresql'],metadata:{}},
+{id:'svc-memcached',name:'memcached',node_type:'Cache',status:'running',ports:[{port:11211,protocol:'tcp',bind_address:'127.0.0.1'}],dependencies:[],metadata:{}},
+],
+edges:[
+{from:'nginx',to:'node-app',edge_type:'proxies',label:'80→3000',health:'healthy'},
+{from:'node-app',to:'postgresql',edge_type:'connects',label:'5432',health:'healthy'},
+{from:'node-app',to:'redis',edge_type:'connects',label:'6379',health:'healthy'},
+{from:'grafana',to:'postgresql',edge_type:'connects',label:'5432',health:'healthy'},
+]}}
+}
+
+function layoutNodes(ns,ew,eh){
+const cx=ew/2,cy=eh/2,r=Math.min(ew,eh)*0.32;
+ns.forEach((n,i)=>{
+const angle=(2*Math.PI*i/ns.length)-Math.PI/2;
+n.x=cx+r*Math.cos(angle);n.y=cy+r*Math.sin(angle);
+n.vx=0;n.vy=0;
+});
+}
+
+function render(topo){
+const w=svg.clientWidth,h=svg.clientHeight;
+nodes=topo.nodes.map((n,i)=>({...n,rx:30,ry:30}));
+edges=topo.edges||[];
+layoutNodes(nodes,w,h);
+document.getElementById('meta').textContent=`${topo.hostname} · ${nodes.length} services · ${edges.length} connections · ${new Date(topo.generated_at).toLocaleString()}`;
+draw();
+updateStats();
+}
+
+function draw(){
+svg.innerHTML='';
+const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+defs.innerHTML=`<filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+svg.appendChild(defs);
+
+// Draw edges
+edges.forEach(e=>{
+const from=nodes.find(n=>n.name===e.from);
+const to=nodes.find(n=>n.name===e.to);
+if(!from||!to)return;
+const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+line.setAttribute('x1',from.x);line.setAttribute('y1',from.y);
+line.setAttribute('x2',to.x);line.setAttribute('y2',to.y);
+line.setAttribute('stroke',statusColors[e.health]||'#475569');
+line.setAttribute('class','edge-line');
+line.setAttribute('marker-end','url(#arrow)');
+svg.appendChild(line);
+
+if(e.label){
+const mx=(from.x+to.x)/2,my=(from.y+to.y)/2;
+const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+txt.setAttribute('x',mx);txt.setAttribute('y',my-6);
+txt.setAttribute('fill','#64748b');txt.setAttribute('font-size','10');
+txt.setAttribute('text-anchor','middle');
+txt.textContent=e.label;
+svg.appendChild(txt);
+}
+});
+
+// Arrow marker
+const marker=document.createElementNS('http://www.w3.org/2000/svg','marker');
+marker.setAttribute('id','arrow');marker.setAttribute('markerWidth','8');
+marker.setAttribute('markerHeight','8');marker.setAttribute('refX','32');
+marker.setAttribute('refY','4');marker.setAttribute('orient','auto');
+const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+path.setAttribute('d','M0,0 L8,4 L0,8 Z');path.setAttribute('fill','#475569');
+marker.appendChild(path);defs.appendChild(marker);
+
+// Draw nodes
+nodes.forEach(n=>{
+const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+g.setAttribute('class','node');
+g.setAttribute('transform',`translate(${n.x},${n.y})`);
+
+const typeKey=typeof n.node_type==='object'?Object.keys(n.node_type)[0]:n.node_type;
+const color=typeColors[typeKey]||typeColors.Other;
+const scolor=statusColors[n.status]||'#64748b';
+
+// Outer glow for running
+if(n.status==='running'){
+const glow=document.createElementNS('http://www.w3.org/2000/svg','circle');
+glow.setAttribute('r','36');glow.setAttribute('fill','none');
+glow.setAttribute('stroke',color);glow.setAttribute('stroke-width','1');
+glow.setAttribute('opacity','0.3');glow.setAttribute('filter','url(#glow)');
+g.appendChild(glow);
+}
+
+const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+circle.setAttribute('r','28');circle.setAttribute('fill',color+'22');
+circle.setAttribute('stroke',color);circle.setAttribute('stroke-width','2');
+circle.setAttribute('class','node-circle');
+g.appendChild(circle);
+
+// Status dot
+const dot=document.createElementNS('http://www.w3.org/2000/svg','circle');
+dot.setAttribute('cx','18');dot.setAttribute('cy','-18');dot.setAttribute('r','5');
+dot.setAttribute('fill',scolor);
+g.appendChild(dot);
+
+const text=document.createElementNS('http://www.w3.org/2000/svg','text');
+text.setAttribute('text-anchor','middle');text.setAttribute('dy','4');
+text.setAttribute('fill','#e2e8f0');text.setAttribute('font-size','11');
+text.setAttribute('font-weight','600');
+const icon={Service:'⚙',Database:'🗄',ReverseProxy:'🔀',Cache:'⚡',Queue:'📨',Storage:'💾',Network:'🌐',LoadBalancer:'⚖',Other:'📦'}[typeKey]||'📦';
+text.textContent=icon;
+g.appendChild(text);
+
+const label=document.createElementNS('http://www.w3.org/2000/svg','text');
+label.setAttribute('text-anchor','middle');label.setAttribute('dy','46');
+label.setAttribute('fill','#94a3b8');label.setAttribute('font-size','11');
+label.textContent=n.name;
+g.appendChild(label);
+
+// Port badges
+if(n.ports&&n.ports.length>0){
+n.ports.slice(0,3).forEach((p,pi)=>{
+const badge=document.createElementNS('http://www.w3.org/2000/svg','text');
+badge.setAttribute('x',-28+pi*28);badge.setAttribute('y',-34);
+badge.setAttribute('fill','#818cf8');badge.setAttribute('font-size','9');
+badge.setAttribute('text-anchor','middle');
+badge.textContent=p.port;
+g.appendChild(badge);
+});
+}
+
+// Drag handlers
+g.addEventListener('mousedown',e=>{
+dragNode=n;offset.x=e.clientX-n.x;offset.y=e.clientY-n.y;
+e.stopPropagation();
+});
+
+g.addEventListener('mouseenter',e=>{
+const typeStr=typeof n.node_type==='object'?Object.keys(n.node_type)[0]:n.node_type;
+const ports=n.ports?p=>`${p.port}/${p.protocol}`.join(', '):'none';
+const portsStr=n.ports&&n.ports.length?n.ports.map(p=>`${p.port}/${p.protocol}`).join(', '):'none';
+tooltip.innerHTML=`<h3>${n.name}</h3>
+<div class="row"><span class="label">Type</span><span class="value">${typeStr}</span></div>
+<div class="row"><span class="label">Status</span><span class="value" style="color:${scolor}">${n.status}</span></div>
+<div class="row"><span class="label">Ports</span><span class="value">${portsStr}</span></div>
+<div class="row"><span class="label">Dependencies</span><span class="value">${n.dependencies.length}</span></div>`;
+tooltip.style.display='block';
+tooltip.style.left=(e.clientX+12)+'px';tooltip.style.top=(e.clientY+12)+'px';
+});
+g.addEventListener('mouseleave',()=>{tooltip.style.display='none'});
+g.addEventListener('mousemove',e=>{
+tooltip.style.left=(e.clientX+12)+'px';tooltip.style.top=(e.clientY+12)+'px';
+});
+
+svg.appendChild(g);
+});
+}
+
+// Drag
+svg.addEventListener('mousemove',e=>{
+if(!dragNode)return;
+dragNode.x=e.clientX-offset.x;dragNode.y=e.clientY-offset.y;
+dragNode.vx=0;dragNode.vy=0;
+draw();
+});
+svg.addEventListener('mouseup',()=>{dragNode=null});
+
+function updateStats(){
+const running=nodes.filter(n=>n.status==='running').length;
+const failed=nodes.filter(n=>n.status==='failed').length;
+const types={};
+nodes.forEach(n=>{
+const t=typeof n.node_type==='object'?Object.keys(n.node_type)[0]:n.node_type;
+types[t]=(types[t]||0)+1;
+});
+document.getElementById('stats').innerHTML=`
+<div class="stat"><div class="num">${nodes.length}</div>Services</div>
+<div class="stat"><div class="num" style="color:#10b981">${running}</div>Running</div>
+${failed?`<div class="stat"><div class="num" style="color:#ef4444">${failed}</div>Failed</div>`:''}
+<div class="stat"><div class="num">${edges.length}</div>Connections</div>`;
+}
+
+// Physics simulation
+function physics_step(){
+if(!physics||dragNode)return;
+const k=0.01,damping=0.85;
+nodes.forEach(a=>{
+nodes.forEach(b=>{
+if(a===b)return;
+let dx=b.x-a.x,dy=b.y-a.y;
+let dist=Math.sqrt(dx*dx+dy*dy)||1;
+if(dist<100){
+let force=k*(100-dist);
+a.vx-=(dx/dist)*force;a.vy-=(dy/dist)*force;
+}
+});
+edges.forEach(e=>{
+const from=nodes.find(n=>n.name===e.from);
+const to=nodes.find(n=>n.name===e.to);
+if(!from||!to)return;
+if(a===from){let dx=to.x-a.x,dy=to.y-a.y;let d=Math.sqrt(dx*dx+dy*dy)||1;a.vx+=dx*0.002;a.vy+=dy*0.002;}
+if(a===to){let dx=from.x-a.x,dy=from.y-a.y;let d=Math.sqrt(dx*dx+dy*dy)||1;a.vx+=dx*0.002;a.vy+=dy*0.002;}
+});
+a.x+=a.vx;a.y+=a.vy;a.vx*=damping;a.vy*=damping;
+// Boundaries
+a.x=Math.max(50,Math.min(svg.clientWidth-50,a.x));
+a.y=Math.max(50,Math.min(svg.clientHeight-50,a.y));
+});
+draw();
+}
+
+function refresh(){fetchTopology().then(render)}
+function autoLayout(){layoutNodes(nodes,svg.clientWidth,svg.clientHeight);draw()}
+function togglePhysics(){physics=!physics}
+
+// Init
+fetchTopology().then(render);
+setInterval(physics_step,30);
+setInterval(refresh,30000);
+</script>
+</body>
+</html>
