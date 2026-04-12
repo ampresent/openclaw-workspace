@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
-# evo-install — 通过包管理器安装构建产物
-# 用法: evo-install <pkg> [--backend nix|rpm|conda]
+# evo-install — 通过包管理器安装构建产物（自动集成文件监控）
+# 用法: evo-install <pkg> [--backend nix|rpm|conda] [--monitor <path>] [--expected <file>]
 set -euo pipefail
 
 EVO_HOME="${EVO_HOME:-$HOME/.evo}"
-PKG="${1:?用法: evo-install <pkg> [--backend nix|rpm|conda]}"
+SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PKG="${1:?用法: evo-install <pkg> [--backend nix|rpm|conda] [--monitor <path>] [--expected <file>]}"
 shift
 BACKEND=""
+MONITOR_PATH=""
+EXPECTED_FILE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --backend) BACKEND="$2"; shift 2 ;;
+    --backend)   BACKEND="$2"; shift 2 ;;
+    --monitor)   MONITOR_PATH="$2"; shift 2 ;;
+    --expected)  EXPECTED_FILE="$2"; shift 2 ;;
     *) shift ;;
   esac
 done
@@ -23,12 +28,71 @@ LOG_DIR="$EVO_HOME/logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/${PKG}-install-$(date +%Y%m%d-%H%M%S).log"
 
-# 记录安装事务到变更历史
-record_transaction() {
+
+# ── 文件监控: before 快照 ──
+MONITOR_SNAP_BEFORE=""
+MONITOR_SNAP_AFTER=""
+if [[ -n "$MONITOR_PATH" ]]; then
+  MONITOR_SNAP_BEFORE="$EVO_HOME/snapshots/${PKG}-pre-install-$(date +%Y%m%d-%H%M%S).manifest"
+  "$SCRIPTS/evo-snapshot" "$MONITOR_PATH" --output "$MONITOR_SNAP_BEFORE" --name "${PKG}-pre-install" >/dev/null
+  echo '{"status":"monitoring","phase":"before","manifest":"'"$MONITOR_SNAP_BEFORE"'"}' >&2
+fi
+
+record_and_report() {
   local txn_id="$1" action="$2"
   local HIST_DIR="$EVO_HOME/history"
   mkdir -p "$HIST_DIR"
   echo '{"ts":"'"$(date -Iseconds)"'","pkg":"'"$PKG"'","backend":"'"$BACKEND"'","action":"'"$action"'","txn_id":"'"$txn_id"'"}' >> "$HIST_DIR/${PKG}.jsonl"
+
+  # ── 文件监控: after 快照 + diff ──
+  if [[ -n "$MONITOR_PATH" ]]; then
+    MONITOR_SNAP_AFTER="$EVO_HOME/snapshots/${PKG}-post-install-$(date +%Y%m%d-%H%M%S).manifest"
+    "$SCRIPTS/evo-snapshot" "$MONITOR_PATH" --output "$MONITOR_SNAP_AFTER" --name "${PKG}-post-install" >/dev/null
+    echo '{"status":"monitoring","phase":"after","manifest":"'"$MONITOR_SNAP_AFTER"'"}' >&2
+
+    DIFF_REPORT=$("$SCRIPTS/evo-diff" "$MONITOR_SNAP_BEFORE" "$MONITOR_SNAP_AFTER" --json 2>/dev/null || echo '{}')
+    REPORT_FILE="$EVO_HOME/reports/${PKG}-install-$(date +%Y%m%d-%H%M%S).json"
+    mkdir -p "$EVO_HOME/reports"
+
+    UNEXPECTED=0
+    if [[ -n "$EXPECTED_FILE" && -f "$EXPECTED_FILE" ]]; then
+      UNEXPECTED=$(python3 - "$DIFF_REPORT" "$EXPECTED_FILE" <<'PYEOF'
+import json, sys
+diff = json.loads(sys.argv[1])
+with open(sys.argv[2]) as f:
+    expected = set()
+    for line in f:
+        line = line.strip()
+        if not line: continue
+        try:
+            obj = json.loads(line)
+            if "path" in obj: expected.add(obj["path"])
+        except:
+            expected.add(line)
+unexpected = [c for c in diff.get("changes", []) if c["path"] not in expected]
+print(len(unexpected))
+PYEOF
+      )
+    fi
+
+    echo "$DIFF_REPORT" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+report = {
+    'pkg': '$PKG',
+    'backend': '$BACKEND',
+    'txn_id': '$txn_id',
+    'before': '$MONITOR_SNAP_BEFORE',
+    'after': '$MONITOR_SNAP_AFTER',
+    'stats': d.get('stats', {}),
+    'total_changes': d.get('total_changes', 0),
+    'unexpected': $UNEXPECTED,
+    'verdict': 'WARNING' if $UNEXPECTED > 0 else 'OK'
+}
+json.dump(report, sys.stdout, indent=2, ensure_ascii=False)
+" > "$REPORT_FILE"
+    echo '{"status":"monitoring","phase":"report","report":"'"$REPORT_FILE"'","unexpected":'"$UNEXPECTED"'}' >&2
+  fi
 }
 
 case "$BACKEND" in
@@ -37,7 +101,7 @@ case "$BACKEND" in
     if nixos-rebuild switch 2>&1 | tee "$LOG_FILE"; then
       # 记录 generation
       GEN=$(nixos-rebuild list-generations 2>/dev/null | tail -1 | awk '{print $1}' || echo "unknown")
-      record_transaction "$GEN" "switch"
+      record_and_report "$GEN" "switch"
       echo '{"status":"ok","backend":"nix","pkg":"'"$PKG"'","generation":"'"$GEN"'","log":"'"$LOG_FILE"'","rollback_cmd":"nixos-rebuild switch --to '"$GEN"'"}'
     else
       echo '{"status":"error","backend":"nix","pkg":"'"$PKG"'","error":"nixos-rebuild switch failed","log":"'"$LOG_FILE"'"}'
@@ -65,7 +129,7 @@ case "$BACKEND" in
     if $INSTALL_CMD "$RPM_FILE" 2>&1 | tee "$LOG_FILE"; then
       # 获取事务 ID
       TXN=$(yum history list 2>/dev/null | head -3 | tail -1 | awk '{print $1}' || echo "unknown")
-      record_transaction "$TXN" "install"
+      record_and_report "$TXN" "install"
       echo '{"status":"ok","backend":"rpm","pkg":"'"$PKG"'","rpm":"'"$RPM_FILE"'","txn_id":"'"$TXN"'","log":"'"$LOG_FILE"'","rollback_cmd":"yum history undo '"$TXN"'"}'
     else
       echo '{"status":"error","backend":"rpm","pkg":"'"$PKG"'","error":"install failed","log":"'"$LOG_FILE"'"}'
@@ -77,7 +141,7 @@ case "$BACKEND" in
     echo '{"status":"installing","backend":"conda","pkg":"'"$PKG"'"}' >&2
     if conda install --use-local -y "$PKG" 2>&1 | tee "$LOG_FILE"; then
       REV=$(conda list --revisions 2>/dev/null | tail -1 | awk '{print $2}' || echo "unknown")
-      record_transaction "$REV" "install"
+      record_and_report "$REV" "install"
       echo '{"status":"ok","backend":"conda","pkg":"'"$PKG"'","revision":"'"$REV"'","log":"'"$LOG_FILE"'","rollback_cmd":"conda install --revision '"$REV"'"}'
     else
       echo '{"status":"error","backend":"conda","pkg":"'"$PKG"'","error":"conda install failed","log":"'"$LOG_FILE"'"}'

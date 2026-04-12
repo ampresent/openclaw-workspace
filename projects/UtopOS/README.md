@@ -139,6 +139,7 @@ scripts/evo-init
 | [Skill 决策层](skills/UtopOS/SKILL.md) | Agent 的操作手册 |
 | [设计文档](DESIGN.md) | 架构决策 |
 | [贡献指南](CONTRIBUTING.md) | 参与开发 |
+| [文件监控系统](docs/FILE-MONITORING.md) | 变更跟踪、异常检测、回滚 |
 
 ---
 
