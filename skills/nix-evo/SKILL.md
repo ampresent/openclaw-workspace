@@ -1,411 +1,308 @@
-# nix-evo Skill
+# nix-evo Skill — 决策层
 
-> 源码修复工作流 — AI Agent 通过分析和修补源代码来解决系统软件问题。
-> 支持 **Nix**、**RPM**、**Conda** 三种包管理后端。以 OpenClaw Skill 形式运行，无需独立进程。
+> AI Agent 的源码修复工作流。支持 Nix / RPM / Conda 三种包管理后端。
+> **脚本做机械事，Skill 做决策，Agent 做连接，用户做确认。**
 
-## 核心原则
+## 前置条件
 
-**永远不要绕过问题，永远不要直接修改操作系统。**
-
-当你（AI Agent）在服务器上遇到系统软件问题时：
-
-1. **❌ 不要**尝试用 workaround 绕过（比如重启服务、改运行时配置糊弄过去）
-2. **❌ 不要**直接替换二进制、手动编辑运行时文件、打热补丁
-3. **✅ 要**解压源代码，分析源码中的根因
-4. **✅ 要**修改源代码，生成补丁，通过包管理器重新打包
-5. **✅ 要**通过包管理器安装新包来应用变更，而不是直接动系统文件
-
-## 为什么
-
-直接修改操作系统文件：
-
-- 被下一次系统更新/包升级覆盖
-- 无法追溯（谁改了什么、为什么改）
-- 无法回滚
-- 破坏可复现性
-
-修补源代码 + 重新打包：
-
-- 变更持久化（通过包管理器安装，有记录）
-- 变更可追溯（补丁文件 + 版本控制）
-- 变更可回滚（包管理器支持降级/回滚）
-- 变更可复现（同一构建流程产生相同结果）
-
-## 后端检测 + 源码获取（第一步就做）
-
-收到问题后，第一件事是识别包管理器，然后**自动下载源码**。
+所有脚本路径：相对于本 skill 目录下的 `scripts/`。
+如果脚本不存在，先运行 `evo-init` 初始化环境。
 
 ```bash
-# Step 1: 检测包管理器
-detect_backend() {
-  if command -v nixos-rebuild &>/dev/null; then
-    echo "nix"
-  elif command -v rpm &>/dev/null; then
-    echo "rpm"
-  elif command -v conda &>/dev/null; then
-    echo "conda"
-  else
-    echo "unknown"
-  fi
-}
-BACKEND=$(detect_backend)
+SCRIPTS="$(dirname "$0")/scripts"    # skill 目录下的 scripts/
+# 或项目路径:
+# SCRIPTS="projects/nix-evo/scripts/"
 ```
-
-检测到后端后，**立即下载源码**，不要跳过这一步：
-
-```bash
-# Step 2: 根据后端下载源码
-fetch_source() {
-  local PKG=$1
-  local WORKDIR="/tmp/evo-fix-$PKG"
-  mkdir -p "$WORKDIR"
-
-  case "$BACKEND" in
-    nix)
-      echo "[nix] 获取 $PKG 源码..."
-      SRC=$(nix-build '<nixpkgs>' -A "$PKG.src" --no-out-link 2>/dev/null)
-      cp -r "$SRC" "$WORKDIR/src"
-      echo "[nix] 源码在: $WORKDIR/src"
-      ;;
-    rpm)
-      echo "[rpm] 获取 $PKG 源码..."
-      cd "$WORKDIR"
-      yumdownloader --source "$PKG" 2>/dev/null || dnf download --source "$PKG" 2>/dev/null
-      rpm -ivh "$WORKDIR"/*.src.rpm 2>/dev/null
-      # 解压源码 tarball
-      cd ~/rpmbuild/SOURCES/
-      tar xf "$WORKDIR"/*.tar.gz -C "$WORKDIR/src" 2>/dev/null || \
-        tar xf "$(ls ~/rpmbuild/SOURCES/*.tar.gz | head -1)" -C "$WORKDIR" 2>/dev/null
-      echo "[rpm] 源码在: $WORKDIR/"
-      echo "[rpm] SPEC 在: ~/rpmbuild/SPECS/"
-      ;;
-    conda)
-      echo "[conda] 获取 $PKG 源码..."
-      cd "$WORKDIR"
-      # 尝试从 conda-forge feedstock 获取
-      git clone "https://github.com/conda-forge/${PKG}-feedstock.git" src 2>/dev/null || \
-        conda skeleton pypi "$PKG" --output-dir "$WORKDIR/src" 2>/dev/null
-      echo "[conda] 源码在: $WORKDIR/src/"
-      echo "[conda] Recipe 在: $WORKDIR/src/recipe/"
-      ;;
-    *)
-      echo "[error] 未识别的包管理器，请手动指定 --backend nix|rpm|conda"
-      return 1
-      ;;
-  esac
-}
-```
-
-拿到源码后，再进入诊断和分析阶段。
 
 ---
 
-## 通用工作流（六步）
+## 核心铁律（不可违反）
 
-### 第一步：诊断 + 获取源码
-
-1. **识别包管理器**（`detect_backend`）
-2. **下载源码**（`fetch_source <package>`）
-3. **诊断问题**（`system_snapshot` + `service_logs`）
-
-```
-用户: nginx 502 了
-
-→ detect_backend() → "rpm"
-→ fetch_source("nginx") → /tmp/evo-fix-nginx/
-→ 调用 system_snapshot
-→ 发现 php-fpm.service failed
-→ 调用 service_logs("phpfpm.service")
-→ 发现错误信息
-→ 进入 /tmp/evo-fix-nginx/ 分析源码
-```
-
-**关键**：诊断的同时源码已经准备好了，分析时直接进源码目录。
-
-### 第二步：分析源代码
-
-**这是核心步骤。** 不要看运行时文件，看已下载的源码。
-
-分析时关注：
-
-- 配置文件模板（`*.conf.in`、`*.service` 模板）
-- 默认值是否有问题
-- 编译参数是否导致了错误行为
-- 源码中的 bug
-
-### 第三步：生成补丁
-
-基于源码分析结果，针对不同后端生成对应格式的补丁。
-
-### 第四步：验证 + 应用
-
-通过包管理器验证（dry-run）再安装，不要直接改文件。
-
-### 第五步：提交到上游（可选但推荐）
-
-如果修复的是上游 bug，向对应的上游仓库提交 PR。
+1. **❌ 不要**用 workaround 绕过问题（重启服务、改运行时配置糊弄）
+2. **❌ 不要**直接替换二进制、编辑运行时文件、打热补丁
+3. **❌ 不要**跳过验证直接安装（必须先 dry-build / test install）
+4. **❌ 不要**混用包管理器（conda 环境里用 pip、RPM 系统上用 apt）
+5. **✅ 要**走完整流程：检测 → 源码 → 分析 → 补丁 → 验证 → 安装
 
 ---
 
-## 后端一：Nix / NixOS
+## 工作流决策树
 
-### 源码已由 `fetch_source("php83")` 获取到 `/tmp/evo-fix-php83/src/`
+收到用户问题后，按以下流程走：
 
-### 生成补丁
+```
+┌─ 0. 初始化 ──────────────────────────────────────────┐
+│  evo-init                                           │
+│  (幂等，已有 ~/.evo/ 就跳过)                          │
+└─────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─ 1. 诊断 + 获取源码 ─────────────────────────────────┐
+│  evo-detect           → { backend, version, tools } │
+│  evo-fetch-source pkg → { src_dir, spec?, recipe? } │
+│  evo-get-info pkg     → { version, desc, deps }     │
+│  (并行) system diagnosis: journalctl / systemctl     │
+└─────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─ 2. 分析源码 ────────────────────────────────────────┐
+│  进入 src_dir，找到根因                                │
+│  关注：配置模板默认值、编译参数、源码 bug              │
+│  ⚠️ 不看运行时文件，只看源码                          │
+└─────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─ 3. 生成补丁 ────────────────────────────────────────┐
+│  修改源码 → evo-patch-create pkg --desc "..."        │
+│  → { patch_file, risk, files_changed }               │
+│  ▶ 向用户展示风险摘要（见下方模板）                   │
+│  ▶ 等待用户确认                                      │
+└─────────────────────────────────────────────────────┘
+                         │
+                         ▼ 用户确认
+┌─ 4. 构建 ────────────────────────────────────────────┐
+│  evo-build pkg --patch <patch_file>                  │
+│  → { result, log }                                   │
+│  evo-verify pkg       → { risk, changes }            │
+│  ▶ 再次向用户确认风险等级                             │
+└─────────────────────────────────────────────────────┘
+                         │
+                         ▼ 用户确认
+┌─ 5. 安装 ────────────────────────────────────────────┐
+│  evo-install pkg      → { txn_id, rollback_cmd }    │
+│  验证服务是否正常                                    │
+└─────────────────────────────────────────────────────┘
+                         │
+                         ▼ (可选)
+┌─ 6. 提交上游 ────────────────────────────────────────┐
+│  如果是上游 bug，生成 PR                              │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## 脚本速查
+
+### 基础设施
+
+| 脚本 | 什么时候调 | 输出关键字段 |
+|------|-----------|-------------|
+| `evo-init` | 首次使用、`~/.evo/` 不存在时 | `dirs` |
+| `evo-workspace create <pkg>` | 开始处理一个新包 | `work_dir`, `evo_work` |
+| `evo-workspace list` | 查看有哪些进行中的修复 | `workspaces[]` |
+| `evo-workspace status <pkg>` | 查看某包的工作目录状态 | `patches`, `size`, `last_build` |
+| `evo-workspace archive <pkg>` | 修复完成，归档工作目录 | `archive` |
+| `evo-cleanup` | 定期清理、磁盘紧张时 | `cleaned`, `freed_bytes`, `disk_warning` |
+
+### 检测 + 获取
+
+| 脚本 | 什么时候调 | 输出关键字段 |
+|------|-----------|-------------|
+| `evo-detect` | 第一步，确定后端 | `backend`, `version`, `tools` |
+| `evo-fetch-source <pkg>` | 检测后立即调 | `src_dir`, `spec`, `recipe` |
+| `evo-get-info <pkg>` | 需要包详细信息时 | `version`, `description`, `homepage` |
+
+### 构建 + 安装
+
+| 脚本 | 什么时候调 | 输出关键字段 |
+|------|-----------|-------------|
+| `evo-build <pkg> --patch <f>` | 分析完成、用户确认后 | `result`, `log` |
+| `evo-verify <pkg>` | 安装前必须调 | `risk`, `changes`, `missing_deps` |
+| `evo-install <pkg>` | verify 通过、用户确认后 | `txn_id`, `rollback_cmd` |
+| `evo-rollback <pkg>` | 出问题时 | `rolled_to`, `log` |
+
+### Patch 管理
+
+| 脚本 | 什么时候调 | 输出关键字段 |
+|------|-----------|-------------|
+| `evo-patch-create <pkg> --desc "..."` | 源码修改完成后 | `patch`, `risk`, `files_changed` |
+| `evo-patch-list <pkg>` | 查看已有补丁 | `patches[]` |
+| `evo-patch-check <pkg>` | 构建前检查兼容性 | `results[].status` (compatible/conflict) |
+| `evo-patch-series show <pkg>` | 多个补丁需要排序时 | `series[]` |
+
+---
+
+## 用户交互协议
+
+### 必须确认的节点
+
+以下 3 个节点**必须**向用户展示信息并等待确认，不能自动跳过：
+
+#### ① 补丁生成后
+
+```
+📋 风险摘要
+─────────
+包名: nginx
+修改: src/http/ngx_http_core_module.c
+影响: upstream timeout 默认值从 60s → 120s
+风险: moderate
+回滚: evo-rollback nginx
+
+要继续构建吗？[y/n]
+```
+
+#### ② 验证通过后（安装前）
+
+```
+🔍 验证结果
+─────────
+风险等级: safe
+缺失依赖: 0
+测试安装: 通过
+
+要安装吗？[y/n]
+```
+
+#### ③ 异常情况
+
+- 构建失败 → 展示日志摘要，让用户决定是否重试或修改补丁
+- 验证发现冲突 → 展示冲突详情，让用户决定是否解决
+- 磁盘空间不足 → 询问是否清理
+
+### 风险摘要卡片模板
+
+```
+┌─────────────────────────────────────┐
+│ 📦 包名: {pkg}                       │
+│ 🔧 修改: {文件列表}                  │
+│ 📝 描述: {补丁描述}                  │
+│ ⚠️  风险: {safe|moderate|dangerous}  │
+│ 💾 回滚: {rollback_cmd}             │
+│ 🎫 关联: {ticket 或 none}           │
+└─────────────────────────────────────┘
+```
+
+风险等级判定规则：
+- **safe**: 配置值变更、不影响二进制、可无损回滚
+- **moderate**: 源码逻辑修改、影响单一功能、有回滚方案
+- **dangerous**: 核心模块修改、影响面广、回滚代价高
+
+---
+
+## 信任白名单
+
+文件位置：`~/.evo/trust.toml`
+
+格式：
+```toml
+[trust.nginx]
+safe_auto = true          # safe 级补丁自动 apply，不再询问
+risk_levels = ["safe"]
+
+[trust.php]
+safe_auto = true
+risk_levels = ["safe", "moderate"]   # moderate 也自动
+```
+
+**决策逻辑**：
+
+```
+1. 读 ~/.evo/trust.toml
+2. 找到 [trust.<pkg>] 配置
+3. 如果 patch.risk 在 risk_levels 内 → 跳过确认，直接构建
+4. 否则 → 走正常确认流程
+```
+
+**安全限制**：
+- `dangerous` 级补丁永远不自动 apply，即使在白名单中
+- 白名单变更需要用户手动编辑 trust.toml，agent 不自动修改
+
+---
+
+## 后端专项参考
+
+### Nix / NixOS
+
+补丁方式：overlay + `overrideAttrs`
 
 ```nix
-# 方式一：overlay + overrideAttrs
+# evo-build 自动生成的 overlay（~/.evo/builds/<pkg>/overlay-*.nix）
 final: prev: {
-  php83 = prev.php83.overrideAttrs (old: {
-    patches = (old.patches or []) ++ [
-      ./patches/fix-fpm-listen-port.patch
-    ];
+  <pkg> = prev.<pkg>.overrideAttrs (old: {
+    patches = (old.patches or []) ++ [ ./patch.patch ];
   });
 }
 ```
 
-```nix
-# 方式二：修改 NixOS 模块配置覆盖默认值
-services.phpfpm.pools.main.settings = {
-  "listen" = "/run/phpfpm.sock";
-};
-```
+回滚：`nixos-rebuild switch --rollback` 或 `--to <generation>`
 
-### 验证 + 应用
+### RPM（Rocky / RHEL / Fedora）
 
-```bash
-nixos-rebuild dry-build      # 先验证
-nixos-rebuild switch          # 确认后应用
-```
+补丁方式：SRPM + spec 文件注册 Patch
 
-通过 nix-evo：
+- 源码在 `~/rpmbuild/SOURCES/`
+- Spec 在 `~/rpmbuild/SPECS/`
+- `evo-build` 自动注册 patch 到 spec
 
-```
-→ config_validate（dry-run + 风险评估）
-→ 用户确认
-→ config_apply（nixos-rebuild switch）
-→ 生成新 generation
-```
+回滚：`yum history undo <txn_id>`
 
-### 回滚
+### Conda
 
-```bash
-nixos-rebuild switch --rollback    # 回退到上一个 generation
-nixos-rebuild switch --to 42       # 回退到指定 generation
-```
+补丁方式：feedstock recipe + meta.yaml patches 列表
 
-### MCP Tools
+- Source 在 `/tmp/evo-fix-<pkg>/src/`
+- Recipe 在 `src/recipe/` 或 `src/<pkg>/`
 
-| 工具 | 用途 |
-|------|------|
-| `system_snapshot` | 全局状态 |
-| `service_logs` | 服务日志 |
-| `package_info` | 包信息 |
-| `config_read` | 读 NixOS 配置 |
-| `config_validate` | dry-run 验证 + 风险评估 |
-| `config_apply` | 执行变更 |
-| `rollback_list` / `rollback_apply` | 兜底回滚 |
+回滚：`conda install --revision <N>`
 
 ---
 
-## 后端二：RPM（Rocky / RHEL / Fedora）
+## 常见场景快速入口
 
-### 源码已由 `fetch_source("nginx")` 获取到 `~/rpmbuild/` 和 `/tmp/evo-fix-nginx/`
+### "服务挂了 / 502 / 启动失败"
 
-### 分析源码
-
-```bash
-# 先看 spec 文件了解构建流程
-cat ~/rpmbuild/SPECS/nginx.spec
-
-# 再看源码
-cd ~/rpmbuild/SOURCES/nginx-*/
-grep -r "listen" --include="*.conf" .
+```
+1. evo-detect
+2. evo-fetch-source <pkg>
+3. 诊断（journalctl / systemctl）
+4. 分析源码 → evo-patch-create
+5. evo-build → evo-verify → evo-install
 ```
 
-### 生成补丁
+### "默认配置不合理，想改默认值"
 
-```bash
-# 1. 在解压的源码上修改
-cd ~/rpmbuild/SOURCES/nginx-*/
-vim src/http/ngx_http_core_module.c   # 修复 bug
-
-# 2. 生成补丁文件
-cd ~/rpmbuild/SOURCES/
-diff -u nginx-*/src/http/ngx_http_core_module.c.orig \
-        nginx-*/src/http/ngx_http_core_module.c \
-        > fix-nginx-upstream-timeout.patch
-
-# 3. 在 spec 文件中注册补丁
-# 编辑 ~/rpmbuild/SPECS/nginx.spec，添加：
-# Patch99: fix-nginx-upstream-timeout.patch
-# 在 %prep 的 %setup 后添加：
-# %patch99 -p1
+```
+1. evo-detect
+2. evo-fetch-source <pkg>
+3. 找到配置模板/默认值 → evo-patch-create --risk safe
+4. 检查 trust.toml → 如果 safe_auto → 直接构建
+5. evo-build → evo-verify → evo-install
 ```
 
-### 验证 + 应用
+### "补丁冲突了（上游更新后）"
 
-```bash
-# 构建测试（不安装）
-rpmbuild -ba ~/rpmbuild/SPECS/nginx.spec
-
-# 安装新构建的 RPM
-rpm -Uvh ~/rpmbuild/RPMS/x86_64/nginx-*.rpm --force
-# 或通过 yum/dnf
-yum localinstall ~/rpmbuild/RPMS/x86_64/nginx-*.rpm
+```
+1. evo-fetch-source <pkg> --force   # 重新拉取新版本
+2. evo-patch-check <pkg>            # 检查哪些 patch 冲突
+3. 逐个解决冲突 → evo-patch-create
+4. evo-build → evo-verify → evo-install
 ```
 
-### 回滚
+### "想回滚"
 
-```bash
-# 查看历史
-yum history list nginx
-yum history info <ID>
-
-# 回滚到指定事务
-yum history undo <ID>
-
-# 或直接降级
-yum downgrade nginx-<旧版本>
+```
+1. evo-rollback <pkg>                    # 回滚到上一个
+2. evo-rollback <pkg> --to <id>          # 回滚到指定版本
 ```
 
 ---
 
-## 后端三：Conda
+## 环境变量
 
-### 源码已由 `fetch_source("mypackage")` 获取到 `/tmp/evo-fix-mypackage/src/`
-
-### 分析源码
-
-```bash
-# 先看 recipe 元数据
-cat recipe/meta.yaml    # 包名、版本、依赖、构建脚本
-
-# 再看构建脚本
-cat recipe/build.sh     # Linux 构建步骤
-
-# 看源码（在 source/ 或手动下载）
-```
-
-### 生成补丁
-
-```bash
-# 1. 在源码上修改
-vim <source_file>
-
-# 2. 生成补丁
-diff -u <file>.orig <file> > fix-<desc>.patch
-
-# 3. 补丁放入 recipe 目录
-cp fix-<desc>.patch recipe/
-
-# 4. 更新 meta.yaml
-# 添加：
-# source:
-#   patches:
-#     - fix-<desc>.patch
-```
-
-```yaml
-# meta.yaml 示例
-package:
-  name: mypackage
-  version: "1.2.3"
-
-source:
-  url: https://example.com/mypackage-1.2.3.tar.gz
-  patches:
-    - fix-listen-port.patch
-
-build:
-  number: 1    # 递增 build number
-
-requirements:
-  build:
-    - {{ compiler('c') }}
-  host:
-    - python
-```
-
-### 验证 + 应用
-
-```bash
-# 本地构建测试
-conda build recipe/
-
-# 安装本地构建的包
-conda install --use-local mypackage
-
-# 或发布到私有 channel
-anaconda upload <path-to-conda-pkg>
-```
-
-### 回滚
-
-```bash
-# 查看历史
-conda list --revisions
-
-# 回滚到指定 revision
-conda install --revision <N>
-
-# 或降级到旧版本
-conda install mypackage=<old_version>
-```
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `EVO_HOME` | `~/.evo` | 工作目录根路径 |
+| `EVO_SCRIPTS` | skill 目录下的 `scripts/` | 脚本搜索路径 |
 
 ---
 
-## 反模式（绝对不要做）
+## 反模式速查
 
-### ❌ 直接编辑运行时文件
-
-```bash
-# NixOS — 禁止
-vim /nix/store/abc-php-8.3/etc/php-fpm.conf   # store 是只读的，且会被覆盖
-vim /etc/php-fpm.d/www.conf                     # nixos-rebuild 会覆盖
-
-# RPM — 禁止
-vim /etc/nginx/nginx.conf                       # yum update 会覆盖
-sed -i 's/listen 80/listen 8080/' /usr/sbin/nginx  # 改二进制？不要
-
-# Conda — 禁止
-vim $CONDA_PREFIX/lib/python3.11/site-packages/xxx.py  # conda update 会覆盖
-```
-
-### ❌ 绕过问题
-
-```bash
-# 禁止（任何后端都禁止）
-systemctl restart nginx                 # 重启不解决根因
-while true; do restart; done            # 更不要这样
-```
-
-### ❌ 不经过验证直接安装
-
-```bash
-# Nix — 禁止跳过 dry-build
-nixos-rebuild switch                    # 没有先 dry-build
-
-# RPM — 禁止跳过测试
-rpm -Uvh *.rpm                          # 没有先 rpmbuild 测试
-
-# Conda — 禁止跳过 build test
-conda install --use-local pkg           # 没有先 conda build 验证
-```
-
-### ❌ 混用包管理器
-
-```bash
-# 禁止
-pip install numpy                       # 在 conda 环境中用 pip
-apt install nginx                       # 在 RPM 系统上用 apt
-yum install python-pkg                  # 在 NixOS 上用 yum
-```
-
-## 安全约束
-
-- 所有变更先验证（dry-run / test build）再安装
-- 风险等级评估：safe / moderate / dangerous
-- 补丁文件保存在版本控制中，可追溯
-- API 默认只监听 127.0.0.1
-- 每个后端支持回滚机制
+| ❌ 反模式 | ✅ 正确做法 |
+|----------|-----------|
+| `vim /etc/nginx/nginx.conf` | 分析源码 → patch → build → install |
+| `systemctl restart nginx` | 找根因，修源码 |
+| 跳过 `evo-verify` | 永远先 verify 再 install |
+| `pip install` in conda | 只用对应包管理器 |
+| 不记录就修改 | `evo-patch-create` + git commit |
