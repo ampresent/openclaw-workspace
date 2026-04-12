@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nix-evo — System Health</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0e17;--card:#131a2b;--border:#1e2a3f;--text:#e2e8f0;--muted:#64748b;--green:#10b981;--yellow:#f59e0b;--orange:#f97316;--red:#ef4444;--blue:#3b82f6;--purple:#8b5cf6;--cyan:#06b6d4}
+body{font-family:'SF Mono','Cascadia Code','Fira Code',monospace;background:var(--bg);color:var(--text);padding:24px;min-height:100vh}
+h1{font-size:1.5rem;margin-bottom:6px}
+.subtitle{color:var(--muted);font-size:0.8rem;margin-bottom:24px}
+.hero{display:flex;align-items:center;gap:40px;margin-bottom:30px;padding:24px;background:var(--card);border:1px solid var(--border);border-radius:12px}
+.gauge{position:relative;width:160px;height:160px;flex-shrink:0}
+.gauge svg{transform:rotate(-90deg)}
+.gauge .value{position:absolute;top:50%;left:50%;transform:translate(-50%,-60%);font-size:2.8rem;font-weight:bold}
+.gauge .label{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);font-size:0.8rem;color:var(--muted)}
+.gauge .grade{position:absolute;top:12px;right:12px;font-size:0.7rem;padding:2px 8px;border-radius:4px;font-weight:600}
+.hero-info{flex:1}
+.hero-info .big-text{font-size:1.2rem;margin-bottom:8px}
+.hero-info .meta{color:var(--muted);font-size:0.8rem;line-height:1.8}
+.summary-pills{display:flex;gap:12px;margin-bottom:24px}
+.pill{padding:8px 16px;border-radius:8px;font-size:0.85rem;font-weight:600}
+.pill.good{background:rgba(16,185,129,.15);color:var(--green)}.pill.warning{background:rgba(245,158,11,.15);color:var(--yellow)}.pill.critical{background:rgba(239,68,68,.15);color:var(--red)}
+.factors{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:30px}
+.factor{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;border-left:4px solid var(--border)}
+.factor.good{border-left-color:var(--green)}.factor.warning{border-left-color:var(--yellow)}.factor.critical{border-left-color:var(--red)}
+.factor-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.factor-name{font-size:0.95rem;font-weight:600}
+.factor-score{font-size:1.4rem;font-weight:bold}
+.factor-score.good{color:var(--green)}.factor-score.warning{color:var(--yellow)}.factor-score.critical{color:var(--red)}
+.factor-bar{height:6px;background:var(--border);border-radius:3px;margin-bottom:8px;overflow:hidden}
+.factor-bar .fill{height:100%;border-radius:3px;transition:width .5s}
+.factor-details{font-size:0.8rem;color:var(--muted);margin-bottom:6px}
+.factor-recs{font-size:0.78rem}
+.factor-recs li{color:var(--blue);margin-left:14px;margin-bottom:2px}
+.trend-section{margin-bottom:24px}
+.trend-section h3{font-size:0.85rem;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
+.trend-chart{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;height:120px;position:relative;overflow:hidden}
+.trend-line{position:absolute;bottom:0;left:0;right:0;height:100%}
+.btn{background:var(--blue);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:0.82rem}
+.btn:hover{opacity:.85}
+.loading{text-align:center;padding:40px;color:var(--muted)}
+#main{display:none}
+</style>
+</head>
+<body>
+<h1>🏆 System Health Score</h1>
+<p class="subtitle">Composite health assessment — factors weighted by impact</p>
+
+<div>
+  <button class="btn" onclick="refresh()" id="refreshBtn">🔄 Refresh</button>
+  <span id="status" style="margin-left:12px;color:var(--muted);font-size:0.8rem"></span>
+</div>
+
+<div class="loading" id="loading">⏳ Analyzing system health...</div>
+
+<div id="main">
+  <div class="hero" id="hero"></div>
+  <div class="summary-pills" id="pills"></div>
+  <div class="factors" id="factors"></div>
+  <div class="trend-section">
+    <h3>📈 Score Trend</h3>
+    <div class="trend-chart" id="trendChart">
+      <svg id="trendSvg" width="100%" height="100%"></svg>
+    </div>
+  </div>
+</div>
+
+<script>
+const apiBase = location.origin;
+
+async function refresh() {
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('main').style.display = 'none';
+  document.getElementById('refreshBtn').disabled = true;
+  document.getElementById('status').textContent = 'Analyzing...';
+
+  try {
+    const res = await fetch(apiBase + '/api/health/score');
+    if (!res.ok) throw new Error('API error: ' + res.status);
+    const data = await res.json();
+    render(data);
+  } catch (e) {
+    document.getElementById('loading').textContent = '⚠️ ' + e.message;
+    document.getElementById('loading').style.display = 'block';
+  } finally {
+    document.getElementById('refreshBtn').disabled = false;
+    document.getElementById('status').textContent = '';
+  }
+}
+
+function render(data) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('main').style.display = 'block';
+
+  // Hero with gauge
+  const scoreColor = data.overall_score >= 80 ? '#10b981' : data.overall_score >= 60 ? '#f59e0b' : '#ef4444';
+  const circumference = 2 * Math.PI * 68;
+  const offset = circumference - (data.overall_score / 100) * circumference;
+
+  document.getElementById('hero').innerHTML = `
+    <div class="gauge">
+      <svg width="160" height="160" viewBox="0 0 160 160">
+        <circle cx="80" cy="80" r="68" fill="none" stroke="#1e2a3f" stroke-width="10"/>
+        <circle cx="80" cy="80" r="68" fill="none" stroke="${scoreColor}" stroke-width="10" stroke-linecap="round"
+          stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" style="transition:stroke-dashoffset .8s"/>
+      </svg>
+      <div class="value" style="color:${scoreColor}">${data.overall_score}</div>
+      <div class="label">/ 100</div>
+      <div class="grade" style="background:${scoreColor}22;color:${scoreColor}">Grade ${data.grade}</div>
+    </div>
+    <div class="hero-info">
+      <div class="big-text">${getVerdict(data.overall_score)}</div>
+      <div class="meta">
+        <div>📅 ${new Date(parseInt(data.timestamp) * 1000).toLocaleString()}</div>
+        <div>📊 ${data.factors.length} factors evaluated</div>
+        ${data.summary.top_issue ? '<div>⚠️ Top issue: ' + escapeHtml(data.summary.top_issue) + '</div>' : ''}
+      </div>
+    </div>`;
+
+  // Summary pills
+  document.getElementById('pills').innerHTML = `
+    <div class="pill good">✅ ${data.summary.good_factors} Good</div>
+    <div class="pill warning">⚠️ ${data.summary.warning_factors} Warning</div>
+    <div class="pill critical">🔴 ${data.summary.critical_factors} Critical</div>`;
+
+  // Factors
+  document.getElementById('factors').innerHTML = data.factors.map(f => {
+    const barColor = f.status === 'good' ? '#10b981' : f.status === 'warning' ? '#f59e0b' : '#ef4444';
+    const recs = f.recommendations.length
+      ? '<ul class="factor-recs">' + f.recommendations.map(r => '<li>💡 ' + escapeHtml(r) + '</li>').join('') + '</ul>'
+      : '';
+    return `<div class="factor ${f.status}">
+      <div class="factor-header">
+        <span class="factor-name">${escapeHtml(f.name)}</span>
+        <span class="factor-score ${f.status}">${Math.round(f.score)}</span>
+      </div>
+      <div class="factor-bar"><div class="fill" style="width:${f.score}%;background:${barColor}"></div></div>
+      <div class="factor-details">${escapeHtml(f.details)}</div>
+      ${recs}
+    </div>`;
+  }).join('');
+
+  // Trend chart
+  renderTrend(data.trend || []);
+}
+
+function renderTrend(trend) {
+  const svg = document.getElementById('trendSvg');
+  if (trend.length < 2) {
+    svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#64748b" font-size="12">Not enough data points for trend</text>';
+    return;
+  }
+
+  const w = svg.clientWidth || 600;
+  const h = svg.clientHeight || 120;
+  const pad = 10;
+  const points = trend.slice(-30);
+
+  const xs = points.map((_, i) => pad + (i / (points.length - 1)) * (w - 2 * pad));
+  const ys = points.map(p => h - pad - ((p.score / 100) * (h - 2 * pad)));
+
+  let pathD = 'M' + xs.map((x, i) => x + ',' + ys[i]).join(' L');
+  let areaD = pathD + ' L' + xs[xs.length-1] + ',' + (h - pad) + ' L' + xs[0] + ',' + (h - pad) + ' Z';
+
+  const lastScore = points[points.length - 1].score;
+  const color = lastScore >= 80 ? '#10b981' : lastScore >= 60 ? '#f59e0b' : '#ef4444';
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0.05"/>
+      </linearGradient>
+    </defs>
+    <path d="${areaD}" fill="url(#areaGrad)"/>
+    <path d="${pathD}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+    ${points.map((p, i) => `<circle cx="${xs[i]}" cy="${ys[i]}" r="3" fill="${color}"/>`).join('')}
+    <text x="${w - pad}" y="${pad + 10}" text-anchor="end" fill="${color}" font-size="11" font-weight="bold">${lastScore.toFixed(1)}</text>
+  `;
+}
+
+function getVerdict(score) {
+  if (score >= 90) return '🌟 Excellent — system is in peak condition';
+  if (score >= 80) return '✅ Good — minor issues to address';
+  if (score >= 70) return '⚠️ Fair — several areas need attention';
+  if (score >= 60) return '🟠 Concerning — multiple issues detected';
+  return '🔴 Critical — immediate action needed';
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+refresh();
+</script>
+</body>
+</html>

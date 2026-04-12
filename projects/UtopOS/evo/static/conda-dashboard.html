@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nix-evo — Conda Environment Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --yellow: #d29922; --red: #f85149;
+    --orange: #db6d28; --purple: #bc8cff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+
+  .header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 16px 24px; display: flex; align-items: center; gap: 16px;
+  }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header .backend { color: var(--accent); font-size: 14px; }
+  .header .actions { margin-left: auto; display: flex; gap: 8px; }
+  .btn {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    transition: background 0.15s;
+  }
+  .btn:hover { background: var(--border); }
+  .btn-primary { background: #238636; border-color: #238636; }
+  .btn-primary:hover { background: #2ea043; }
+  .btn-danger { background: #da3633; border-color: #da3633; }
+  .btn-danger:hover { background: #f85149; }
+
+  .dashboard { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+  .summary-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px; margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px; text-align: center;
+  }
+  .stat-card .value { font-size: 32px; font-weight: 700; }
+  .stat-card .label { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
+  .stat-card.green .value { color: var(--green); }
+  .stat-card.yellow .value { color: var(--yellow); }
+  .stat-card.red .value { color: var(--red); }
+  .stat-card.blue .value { color: var(--accent); }
+
+  .section { margin-bottom: 24px; }
+  .section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+
+  .env-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 16px;
+  }
+  .env-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden; cursor: pointer; transition: border-color 0.15s;
+  }
+  .env-card:hover { border-color: var(--accent); }
+  .env-card.expanded { border-color: var(--accent); }
+  .env-card-header {
+    padding: 16px; display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .env-card-header .name { font-size: 16px; font-weight: 600; }
+  .env-card-header .type { font-size: 12px; color: var(--text-dim); background: var(--border); padding: 2px 8px; border-radius: 10px; }
+  .env-meta { display: flex; gap: 16px; margin-top: 8px; color: var(--text-dim); font-size: 13px; }
+  .env-meta span { display: flex; align-items: center; gap: 4px; }
+  .env-details { padding: 0 16px 16px; display: none; }
+  .env-card.expanded .env-details { display: block; }
+  .env-details pre {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px; font-size: 12px; overflow-x: auto; max-height: 300px;
+  }
+
+  .health-bar {
+    height: 4px; background: var(--border); border-radius: 2px; margin-top: 8px;
+  }
+  .health-bar .fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+  .health-bar .fill.high { background: var(--green); }
+  .health-bar .fill.medium { background: var(--yellow); }
+  .health-bar .fill.low { background: var(--red); }
+
+  .conflicts-list { list-style: none; }
+  .conflicts-list li {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px; margin-bottom: 8px; font-size: 13px;
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .conflicts-list .icon { flex-shrink: 0; }
+  .severity-error { color: var(--red); }
+  .severity-warning { color: var(--yellow); }
+  .severity-info { color: var(--accent); }
+
+  .drift-indicator {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 12px;
+    padding: 2px 8px; border-radius: 10px;
+  }
+  .drift-clean { background: rgba(63,185,80,0.15); color: var(--green); }
+  .drift-detected { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .drift-significant { background: rgba(248,81,73,0.15); color: var(--red); }
+
+  .loading { text-align: center; padding: 48px; color: var(--text-dim); }
+  .error-banner {
+    background: rgba(248,81,73,0.1); border: 1px solid var(--red); border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 16px; color: var(--red);
+  }
+
+  @media (max-width: 768px) {
+    .env-grid { grid-template-columns: 1fr; }
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🐍 Conda Environment Dashboard</h1>
+  <span class="backend" id="backend-label">loading...</span>
+  <div class="actions">
+    <button class="btn" onclick="refresh()">↻ Refresh</button>
+    <button class="btn btn-primary" onclick="runDiagnostics()">🔍 Diagnose</button>
+    <button class="btn btn-danger" onclick="cleanCache()">🧹 Clean Cache</button>
+  </div>
+</div>
+
+<div class="dashboard" id="dashboard">
+  <div class="loading">Loading environment data...</div>
+</div>
+
+<script>
+const API_BASE = window.location.origin + '/api';
+
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(API_BASE + path, opts);
+  if (!res.ok) throw new Error(`API error: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+function fmtSize(mb) {
+  if (mb >= 1024) return (mb / 1024).toFixed(1) + ' GB';
+  return mb + ' MB';
+}
+
+function healthScore(env) {
+  let score = 100;
+  if (env.conflicts?.length) score -= env.conflicts.length * 10;
+  if (env.outdated?.length) score -= Math.min(env.outdated.length * 2, 30);
+  if (!env.has_environment_yml) score -= 15;
+  return Math.max(0, Math.min(100, score));
+}
+
+function healthClass(score) {
+  if (score >= 80) return 'high';
+  if (score >= 50) return 'medium';
+  return 'low';
+}
+
+function driftStatus(env) {
+  if (env.drift?.has_drift) {
+    const total = (env.drift.extra_packages?.length || 0) + (env.drift.missing_packages?.length || 0);
+    if (total > 5) return { cls: 'drift-significant', text: `${total} differences` };
+    return { cls: 'drift-detected', text: `${total} differences` };
+  }
+  return { cls: 'drift-clean', text: 'Clean' };
+}
+
+function renderDashboard(data) {
+  const dash = document.getElementById('dashboard');
+  const envs = data.environments || [];
+  const conflicts = data.conflicts || [];
+  const totalPkgs = envs.reduce((sum, e) => sum + (e.package_count || 0), 0);
+  const totalSize = envs.reduce((sum, e) => sum + (e.disk_usage_mb || 0), 0);
+  const avgHealth = envs.length ? Math.round(envs.reduce((sum, e) => sum + healthScore(e), 0) / envs.length) : 0;
+
+  document.getElementById('backend-label').textContent = `Backend: ${data.backend || 'unknown'}`;
+
+  dash.innerHTML = `
+    <div class="summary-grid">
+      <div class="stat-card blue"><div class="value">${envs.length}</div><div class="label">Environments</div></div>
+      <div class="stat-card blue"><div class="value">${totalPkgs}</div><div class="label">Total Packages</div></div>
+      <div class="stat-card ${avgHealth >= 80 ? 'green' : avgHealth >= 50 ? 'yellow' : 'red'}">
+        <div class="value">${avgHealth}%</div><div class="label">Avg Health</div>
+      </div>
+      <div class="stat-card blue"><div class="value">${fmtSize(totalSize)}</div><div class="label">Disk Usage</div></div>
+      <div class="stat-card ${conflicts.length ? 'yellow' : 'green'}">
+        <div class="value">${conflicts.length}</div><div class="label">Conflicts</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📦 Environments</div>
+      <div class="env-grid">
+        ${envs.map(env => {
+          const score = healthScore(env);
+          const drift = driftStatus(env);
+          return `
+          <div class="env-card" onclick="this.classList.toggle('expanded')">
+            <div class="env-card-header">
+              <div>
+                <div class="name">${env.name} ${env.is_active ? '🟢' : ''}</div>
+                <div class="env-meta">
+                  <span>🐍 ${env.python_version || '?'}</span>
+                  <span>📦 ${env.package_count || '?'} pkgs</span>
+                  <span>💾 ${fmtSize(env.disk_usage_mb || 0)}</span>
+                </div>
+                <div class="health-bar"><div class="fill ${healthClass(score)}" style="width:${score}%"></div></div>
+              </div>
+              <div style="text-align:right">
+                <span class="type">${env.env_type || 'conda'}</span>
+                <div style="margin-top:4px"><span class="drift-indicator ${drift.cls}">◉ ${drift.text}</span></div>
+              </div>
+            </div>
+            <div class="env-details">
+              <pre>Path: ${env.path}
+Python: ${env.python_version || 'unknown'}
+Manager: ${env.manager || env.env_type || 'conda'}
+${env.has_environment_yml ? '✅ environment.yml found: ' + (env.environment_yml_path || '') : '⚠️ No environment.yml'}</pre>
+              ${env.conflicts?.length ? '<h4 style="margin-top:8px;color:var(--yellow)">Conflicts</h4><ul class="conflicts-list">' + env.conflicts.map(c => `<li><span class="icon">⚠️</span>${c}</li>`).join('') + '</ul>' : ''}
+              ${env.outdated?.length ? '<h4 style="margin-top:8px;color:var(--text-dim)">Outdated (' + env.outdated.length + ')</h4><pre>' + env.outdated.slice(0,10).map(o => `${o.name}: ${o.current_version} → ${o.latest_version}`).join('\n') + '</pre>' : ''}
+              <div style="margin-top:8px;display:flex;gap:8px">
+                <button class="btn" onclick="event.stopPropagation();exportEnv('${env.name}')">📄 Export</button>
+                <button class="btn" onclick="event.stopPropagation();testEnv('${env.name}')">🧪 Test</button>
+                <button class="btn" onclick="event.stopPropagation();viewPackages('${env.name}')">📦 Packages</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    ${conflicts.length ? `
+    <div class="section">
+      <div class="section-title">⚠️ Cross-Environment Conflicts</div>
+      <ul class="conflicts-list">
+        ${conflicts.map(c => `
+          <li>
+            <span class="icon severity-${c.severity}">${c.severity === 'error' ? '❌' : c.severity === 'warning' ? '⚠️' : 'ℹ️'}</span>
+            <div>
+              <strong>${c.package_name}</strong> — ${c.installations.map(i => `${i.environment} (${i.version})`).join(', ')}
+              <div style="color:var(--text-dim);font-size:12px;margin-top:4px">${c.recommendation}</div>
+            </div>
+          </li>
+        `).join('')}
+      </ul>
+    </div>` : ''}
+  `;
+}
+
+async function refresh() {
+  const dash = document.getElementById('dashboard');
+  dash.innerHTML = '<div class="loading">Refreshing...</div>';
+  try {
+    // Fetch python envs (unified view)
+    const data = await apiFetch('/python/envs');
+    renderDashboard(data);
+  } catch (e) {
+    dash.innerHTML = `<div class="error-banner">Failed to load: ${e.message}</div><div class="loading">Check API server status</div>`;
+  }
+}
+
+async function runDiagnostics() {
+  try {
+    const diag = await apiFetch('/conda/diag');
+    alert('Diagnostics complete!\n\n' +
+      `Environments: ${diag.total_envs}\n` +
+      `Warnings: ${diag.warnings?.length || 0}\n` +
+      `System Python: ${diag.system_python || 'unknown'}`
+    );
+    refresh();
+  } catch (e) {
+    alert('Diagnostics failed: ' + e.message);
+  }
+}
+
+async function cleanCache() {
+  if (!confirm('Clean unused cache? This removes stale tarballs and packages.')) return;
+  try {
+    const result = await apiFetch('/cache/clean', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ dry_run: false, remove_tarballs: true, remove_packages: true })
+    });
+    alert(`Cache cleaned!\nFreed: ${result.space_freed_mb} MB\nActions: ${result.actions?.join(', ')}`);
+  } catch (e) {
+    alert('Clean failed: ' + e.message);
+  }
+}
+
+async function exportEnv(name) {
+  try {
+    const data = await apiFetch(`/conda/export?env=${name}`);
+    const blob = new Blob([data.content], { type: 'text/yaml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${name}-environment.yml`; a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Export failed: ' + e.message);
+  }
+}
+
+async function testEnv(name) {
+  try {
+    const result = await apiFetch('/env/test/auto', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ env: name })
+    });
+    const passed = result.results.filter(r => r.passed).length;
+    const total = result.results.length;
+    alert(`Tests for ${name}: ${passed}/${total} passed\n${result.overall_pass ? '✅ All good!' : '⚠️ Some tests failed'}`);
+  } catch (e) {
+    alert('Test failed: ' + e.message);
+  }
+}
+
+async function viewPackages(name) {
+  try {
+    const data = await apiFetch(`/conda/packages?env=${name}`);
+    const pkgList = data.packages.slice(0, 50).map(p => `${p.name} ${p.version}`).join('\n');
+    alert(`Packages in ${name} (${data.count} total, showing first 50):\n\n${pkgList}`);
+  } catch (e) {
+    alert('Failed: ' + e.message);
+  }
+}
+
+// Auto-load on page open
+refresh();
+</script>
+</body>
+</html>
