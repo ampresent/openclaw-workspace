@@ -248,3 +248,154 @@ pub async fn handle_metrics() -> impl IntoResponse {
         body,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ─── Metrics initialization ─────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_metrics_new_zero_values() {
+        let m = Metrics::new();
+        assert_eq!(m.api_requests_total.load(Ordering::Relaxed), 0);
+        assert_eq!(m.api_errors_total.load(Ordering::Relaxed), 0);
+        assert_eq!(m.generation_count.load(Ordering::Relaxed), 0);
+        assert_eq!(m.healer_actions_total.load(Ordering::Relaxed), 0);
+        assert_eq!(m.ws_connections_active.load(Ordering::Relaxed), 0);
+        assert_eq!(m.cluster_nodes_total.load(Ordering::Relaxed), 0);
+        assert_eq!(m.audit_entries_total.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn test_metrics_buckets_default() {
+        let buckets = ResponseTimeBuckets::default();
+        assert_eq!(buckets.le_10ms.load(Ordering::Relaxed), 0);
+        assert_eq!(buckets.le_inf.load(Ordering::Relaxed), 0);
+        assert_eq!(buckets.sum.load(Ordering::Relaxed), 0);
+        assert_eq!(buckets.count.load(Ordering::Relaxed), 0);
+    }
+
+    // ─── record_request ─────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_record_request_increments_total() {
+        let m = Metrics::new();
+        m.record_request("/api/v1/snapshot", "GET", 50, false).await;
+        assert_eq!(m.api_requests_total.load(Ordering::Relaxed), 1);
+        assert_eq!(m.api_errors_total.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn test_record_request_error_increments() {
+        let m = Metrics::new();
+        m.record_request("/api/v1/config", "POST", 100, true).await;
+        assert_eq!(m.api_requests_total.load(Ordering::Relaxed), 1);
+        assert_eq!(m.api_errors_total.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn test_record_request_multiple() {
+        let m = Metrics::new();
+        for _ in 0..10 {
+            m.record_request("/api/v1/logs", "GET", 25, false).await;
+        }
+        assert_eq!(m.api_requests_total.load(Ordering::Relaxed), 10);
+    }
+
+    #[tokio::test]
+    async fn test_record_request_response_time_bucket() {
+        let m = Metrics::new();
+        m.record_request("/test", "GET", 5, false).await;
+        let buckets = m.response_time_buckets.read().await;
+        assert_eq!(buckets.le_10ms.load(Ordering::Relaxed), 1);
+        assert_eq!(buckets.le_50ms.load(Ordering::Relaxed), 1);
+        assert_eq!(buckets.count.load(Ordering::Relaxed), 1);
+        assert_eq!(buckets.sum.load(Ordering::Relaxed), 5);
+    }
+
+    #[tokio::test]
+    async fn test_record_request_slow_response() {
+        let m = Metrics::new();
+        m.record_request("/test", "GET", 3000, false).await;
+        let buckets = m.response_time_buckets.read().await;
+        assert_eq!(buckets.le_10ms.load(Ordering::Relaxed), 0);
+        assert_eq!(buckets.le_5000ms.load(Ordering::Relaxed), 1);
+        assert_eq!(buckets.le_inf.load(Ordering::Relaxed), 1);
+    }
+
+    // ─── record_healer_action ───────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_record_healer_action() {
+        let m = Metrics::new();
+        m.record_healer_action("nginx").await;
+        m.record_healer_action("nginx").await;
+        m.record_healer_action("redis").await;
+        assert_eq!(m.healer_actions_total.load(Ordering::Relaxed), 3);
+    }
+
+    // ─── set_generation_count ───────────────────────────────────────
+
+    #[test]
+    fn test_set_generation_count() {
+        let m = Metrics::new();
+        m.set_generation_count(42);
+        assert_eq!(m.generation_count.load(Ordering::Relaxed), 42);
+    }
+
+    // ─── render_prometheus ──────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_render_prometheus_has_help_lines() {
+        let m = Metrics::new();
+        let output = m.render_prometheus().await;
+        assert!(output.contains("# HELP nix_evo_api_requests_total"));
+        assert!(output.contains("# TYPE nix_evo_api_requests_total counter"));
+    }
+
+    #[tokio::test]
+    async fn test_render_prometheus_has_up_metric() {
+        let m = Metrics::new();
+        let output = m.render_prometheus().await;
+        assert!(output.contains("nix_evo_up 1"));
+    }
+
+    #[tokio::test]
+    async fn test_render_prometheus_reflects_requests() {
+        let m = Metrics::new();
+        m.record_request("/test", "GET", 10, false).await;
+        m.record_request("/test", "GET", 20, true).await;
+        let output = m.render_prometheus().await;
+        assert!(output.contains("nix_evo_api_requests_total 2"));
+        assert!(output.contains("nix_evo_api_errors_total 1"));
+    }
+
+    #[tokio::test]
+    async fn test_render_prometheus_histogram_buckets() {
+        let m = Metrics::new();
+        let output = m.render_prometheus().await;
+        assert!(output.contains("nix_evo_api_response_duration_ms_bucket{le=\"10\"}"));
+        assert!(output.contains("nix_evo_api_response_duration_ms_bucket{le=\"+Inf\"}"));
+        assert!(output.contains("nix_evo_api_response_duration_ms_sum"));
+        assert!(output.contains("nix_evo_api_response_duration_ms_count"));
+    }
+
+    #[tokio::test]
+    async fn test_render_prometheus_generation_count() {
+        let m = Metrics::new();
+        m.set_generation_count(77);
+        let output = m.render_prometheus().await;
+        assert!(output.contains("nix_evo_generation_count 77"));
+    }
+
+    // ─── global metrics singleton ───────────────────────────────────
+
+    #[test]
+    fn test_global_metrics_singleton() {
+        let m = metrics();
+        // Should return the same reference every time
+        let m2 = metrics();
+        assert!(std::ptr::eq(m, m2));
+    }
+}

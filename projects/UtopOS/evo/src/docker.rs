@@ -464,3 +464,195 @@ pub async fn check_docker_nixos_integration() -> Result<Json<serde_json::Value>,
         },
     })))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ─── get_nixos_alternatives ──────────────────────────────────────
+
+    #[test]
+    fn test_alternatives_non_empty() {
+        let alts = get_nixos_alternatives();
+        assert!(!alts.is_empty());
+        assert!(alts.len() >= 10);
+    }
+
+    #[test]
+    fn test_alternatives_contain_nginx() {
+        let alts = get_nixos_alternatives();
+        let nginx = alts.iter().find(|(k, _)| *k == "nginx");
+        assert!(nginx.is_some());
+        let (_, alt) = nginx.unwrap();
+        assert_eq!(alt.nixos_service, "services.nginx");
+        assert_eq!(alt.migration_difficulty, "easy");
+    }
+
+    #[test]
+    fn test_alternatives_contain_postgres() {
+        let alts = get_nixos_alternatives();
+        let pg = alts.iter().find(|(k, _)| *k == "postgres");
+        assert!(pg.is_some());
+        assert_eq!(pg.unwrap().1.nixos_service, "services.postgresql");
+    }
+
+    #[test]
+    fn test_alternatives_contain_redis() {
+        let alts = get_nixos_alternatives();
+        let redis = alts.iter().find(|(k, _)| *k == "redis");
+        assert!(redis.is_some());
+        assert_eq!(redis.unwrap().1.migration_difficulty, "easy");
+    }
+
+    #[test]
+    fn test_alternatives_contain_grafana() {
+        let alts = get_nixos_alternatives();
+        let grafana = alts.iter().find(|(k, _)| *k == "grafana");
+        assert!(grafana.is_some());
+        assert_eq!(grafana.unwrap().1.nixos_package, "pkgs.grafana");
+    }
+
+    #[test]
+    fn test_alternatives_contain_nextcloud() {
+        let alts = get_nixos_alternatives();
+        let nc = alts.iter().find(|(k, _)| *k == "nextcloud");
+        assert!(nc.is_some());
+        assert_eq!(nc.unwrap().1.migration_difficulty, "hard");
+    }
+
+    // ─── match_nixos_alternative ─────────────────────────────────────
+
+    #[test]
+    fn test_match_simple_image() {
+        let alt = match_nixos_alternative("nginx");
+        assert!(alt.is_some());
+        assert_eq!(alt.unwrap().nixos_service, "services.nginx");
+    }
+
+    #[test]
+    fn test_match_tagged_image() {
+        let alt = match_nixos_alternative("nginx:1.24");
+        assert!(alt.is_some());
+    }
+
+    #[test]
+    fn test_match_registry_image() {
+        let alt = match_nixos_alternative("docker.io/library/redis:7-alpine");
+        assert!(alt.is_some());
+        assert_eq!(alt.unwrap().nixos_service, "services.redis");
+    }
+
+    #[test]
+    fn test_match_case_insensitive() {
+        let alt = match_nixos_alternative("NGINX:latest");
+        assert!(alt.is_some());
+    }
+
+    #[test]
+    fn test_match_unknown_image() {
+        let alt = match_nixos_alternative("my-custom-app:latest");
+        assert!(alt.is_none());
+    }
+
+    #[test]
+    fn test_match_grafana_image() {
+        let alt = match_nixos_alternative("grafana/grafana:10.0");
+        assert!(alt.is_some());
+        assert_eq!(alt.unwrap().nixos_service, "services.grafana");
+    }
+
+    // ─── parse_compose_config ────────────────────────────────────────
+
+    #[test]
+    fn test_parse_compose_valid() {
+        let json = r#"{
+            "services": {
+                "web": { "image": "nginx:latest" },
+                "cache": { "image": "redis:7" }
+            }
+        }"#;
+        let mut services = vec![];
+        let mut warnings = vec![];
+        let mut alts = vec![];
+        parse_compose_config(json, &mut services, &mut warnings, &mut alts);
+
+        assert_eq!(services.len(), 2);
+        assert!(warnings.is_empty());
+        assert_eq!(alts.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_compose_invalid_json() {
+        let json = "not json at all";
+        let mut services = vec![];
+        let mut warnings = vec![];
+        let mut alts = vec![];
+        parse_compose_config(json, &mut services, &mut warnings, &mut alts);
+
+        assert!(services.is_empty());
+        assert!(!warnings.is_empty());
+    }
+
+    #[test]
+    fn test_parse_compose_no_services() {
+        let json = r#"{ "version": "3" }"#;
+        let mut services = vec![];
+        let mut warnings = vec![];
+        let mut alts = vec![];
+        parse_compose_config(json, &mut services, &mut warnings, &mut alts);
+
+        assert!(services.is_empty());
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_parse_compose_unknown_image() {
+        let json = r#"{
+            "services": {
+                "app": { "image": "my-custom:latest" }
+            }
+        }"#;
+        let mut services = vec![];
+        let mut warnings = vec![];
+        let mut alts = vec![];
+        parse_compose_config(json, &mut services, &mut warnings, &mut alts);
+
+        assert_eq!(services.len(), 1);
+        assert!(!services[0].has_nixos_alternative);
+        assert!(services[0].nixos_service.is_none());
+        assert!(alts.is_empty());
+    }
+
+    #[test]
+    fn test_parse_compose_service_without_image() {
+        let json = r#"{
+            "services": {
+                "build": { "build": { "context": "." } }
+            }
+        }"#;
+        let mut services = vec![];
+        let mut warnings = vec![];
+        let mut alts = vec![];
+        parse_compose_config(json, &mut services, &mut warnings, &mut alts);
+
+        assert_eq!(services.len(), 1);
+        assert!(services[0].image.is_none());
+        assert!(!services[0].has_nixos_alternative);
+    }
+
+    #[test]
+    fn test_parse_compose_nixos_snippet_format() {
+        let json = r#"{
+            "services": {
+                "db": { "image": "postgres:16" }
+            }
+        }"#;
+        let mut services = vec![];
+        let mut warnings = vec![];
+        let mut alts = vec![];
+        parse_compose_config(json, &mut services, &mut warnings, &mut alts);
+
+        assert_eq!(alts.len(), 1);
+        assert!(alts[0].nixos_config_snippet.contains("services.postgresql"));
+    }
+}
