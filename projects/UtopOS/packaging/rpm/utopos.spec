@@ -86,8 +86,105 @@ log_level = "info"
 data_dir = "/var/lib/utopos"
 EOF
 
+# OpenClaw skills 注册配置片段
+cat > %{buildroot}%{_sysconfdir}/%{name}/openclaw-skills.json <<'EOF'
+{
+  "skills": {
+    "load": {
+      "extraDirs": ["/usr/share/utopos/skills"]
+    }
+  }
+}
+EOF
+
 %post
 %systemd_post utopos-agent.service
+
+# ── 注册 Skills 到 OpenClaw ──
+SKILLS_DIR="%{_datadir}/%{name}/skills"
+EVO_CONF="%{_sysconfdir}/%{name}/openclaw-skills.json"
+
+# 生成 skills 配置片段
+cat > "$EVO_CONF" <<'SKILLCONF'
+{
+  "skills": {
+    "load": {
+      "extraDirs": ["/usr/share/utopos/skills"]
+    }
+  }
+}
+SKILLCONF
+
+# 自动检测并合并到 OpenClaw 配置
+OPENCLAW_HOME=""
+# 1. 当前用户
+if [[ -n "$HOME" && -f "$HOME/.openclaw/openclaw.json" ]]; then
+    OPENCLAW_HOME="$HOME/.openclaw"
+# 2. root 用户
+elif [[ -f "/root/.openclaw/openclaw.json" ]]; then
+    OPENCLAW_HOME="/root/.openclaw"
+# 3. 扫描所有有 openclaw 配置的用户
+else
+    for d in /home/*/.openclaw /root/.openclaw; do
+        if [[ -f "$d/openclaw.json" ]]; then
+            OPENCLAW_HOME="$d"
+            break
+        fi
+    done
+fi
+
+if [[ -n "$OPENCLAW_HOME" ]]; then
+    OC_CONFIG="$OPENCLAW_HOME/openclaw.json"
+
+    # 检查 extraDirs 是否已包含我们的路径
+    if grep -q "/usr/share/utopos/skills" "$OC_CONFIG" 2>/dev/null; then
+        echo "  Skills 已注册到 OpenClaw"
+    else
+        # 使用 python3 合并配置 (兼容 JSON5/openclaw 格式)
+        python3 -c "
+import json, sys, os
+
+config_path = '$OC_CONFIG'
+skills_dir = '/usr/share/utopos/skills'
+
+# 读取现有配置
+try:
+    with open(config_path) as f:
+        content = f.read()
+    # openclaw.json 可能是 JSON5, 尝试简单解析
+    import re
+    # 去掉单行注释
+    content = re.sub(r'//.*?\n', '\n', content)
+    # 去掉尾逗号
+    content = re.sub(r',\s*([\]}])', r'\1', content)
+    config = json.loads(content)
+except Exception:
+    config = {}
+
+# 确保路径存在
+if 'skills' not in config:
+    config['skills'] = {}
+if 'load' not in config['skills']:
+    config['skills']['load'] = {}
+if 'extraDirs' not in config['skills']['load']:
+    config['skills']['load']['extraDirs'] = []
+
+# 添加路径 (如果不存在)
+if skills_dir not in config['skills']['load']['extraDirs']:
+    config['skills']['load']['extraDirs'].append(skills_dir)
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+    print('  ✅ Skills 已注册到 OpenClaw: ' + config_path)
+    print('  需要重启 OpenClaw Gateway 生效: systemctl restart openclaw 或 openclaw gateway restart')
+else:
+    print('  Skills 已在 OpenClaw 配置中')
+" 2>/dev/null || echo "  ⚠️  自动注册失败，请手动添加 extraDirs: /usr/share/utopos/skills"
+    fi
+else
+    echo "  ⚠️  未找到 OpenClaw 配置，安装后请手动注册:"
+    echo "    在 openclaw.json 中添加:"
+    echo '    { "skills": { "load": { "extraDirs": ["/usr/share/utopos/skills"] } } }'
+fi
 
 echo ""
 echo "════════════════════════════════════════════════"
@@ -107,10 +204,10 @@ echo "  文档: %{_datadir}/doc/%{name}/"
 echo ""
 echo "  Skills (Agent 决策层):"
 echo "    %{_datadir}/%{name}/skills/"
-echo "    - UtopOS      通用操作手册"
-echo "    - UtopOS-rpm  RPM 后端专用"
+echo "    - UtopOS       通用操作手册"
+echo "    - UtopOS-rpm   RPM 后端专用"
 echo "    - UtopOS-conda Conda 后端专用"
-echo "    - UtopOS-nix  Nix 后端参考"
+echo "    - UtopOS-nix   Nix 后端参考"
 echo ""
 echo "  启动服务:"
 echo "    systemctl enable --now utopos-agent"
@@ -118,6 +215,34 @@ echo ""
 
 %preun
 %systemd_preun utopos-agent.service
+
+# 卸载时从 OpenClaw 配置中移除 skills 路径
+if [[ $1 -eq 0 ]]; then
+    for d in /root/.openclaw /home/*/.openclaw; do
+        OC_CONFIG="$d/openclaw.json"
+        if [[ -f "$OC_CONFIG" ]]; then
+            python3 -c "
+import json, re
+config_path = '$OC_CONFIG'
+skills_dir = '/usr/share/utopos/skills'
+try:
+    with open(config_path) as f:
+        content = f.read()
+    content = re.sub(r'//.*?\n', '\n', content)
+    content = re.sub(r',\s*([\]}])', r'\1', content)
+    config = json.loads(content)
+    dirs = config.get('skills', {}).get('load', {}).get('extraDirs', [])
+    if skills_dir in dirs:
+        dirs.remove(skills_dir)
+        with open(config_path, 'w') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        print('  ✅ 已从 OpenClaw 注销 skills: ' + config_path)
+except Exception:
+    pass
+" 2>/dev/null
+        fi
+    done
+fi
 
 %postun
 %systemd_postun_with_restart utopos-agent.service
@@ -178,6 +303,7 @@ echo ""
 
 # 配置
 %config(noreplace) %{_sysconfdir}/%{name}/evo.conf
+%config(noreplace) %{_sysconfdir}/%{name}/openclaw-skills.json
 
 # 数据目录 (ghost, 由 systemd StateDirectory 创建)
 %dir %{_localstatedir}/lib/%{name}
