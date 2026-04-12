@@ -1,195 +1,189 @@
-# nix-evo Skill — 容器自愈操作系统
+# nix-evo Skill
 
-> 让 OpenClaw agent 在容器环境中自觉诊断和修复操作系统缺陷，而非绕过。
+> NixOS 源码修复工作流 — AI Agent 通过分析和修补源代码来解决系统问题。
 
 ## 核心原则
 
-**第一优先级：修复操作系统，不要绕过它。**
+**永远不要绕过问题，永远不要直接修改操作系统。**
 
-当遇到任何运行问题时，你必须：
+当你（AI Agent）在 NixOS 上遇到系统软件问题时：
 
-1. **先诊断 OS 状态** — 问题的根因很可能在操作系统层面
-2. **修复根因** — 修补 OS 缺陷本身，而不是造 workaround
-3. **验证修复** — 确认修复后系统行为正确
-4. **记录修复** — 将修复过程写入 `/workspace/repairs.log`
+1. **❌ 不要**尝试用 workaround 绕过（比如重启服务、改配置文件糊弄过去）
+2. **❌ 不要**直接修改 `/nix/store`、手动替换二进制、或在运行时打热补丁
+3. **✅ 要**解压源代码，分析源码中的根因
+4. **✅ 要**修改源代码，生成补丁，重新打包
+5. **✅ 要**通过 nixos-rebuild 应用新包，而不是直接动系统
 
-## 禁止行为（绝不允许）
+## 为什么
 
-- ❌ 遇到命令不存在时不安装，而是写替代脚本
-- ❌ 遇到库缺失时用静态链接绕过，而不是安装正确依赖
-- ❌ 遇到权限问题时 chmod 777，而是正确设置权限
-- ❌ 遇到配置错误时注释掉，而是修正配置
-- ❌ 遇到服务失败时跳过，而是修复并重启服务
+NixOS 的哲学是**声明式**和**可复现**。直接修改操作系统：
 
-## 诊断流程
+- 重启后丢失（Nix store 是只读的）
+- 无法追溯（谁改了什么、为什么改）
+- 无法回滚（没有 generation 记录）
+- 破坏复现性（同一配置不再生成同一系统）
 
-每次被要求执行任务时，**无论任务是什么**，先执行完整系统扫描：
+修补源代码 + 重新打包：
 
-### 1. 系统快照 (`sys_scan`)
+- 变更持久化（写入 Nix 配置，生成新 generation）
+- 变更可追溯（补丁文件 + commit 记录）
+- 变更可回滚（`nixos-rebuild switch --rollback`）
+- 变更可复现（任何人在任何机器上复现）
+
+## 工作流
+
+### 第一步：诊断（不要急着修）
+
+使用 `system_snapshot` 和 `service_logs` 了解问题。
+
+```
+用户: nginx 502 了
+
+→ 调用 system_snapshot
+→ 发现 php-fpm.service failed
+→ 调用 service_logs("phpfpm.service")
+→ 发现错误信息
+```
+
+**关键**：此时不要动手修。先理解根因。
+
+### 第二步：定位源码包
+
+找到出问题的软件对应的 Nix 包。
+
+```
+→ 调用 package_info("php-fpm")
+→ 获取包名、版本、源码路径
+```
+
+源码通常在 `/nix/store/<hash>-<pkg>-<version>/` 或可以从 nixpkgs 源码树中找到对应的 derivation。
+
+### 第三步：解压并分析源代码
+
+**这是核心步骤。** 不要看运行时文件，要看源码。
 
 ```bash
-# 检查 OS 发行版
-cat /etc/os-release
+# 找到源码包
+nix-store --realise $(nix-instantiate '<nixpkgs>' -A php83)
 
-# 检查内核
-uname -a
+# 解压源码
+cd /tmp && mkdir fix-workspace && cd fix-workspace
+nix-build '<nixpkgs>' -A php83.src --no-out-link
+# 或直接从 /nix/store 解压源码 tarball
 
-# 检查磁盘
-df -h
-
-# 检查内存
-free -h
-
-# 检查进程状态
-ps aux --sort=-%mem | head -20
-
-# 检查网络
-ip addr 2>/dev/null || ifconfig
-ss -tlnp 2>/dev/null || netstat -tlnp
+# 分析代码
+grep -r "listen" --include="*.conf" .
+cat php-fpm.conf.in
 ```
 
-### 2. 包管理器健康检查 (`pkg_health`)
+分析时关注：
+
+- 配置文件模板（`*.conf.in`、`*.service` 模板）
+- 默认值是否有问题
+- 编译参数是否导致了错误行为
+- 源码中的 bug
+
+### 第四步：生成补丁
+
+基于源码分析结果，生成 Nix 补丁。
+
+```nix
+# overlay 或 package override 示例
+final: prev: {
+  php83 = prev.php83.overrideAttrs (old: {
+    patches = (old.patches or []) ++ [
+      ./patches/fix-fpm-listen-port.patch
+    ];
+  });
+}
+```
+
+或者通过修改 NixOS 模块配置来覆盖默认值：
+
+```nix
+# configuration.nix 中
+services.phpfpm.pools.main.settings = {
+  "listen" = "/run/phpfpm.sock";  # 修复监听地址
+};
+```
+
+### 第五步：验证 + 应用
 
 ```bash
-# Debian/Ubuntu
-dpkg --audit 2>/dev/null
-apt list --installed 2>/dev/null | grep -i "broken\|half"
-dpkg -l | grep -v "^ii" | head -20
+# 先 dry-build
+nixos-rebuild dry-build
 
-# 检查缺失的动态库
-ldconfig -p 2>/dev/null | wc -l
-for bin in $(ls /usr/bin/ | head -50); do
-  ldd /usr/bin/$bin 2>&1 | grep "not found" && echo "BROKEN: $bin"
-done
-
-# 检查 PATH 完整性
-echo $PATH
-which apt python3 node npm git curl wget ssh 2>&1
+# 确认无误后 apply
+nixos-rebuild switch
 ```
 
-### 3. 服务状态检查 (`svc_check`)
+通过 nix-evo：
+
+```
+→ 调用 config_validate（dry-run + 风险评估）
+→ 用户确认
+→ 调用 config_apply（nixos-rebuild switch）
+→ 生成新 generation
+```
+
+### 第六步：提交到上游（可选但推荐）
+
+如果修复的是上游 bug，生成 nixpkgs PR：
 
 ```bash
-# 检查失败的服务
-systemctl list-units --state=failed 2>/dev/null
-journalctl -p err --since "1 hour ago" --no-pager 2>/dev/null | tail -20
-
-# 检查 cron
-crontab -l 2>/dev/null
-ls -la /etc/cron.d/ 2>/dev/null
+# 参考 NIXPKGS-PR-TEMPLATE.md
 ```
 
-### 4. 配置完整性检查 (`config_check`)
+## MCP Tools 速查
+
+| 工具 | 用途 | 对应阶段 |
+|------|------|---------|
+| `system_snapshot` | 全局状态 | 诊断 |
+| `service_logs` | 服务日志 | 诊断 |
+| `package_info` | 包信息 | 定位源码 |
+| `config_read` | 读 NixOS 配置 | 分析 |
+| `generation_diff` | generation 对比 | 分析 |
+| `config_validate` | dry-run 验证 | 验证 |
+| `config_apply` | 执行变更 | 应用 |
+| `rollback_list` | 列出可回滚版本 | 兜底 |
+| `rollback_apply` | 回滚 | 兜底 |
+
+## 反模式（绝对不要做）
+
+### ❌ 直接编辑运行时文件
 
 ```bash
-# 检查关键配置文件语法
-bash -n /etc/profile 2>&1
-bash -n ~/.bashrc 2>&1
-
-# 检查 /etc 下的关键文件
-ls -la /etc/resolv.conf /etc/hosts /etc/hostname /etc/passwd /etc/group
-
-# 检查环境变量
-env | grep -E "PATH|HOME|LANG|LC_" | sort
+# 禁止
+vim /etc/php-fpm.d/www.conf    # 这不是 NixOS 的方式
+systemctl restart php-fpm       # 改了也没用，nixos-rebuild 会覆盖
 ```
 
-### 5. 符号链接完整性 (`symlink_audit`)
+### ❌ 绕过问题
 
 ```bash
-# 检查 /usr/local/bin 中的断链
-find /usr/local/bin -type l ! -exec test -e {} \; -print 2>/dev/null
-
-# 检查 /usr/bin 中的断链
-find /usr/bin -type l ! -exec test -e {} \; -print 2>/dev/null
-
-# 验证 ldconfig 完整性
-ldconfig -p 2>/dev/null | wc -l
-cat /etc/ld.so.conf.d/*.conf 2>/dev/null
-for conf in /etc/ld.so.conf.d/*.conf; do
-  [ -f "$conf" ] && [ ! -d "$(cat $conf)" ] && echo "BROKEN: $conf -> $(cat $conf)"
-done
+# 禁止
+systemctl restart nginx          # 重启不解决根因
+while true; do systemctl restart nginx; sleep 1; done  # 更不要这样
 ```
 
-### 6. 磁盘和临时文件 (`disk_check`)
+### ❌ 手动修改 Nix Store
 
 ```bash
-# 检查磁盘使用
-df -h
-
-# 检查 /tmp 中的大文件 (>10MB)
-find /tmp -type f -size +10M -exec ls -lh {} \; 2>/dev/null
-
-# 检查 /var/log 大小
-du -sh /var/log/ 2>/dev/null
+# 禁止（而且会失败，因为 /nix/store 是只读的）
+vim /nix/store/abc123-php-8.3/etc/php-fpm.conf
 ```
 
-## 修复协议
+### ❌ 不经过验证直接 apply
 
-发现任何问题后，按以下顺序修复：
-
-### 级别 1：关键（阻止基本功能）
-- 缺失的包管理器 → 重新安装
-- 损坏的 libc/核心库 → 立即修复
-- DNS 不可达 → 修复 resolv.conf
-- 磁盘满 → 清理空间
-
-### 级别 2：重要（影响常用功能）
-- 缺失的常用工具（curl, wget, git, vim）→ 安装
-- 损坏的 shell 配置 → 修复语法
-- 失败的系统服务 → 诊断并修复
-
-### 级别 3：一般（优化空间）
-- PATH 不完整 → 补充
-- locale 问题 → 修复
-- 无用的残留包 → 清理
-- 日志过大 → 轮转
-
-## 修复记录格式
-
-每次修复后，追加到 `/workspace/repairs.log`：
-
-```
-## [时间戳] 修复记录
-
-**发现的问题**: <描述>
-**诊断过程**: <如何定位的>
-**根因**: <根本原因>
-**修复措施**: <具体操作>
-**验证**: <如何确认修复成功>
-**级别**: critical / important / minor
----
+```bash
+# 禁止（跳过 dry-run = 踩雷）
+nixos-rebuild switch  # 不先 dry-build
 ```
 
-## 容器环境特定行为
+## 安全约束
 
-由于你在容器中运行：
-
-- 包管理器通常是 `apt`（Debian/Ubuntu）或 `apk`（Alpine）
-- 没有 systemd → 使用 `ps`、`supervisorctl` 检查服务
-- `/proc` 和 `/sys` 可用但受限
-- 网络配置可能是 Docker 管理的 → 不要随意改 DNS
-- 容器重启会丢失非持久化修改 → 将修复脚本保存到 `/workspace/`
-
-## 自动化触发
-
-当以下情况发生时，**自动**执行系统扫描和修复（不需要用户要求）：
-
-1. 任何命令返回 "command not found"
-2. 任何命令返回 "No such file or directory" 对于系统路径
-3. 任何 apt/dpkg 命令报错
-4. 任何服务启动失败
-5. 任何 "permission denied" 对于系统文件
-6. 定时：每次 session 开始时
-
-## 实验目标
-
-本 skill 的实验目标是验证：
-
-> 容器化的 OpenClaw agent 在面对 OS 缺陷时，能否**自觉地优先修复操作系统**，而非绕过缺陷继续工作。
-
-成功标准：
-- ✅ 遇到 "command not found" → 安装缺失的包（不是用替代命令）
-- ✅ 遇到库缺失 → 安装正确的库包（不是静态编译）
-- ✅ 遇到配置错误 → 修正配置文件（不是跳过检查）
-- ✅ 遇到服务失败 → 修复并重启（不是忽略）
-- ✅ 主动扫描并发现未被报告的问题
+- 所有变更通过 `config_validate` dry-run 后才允许 `config_apply`
+- 风险等级评估：safe / moderate / dangerous
+- 每次 apply 自动创建 generation，支持回滚
+- API 默认只监听 127.0.0.1
+- 补丁文件保存在版本控制中，可追溯
