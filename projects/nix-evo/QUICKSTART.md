@@ -1,152 +1,83 @@
 # nix-evo Quick Start
 
-> 5 分钟让你的 NixOS 服务器接入 Claude Code。
+> 让 AI Agent 用源码修复工作流解决系统软件问题。
 
 ## 前提
 
-- NixOS 服务器（有 `nixos-rebuild` 命令）
-- 本地有 Claude Code（或兼容 MCP 的 AI agent）
+- OpenClaw 已安装
+- 目标机器有对应的包管理器（nixos-rebuild / rpm / conda）
 
-## 1. 安装 nix-evo-agent（服务器端）
-
-### 方式 A: Flake input（推荐）
-
-```nix
-# flake.nix
-{
-  inputs.nix-evo.url = "github:your-org/nix-evo";
-
-  outputs = { self, nixpkgs, nix-evo, ... }: {
-    nixosConfigurations.myserver = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        nix-evo.nixosModules.nix-evo-agent
-        ./configuration.nix
-      ];
-    };
-  };
-}
-```
-
-```nix
-# configuration.nix
-services.nix-evo-agent = {
-  enable = true;
-  # 可选：API token 文件（每台服务器一个）
-  # tokenFile = "/etc/nix-evo-token";
-};
-```
-
-### 方式 B: 手动构建
+## 1. 确认 skill 已安装
 
 ```bash
-# 在 NixOS 机器上
-cd evo/
-nix build
-./result/bin/nix-evo-agent --host 127.0.0.1 --port 7890
+ls ~/.openclaw/workspace/skills/nix-evo/SKILL.md
 ```
 
-## 2. 安装 MCP Server（本地）
+skill 会在 AGENTS.md 的 `available_skills` 中自动注册，AI Agent 会识别并遵循其工作流。
 
-```bash
-cd mcp-server/
-npm install
-npm run build
-```
+## 2. 直接用自然语言描述问题
 
-## 3. 配置 hosts
+在对话中说：
 
-创建 `~/.config/nix-evo/hosts.toml`：
+> "nginx 502 了"
 
-```toml
-[hosts.default]
-url = "http://127.0.0.1:7890"
-```
+AI Agent 会自动：
 
-如果 agent 在远程服务器上，通过 SSH 隧道连接：
+1. **检测包管理器** — `which nixos-rebuild / rpm / conda`
+2. **下载源码** — 根据检测结果执行对应的源码获取命令
+3. **诊断问题** — `systemctl status`、`journalctl` 等
+4. **分析源码** — 进入下载的源码目录，定位根因
+5. **生成补丁** — 修改源码，生成 patch 文件
+6. **重新打包** — `rpmbuild -ba` / `conda build` / `nix-build`
+7. **验证安装** — 先 dry-run 再安装
+8. **提交上游**（可选）— 生成 PR
 
-```bash
-# 本地终端
-ssh -L 7890:127.0.0.1:7890 user@your-server
-```
-
-多服务器配置：
-
-```toml
-[hosts.default]
-url = "http://127.0.0.1:7890"
-token = "local-token"
-
-[hosts.production]
-url = "http://127.0.0.1:7890"
-token = "prod-token"
-ssh_tunnel = "admin@prod-server:7890"
-description = "生产服务器"
-```
-
-## 4. 接入 Claude Code
-
-在 Claude Code 的 MCP 配置中添加：
-
-```json
-{
-  "mcpServers": {
-    "nix-evo": {
-      "command": "node",
-      "args": ["/path/to/nix-evo/mcp-server/dist/index.js"]
-    }
-  }
-}
-```
-
-## 5. 开始使用
-
-在 Claude Code 中说：
-
-> "检查一下我的服务器状态"
-
-Claude Code 会调用 `system_snapshot`，看到服务、磁盘、内存等信息。
-
-> "nginx 502 了，帮我看看"
-
-Claude Code 会自动诊断 → 读取配置 → 生成修复 → dry-run → 等你确认。
-
-## 典型工作流
+## 3. 典型交互
 
 ```
-1. system_snapshot    → 看全局状态
-2. service_logs       → 定位问题服务
-3. config_read        → 读配置文件
-4. Claude Code 生成修复方案
-5. config_validate    → dry-run 验证 + 风险评估
-6. config_apply       → 确认执行（等用户确认）
-7. rollback_list      → 查看可用回滚点
-8. rollback_apply     → 如需回滚
+用户: php-fpm 启动失败了
+
+Agent: [检测到 rpm 系]
+        [下载 php 源码到 /tmp/evo-fix-php/]
+        [查看 journalctl 日志]
+        [分析源码中的 php-fpm 默认配置]
+        发现问题：php-fpm 默认监听 127.0.0.1:9000，
+        但 nginx upstream 配置的是 unix socket。
+        这是上游默认值的问题。
+
+        生成补丁修复监听地址...
+        重新打包...
+        验证：dry-build 通过，风险等级 safe。
+
+        要我安装吗？
+
+用户: 确认
+
+Agent: [安装新包]
+        已完成！php-fpm 已修复。
+        如果有问题可以回滚：yum history undo <ID>
 ```
 
-## 安全建议
+## 安全
 
-1. **默认只监听 127.0.0.1** — 远程访问必须走 SSH 隧道
-2. **配置 API token** — 生产环境务必启用
-3. **永远先 dry-run** — `config_validate` 在 `config_apply` 之前
-4. **保留 generation** — 每次 apply 自动记录，随时可回滚
+- 变更前必须验证（dry-run / test build）
+- 风险分级：safe / moderate / dangerous
+- 不直接修改运行时文件
+- 补丁文件可追溯
 
 ## 故障排除
 
-### MCP Server 连不上 agent
+### 未识别包管理器
 
-```bash
-# 检查 agent 是否运行
-curl http://127.0.0.1:7890/health
+确保目标机器安装了 `nixos-rebuild`、`rpm` 或 `conda` 中至少一个。
 
-# 检查 hosts.toml 配置
-cat ~/.config/nix-evo/hosts.toml
-```
+### 源码下载失败
 
-### dry-build 失败
-
-通常意味着 NixOS 配置有语法错误。agent 会尝试多种 dry-build 策略（flake、no-flake、impure），如果都失败了，配置本身可能有问题。
+Agent 会尝试多种方式：
+- Nix：`nix-build -A pkg.src`
+- RPM：`yumdownloader --source` → `dnf download --source`
+- Conda：`conda-forge feedstock` → `conda skeleton pypi`
 
 ### 权限不足
 
-agent 需要权限执行 `nixos-rebuild`、`systemctl`、`journalctl` 等命令。NixOS module 使用 `DynamicUser` + `SupplementaryGroups` 自动处理。
+打包和安装通常需要 root 权限。Agent 会提示需要 `sudo`。

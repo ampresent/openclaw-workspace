@@ -1,7 +1,7 @@
 # nix-evo Skill
 
 > 源码修复工作流 — AI Agent 通过分析和修补源代码来解决系统软件问题。
-> 支持 **Nix**、**RPM**、**Conda** 三种包管理后端。
+> 支持 **Nix**、**RPM**、**Conda** 三种包管理后端。以 OpenClaw Skill 形式运行，无需独立进程。
 
 ## 核心原则
 
