@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+# evo-deploy-status — 部署矩阵：查看哪些机器装了哪个版本
+# 用法:
+#   evo-deploy-status <pkg>              — 查看某包的部署状态
+#   evo-deploy-status --all              — 查看所有包的部署状态
+#   evo-deploy-status --matrix           — 全量矩阵视图
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+INVENTORY_FILE="$EVO_HOME/inventory.toml"
+HISTORY_DIR="$EVO_HOME/history"
+
+# 没有 inventory 文件时用本地信息
+get_local_status() {
+  local PKG="$1"
+  local BACKEND
+
+  # 检测后端
+  if command -v nix-store &>/dev/null; then
+    BACKEND="nix"
+    VERSION=$(nix-store -qR /run/current-system 2>/dev/null | grep "$PKG" | head -1 | sed 's/.*-//' || echo "unknown")
+    INSTALLED="true"
+  elif command -v rpm &>/dev/null; then
+    BACKEND="rpm"
+    VERSION=$(rpm -q "$PKG" 2>/dev/null | sed "s/^${PKG}-//" || echo "not-installed")
+    [[ "$VERSION" == "not-installed" ]] && INSTALLED="false" || INSTALLED="true"
+  elif command -v conda &>/dev/null; then
+    BACKEND="conda"
+    VERSION=$(conda list "$PKG" 2>/dev/null | awk '$1=="'"$PKG"'" {print $2}' || echo "not-installed")
+    [[ -z "$VERSION" || "$VERSION" == "not-installed" ]] && INSTALLED="false" || INSTALLED="true"
+  else
+    BACKEND="unknown"
+    VERSION="unknown"
+    INSTALLED="unknown"
+  fi
+
+  # 查找最近的变更记录
+  LAST_ACTION="none"
+  LAST_TIME="N/A"
+  if [[ -f "$HISTORY_DIR/${PKG}.jsonl" ]]; then
+    LAST_LINE=$(tail -1 "$HISTORY_DIR/${PKG}.jsonl" 2>/dev/null)
+    if [[ -n "$LAST_LINE" ]]; then
+      LAST_ACTION=$(echo "$LAST_LINE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('action','none'))" 2>/dev/null || echo "none")
+      LAST_TIME=$(echo "$LAST_LINE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('timestamp','N/A'))" 2>/dev/null || echo "N/A")
+    fi
+  fi
+
+  echo '{"host":"localhost","pkg":"'"$PKG"'","backend":"'"$BACKEND"'","version":"'"$VERSION"'","installed":'"$INSTALLED"',"last_action":"'"$LAST_ACTION"'","last_time":"'"$LAST_TIME"'"}'
+}
+
+query_from_inventory() {
+  local PKG="$1"
+
+  python3 -c "
+import json, sys
+
+# 解析简单的 toml-like 格式
+hosts = []
+current = {}
+with open('$INVENTORY_FILE') as f:
+    for line in f:
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        if line.startswith('[['):
+            if current:
+                hosts.append(current)
+            current = {'name': line.strip('[]')}
+        elif '=' in line:
+            k, v = line.split('=', 1)
+            current[k.strip()] = v.strip().strip('\"')
+if current:
+    hosts.append(current)
+
+results = []
+for h in hosts:
+    results.append({
+        'host': h.get('name', 'unknown'),
+        'pkg': '$PKG',
+        'backend': h.get('backend', 'unknown'),
+        'version': h.get('version_' + '$PKG', h.get('version', 'unknown')),
+        'installed': h.get('installed_' + '$PKG', 'unknown'),
+    })
+
+print(json.dumps({'status':'ok','source':'inventory','results':results}))
+" 2>/dev/null
+}
+
+deploy_single() {
+  local PKG="${1:?evo-deploy-status <pkg>}"
+
+  if [[ -f "$INVENTORY_FILE" ]]; then
+    query_from_inventory "$PKG"
+  else
+    local LOCAL
+    LOCAL=$(get_local_status "$PKG")
+    echo '{"status":"ok","source":"local","results":['"$LOCAL"']}'
+  fi
+}
+
+deploy_all() {
+  echo -n '{"status":"ok","packages":['
+  FIRST=true
+  for f in "$HISTORY_DIR"/*.jsonl; do
+    [[ -f "$f" ]] || continue
+    PKG_NAME=$(basename "$f" .jsonl)
+    [[ "$FIRST" == "true" ]] && FIRST=false || echo -n ','
+    echo -n '{"pkg":"'"$PKG_NAME"'","hosts":['
+    if [[ -f "$INVENTORY_FILE" ]]; then
+      query_from_inventory "$PKG_NAME" 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(','.join(json.dumps(h) for h in d.get('results',[])))" 2>/dev/null || true
+    else
+      get_local_status "$PKG_NAME" 2>/dev/null || true
+    fi
+    echo -n ']}'
+  done
+  echo ']}'
+}
+
+deploy_matrix() {
+  python3 -c "
+import json, os, glob
+
+evo_home = os.environ.get('EVO_HOME', os.path.expanduser('~/.evo'))
+history_dir = os.path.join(evo_home, 'history')
+inventory_file = os.path.join(evo_home, 'inventory.toml')
+
+# 收集所有包名
+pkgs = []
+for f in glob.glob(os.path.join(history_dir, '*.jsonl')):
+    pkgs.append(os.path.basename(f).replace('.jsonl',''))
+
+if not pkgs:
+    print(json.dumps({'status':'ok','message':'no packages tracked','matrix':[]}))
+    exit()
+
+# 如果有 inventory，解析 host 列表
+hosts = []
+if os.path.exists(inventory_file):
+    current = {}
+    with open(inventory_file) as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith('[['):
+                if current: hosts.append(current)
+                current = {'name': line.strip('[]')}
+            elif '=' in line:
+                k, v = line.split('=', 1)
+                current[k.strip()] = v.strip().strip('\"')
+    if current: hosts.append(current)
+
+if not hosts:
+    hosts = [{'name': 'localhost', 'backend': 'local'}]
+
+matrix = []
+for pkg in sorted(pkgs):
+    row = {'pkg': pkg, 'hosts': {}}
+    for h in hosts:
+        v = h.get(f'version_{pkg}', h.get('version', '?'))
+        row['hosts'][h['name']] = v
+    matrix.append(row)
+
+print(json.dumps({'status':'ok','matrix': matrix, 'hosts': [h['name'] for h in hosts]}))
+" 2>/dev/null
+}
+
+TARGET="${1:-}"
+case "$TARGET" in
+  --all)    deploy_all ;;
+  --matrix) deploy_matrix ;;
+  "")       echo '{"status":"error","error":"usage: evo-deploy-status <pkg|--all|--matrix>"}'; exit 1 ;;
+  *)        deploy_single "$TARGET" ;;
+esac

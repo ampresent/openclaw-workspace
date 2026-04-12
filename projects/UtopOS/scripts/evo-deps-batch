@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# evo-deps-batch — 按依赖拓扑排序批量重构建下游包
+# 用法: evo-deps-batch <pkg> [--max-parallel N] [--dry-run]
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+PKG="${1:?用法: evo-deps-batch <pkg> [--max-parallel N] [--dry-run]}"
+shift
+
+MAX_PARALLEL=1 DRY_RUN=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --max-parallel) MAX_PARALLEL="$2"; shift 2 ;;
+    --dry-run)      DRY_RUN=true; shift ;;
+    *) shift ;;
+  esac
+done
+
+# 获取重构建计划
+PLAN_JSON=$("$EVO_HOME"/scripts/evo-deps rebuild-plan "$PKG" 2>/dev/null)
+
+# 提取包列表
+PKG_LIST=$(echo "$PLAN_JSON" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for item in data.get('plan', []):
+    print(item['pkg'])
+" 2>/dev/null)
+
+if [[ -z "$PKG_LIST" ]]; then
+  echo '{"status":"ok","pkg":"'"$PKG"'","message":"no reverse dependencies to rebuild","rebuilt":0}'
+  exit 0
+fi
+
+TOTAL=$(echo "$PKG_LIST" | wc -l)
+
+if [[ "$DRY_RUN" == "true" ]]; then
+  echo '{"status":"ok","pkg":"'"$PKG"'","dry_run":true,"would_rebuild":'"$TOTAL"',"packages":['
+  FIRST=true
+  while IFS= read -r DEP; do
+    [[ "$FIRST" == "true" ]] && FIRST=false || echo -n ','
+    echo -n '"'"$DEP"'"'
+  done <<< "$PKG_LIST"
+  echo ']}'
+  exit 0
+fi
+
+echo '{"status":"rebuilding","pkg":"'"$PKG"'","total":'"$TOTAL"',"max_parallel":'"$MAX_PARALLEL"'}' >&2
+
+REBUILT=0 FAILED=0 SKIPPED=0
+RESULTS=""
+
+while IFS= read -r DEP; do
+  echo '{"status":"building","pkg":"'"$DEP"'","progress":"'"$((REBUILT + FAILED + SKIPPED + 1))"'/'"$TOTAL"'"}' >&2
+
+  if "$EVO_HOME"/scripts/evo-build "$DEP" 2>/dev/null; then
+    REBUILT=$((REBUILT + 1))
+    RESULTS="${RESULTS}{\"pkg\":\"$DEP\",\"status\":\"ok\"},"
+  else
+    FAILED=$((FAILED + 1))
+    RESULTS="${RESULTS}{\"pkg\":\"$DEP\",\"status\":\"failed\"},"
+  fi
+done <<< "$PKG_LIST"
+
+# 去掉末尾逗号
+RESULTS="${RESULTS%,}"
+
+echo '{"status":"ok","pkg":"'"$PKG"'","rebuilt":'"$REBUILT"',"failed":'"$FAILED"',"skipped":'"$SKIPPED"',"total":'"$TOTAL"',"results":['"$RESULTS"']}'

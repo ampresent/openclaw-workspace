@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# evo-log-query — 查询变更历史
+# 用法: evo-log-query <pkg> [--since <date>] [--action <type>] [--ticket <id>] [--json]
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+HISTORY_DIR="$EVO_HOME/history"
+
+# 支持查询单个包或所有包
+PKG="${1:?用法: evo-log-query <pkg|--all> [--since <date>] [--action <type>] [--ticket <id>]}"
+shift
+
+SINCE="" FILTER_ACTION="" TICKET="" JSON_OUTPUT=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --since)  SINCE="$2"; shift 2 ;;
+    --action) FILTER_ACTION="$2"; shift 2 ;;
+    --ticket) TICKET="$2"; shift 2 ;;
+    --json)   JSON_OUTPUT=true; shift ;;
+    *) shift ;;
+  esac
+done
+
+query_file() {
+  local FILE="$1"
+  local PKG_NAME="$2"
+
+  python3 -c "
+import json, sys
+from datetime import datetime
+
+entries = []
+with open('$FILE') as f:
+    for line in f:
+        line = line.strip()
+        if not line: continue
+        try:
+            entries.append(json.loads(line))
+        except: pass
+
+# 过滤
+filtered = []
+for e in entries:
+    # 时间过滤
+    ts = e.get('timestamp', '')
+    if '$SINCE' and ts < '$SINCE':
+        continue
+    # action 过滤
+    if '$FILTER_ACTION' and e.get('action') != '$FILTER_ACTION':
+        continue
+    # ticket 过滤
+    if '$TICKET' and e.get('ticket') != '$TICKET':
+        continue
+    filtered.append(e)
+
+if '$JSON_OUTPUT' == 'true':
+    for e in filtered:
+        print(json.dumps(e, ensure_ascii=False))
+else:
+    for e in filtered:
+        ts = e.get('timestamp', '?')
+        action = e.get('action', '?')
+        desc = e.get('desc', '')
+        ticket = e.get('ticket', '')
+        patch = e.get('patch_hash', '')[:12] if e.get('patch_hash') else ''
+        ticket_str = f' [{ticket}]' if ticket else ''
+        patch_str = f' (patch:{patch})' if patch else ''
+        print(f'  {ts}  {action:12s}  {desc}{ticket_str}{patch_str}')
+" 2>/dev/null
+}
+
+if [[ "$PKG" == "--all" ]]; then
+  if [[ "$JSON_OUTPUT" == "true" ]]; then
+    echo '{"status":"ok","results":['
+    FIRST=true
+    for f in "$HISTORY_DIR"/*.jsonl; do
+      [[ -f "$f" ]] || continue
+      PKG_NAME=$(basename "$f" .jsonl)
+      [[ "$FIRST" == "true" ]] && FIRST=false || echo -n ','
+      echo -n '{"pkg":"'"$PKG_NAME"'","entries":['
+      INNER_FIRST=true
+      while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        [[ "$INNER_FIRST" == "true" ]] && INNER_FIRST=false || echo -n ','
+        echo -n "$line"
+      done < <(query_file "$f" "$PKG_NAME" 2>/dev/null)
+      echo -n ']}'
+    done
+    echo ']}'
+  else
+    for f in "$HISTORY_DIR"/*.jsonl; do
+      [[ -f "$f" ]] || continue
+      PKG_NAME=$(basename "$f" .jsonl)
+      echo "=== $PKG_NAME ==="
+      query_file "$f" "$PKG_NAME"
+      echo ""
+    done
+  fi
+else
+  LOG_FILE="$HISTORY_DIR/${PKG}.jsonl"
+  [[ -f "$LOG_FILE" ]] || { echo '{"status":"error","error":"no history for '"$PKG"'"}'; exit 1; }
+
+  if [[ "$JSON_OUTPUT" == "true" ]]; then
+    echo '{"status":"ok","pkg":"'"$PKG"'","entries":['
+    FIRST=true
+    while IFS= read -r line; do
+      [[ -z "$line" ]] && continue
+      [[ "$FIRST" == "true" ]] && FIRST=false || echo -n ','
+      echo -n "$line"
+    done < <(query_file "$LOG_FILE" "$PKG" 2>/dev/null)
+    echo ']}'
+  else
+    echo "=== $PKG ==="
+    query_file "$LOG_FILE" "$PKG"
+  fi
+fi

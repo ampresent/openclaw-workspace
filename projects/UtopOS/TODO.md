@@ -147,7 +147,7 @@ scripts/ (执行层)  →  evo-detect, evo-fetch-source, evo-build, evo-cleanup 
 
 以下在 SKILL.md 中指导，不写脚本：
 
-- [ ] SKILL.md: 每个关键节点自动询问用户确认
+- [x] SKILL.md: 每个关键节点自动询问用户确认
   - 下载源码前：确认包名是否正确
   - 分析完成后：展示自然语言摘要，确认根因判断
   - 生成 patch 后：展示风险摘要（不给 raw diff）
@@ -155,11 +155,11 @@ scripts/ (执行层)  →  evo-detect, evo-fetch-source, evo-build, evo-cleanup 
   - 安装前：确认风险等级
   - 上游有更新时：询问是否要 rebase
 
-- [ ] SKILL.md: 风险摘要卡片模板
+- [x] SKILL.md: 风险摘要卡片模板
   - 用自然语言描述变更，不用 diff 语法
   - 包含：改了什么、影响范围、风险等级、回滚方式
 
-- [ ] SKILL.md: 信任白名单
+- [x] SKILL.md: 信任白名单
   - "以后这个包的 safe 级 patch 自动 apply，不再询问"
   - 写入 `~/.evo/trust.toml`
 
@@ -167,51 +167,62 @@ scripts/ (执行层)  →  evo-detect, evo-fetch-source, evo-build, evo-cleanup 
 
 ## Phase 4: 变更追踪 / 审计（P1）
 
-- [ ] `scripts/evo-log` — 变更记录
+- [x] `scripts/evo-log` — 变更记录
   - `evo-log record <pkg> --action <action> --desc <desc> [--ticket <id>]`
   - 写入 `~/.evo/history/<pkg>.jsonl`
   - 记录: 时间、操作者、操作、描述、关联 issue、patch hash
+  - `evo-log show <pkg>` / `evo-log stats <pkg>`
 
-- [ ] `scripts/evo-log-query` — 查询变更历史
-  - `evo-log-query <pkg> [--since <date>] [--action patch|build|install|rollback]`
+- [x] `scripts/evo-log-query` — 查询变更历史
+  - `evo-log-query <pkg> [--since <date>] [--action patch|build|install|rollback] [--ticket <id>]`
+  - 支持 `--all` 查询所有包、`--json` 输出
 
-- [ ] `scripts/evo-deploy-status` — 部署矩阵
-  - `evo-deploy-status <pkg>` — 查看哪些机器装了哪个版本
-  - 需要配合 inventory 文件（`~/.evo/inventory.toml`）
+- [x] `scripts/evo-deploy-status` — 部署矩阵
+  - `evo-deploy-status <pkg>` — 查看某包部署状态
+  - `evo-deploy-status --all` — 所有包状态
+  - `evo-deploy-status --matrix` — 全量矩阵视图
+  - 支持 inventory.toml 多机部署信息
 
 ---
 
 ## Phase 5: 测试管理（P1）
 
-- [ ] `scripts/evo-test` — 补丁后测试
+- [x] `scripts/evo-test` — 补丁后测试
   - `evo-test <pkg> [--in container|vm|host]`
   - 在隔离环境安装补丁后的包 → 跑 test suite → 报告结果
   - 默认在容器中测试，不污染主机
+  - 支持 container / host 两种模式
 
-- [ ] SKILL.md: 测试失败时的处理策略
+- [x] SKILL.md: 测试失败时的处理策略
   - 自动回滚 patch → 重新构建 → 通知用户
+  - 由 evo-test 退出码驱动，agent 根据 result=failed 走回滚流程
 
 ---
 
 ## Phase 6: 依赖图（P2）
 
-- [ ] `scripts/evo-deps` — 反向依赖查询
+- [x] `scripts/evo-deps` — 反向依赖查询
   - `evo-deps rdepends <pkg>` — 哪些包依赖这个包
   - `evo-deps rebuild-plan <pkg>` — 改了这个包需要重构建哪些
+  - 支持 nix / rpm / conda 三种后端
 
-- [ ] `scripts/evo-deps-batch` — 批量重构建
+- [x] `scripts/evo-deps-batch` — 批量重构建
   - `evo-deps-batch <pkg>` — 按依赖拓扑排序，依次重构建下游包
+  - 支持 `--max-parallel N` 并发控制、`--dry-run` 预览
 
 ---
 
 ## Phase 7: 多机同步（P2）
 
-- [ ] `scripts/evo-sync` — Patch 同步到其他机器
-  - `evo-sync <pkg> --to <host1,host2,...>`
-  - 推送 patch + 元数据 → 远程机器 → 远程构建安装
+- [x] `scripts/evo-sync` — Patch 同步到其他机器
+  - `evo-sync <pkg> --to <host1,host2,...> [--patch <file>] [--build-remote]`
+  - 推送 patch + 元数据 → 远程机器 → 可选远程构建安装
+  - rsync + ssh 实现
 
-- [ ] `scripts/evo-inventory` — 机器清单管理
+- [x] `scripts/evo-inventory` — 机器清单管理
   - `~/.evo/inventory.toml` — 机器列表、角色、已安装包版本
+  - `evo-inventory add/remove/list/update/sync-check`
+  - 支持版本追踪 + ssh 可达性检查
 
 ---
 

@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# evo-log — 变更记录
+# 用法:
+#   evo-log record <pkg> --action <action> --desc <desc> [--ticket <id>] [--patch <file>]
+#   evo-log show <pkg> [--limit N]
+#   evo-log stats <pkg>
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+HISTORY_DIR="$EVO_HOME/history"
+mkdir -p "$HISTORY_DIR"
+
+ACTION="${1:?用法: evo-log <record|show|stats> <pkg> [options]}"
+shift
+
+log_record() {
+  local PKG="${1:?evo-log record <pkg>}"
+  shift
+  local LOG_ACTION="" DESC="" TICKET="" PATCH_FILE=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --action) LOG_ACTION="$2"; shift 2 ;;
+      --desc)   DESC="$2"; shift 2 ;;
+      --ticket) TICKET="$2"; shift 2 ;;
+      --patch)  PATCH_FILE="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  [[ -n "$LOG_ACTION" ]] || { echo '{"status":"error","error":"--action is required"}'; exit 1; }
+  [[ -n "$DESC" ]] || { echo '{"status":"error","error":"--desc is required"}'; exit 1; }
+
+  local LOG_FILE="$HISTORY_DIR/${PKG}.jsonl"
+  local TIMESTAMP=$(date -Iseconds)
+  local OPERATOR="${EVO_OPERATOR:-agent}"
+  local PATCH_HASH=""
+
+  # 如果指定了 patch 文件，计算 hash
+  if [[ -n "$PATCH_FILE" && -f "$PATCH_FILE" ]]; then
+    PATCH_HASH=$(sha256sum "$PATCH_FILE" 2>/dev/null | awk '{print $1}' || echo "")
+  fi
+
+  # 构建 JSON 记录
+  local ENTRY
+  ENTRY=$(python3 -c "
+import json
+entry = {
+    'timestamp': '$TIMESTAMP',
+    'pkg': '$PKG',
+    'action': '$LOG_ACTION',
+    'desc': '$DESC',
+    'operator': '$OPERATOR',
+    'ticket': '$TICKET' or None,
+    'patch_file': '$PATCH_FILE' or None,
+    'patch_hash': '$PATCH_HASH' or None
+}
+# 移除 None 值
+entry = {k: v for k, v in entry.items() if v is not None}
+print(json.dumps(entry, ensure_ascii=False))
+" 2>/dev/null)
+
+  echo "$ENTRY" >> "$LOG_FILE"
+  echo '{"status":"ok","action":"record","pkg":"'"$PKG"'","log_file":"'"$LOG_FILE"'","entry":'"$ENTRY"'}'
+}
+
+log_show() {
+  local PKG="${1:?evo-log show <pkg>}"
+  shift
+  local LIMIT=20
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --limit) LIMIT="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  local LOG_FILE="$HISTORY_DIR/${PKG}.jsonl"
+  [[ -f "$LOG_FILE" ]] || { echo '{"status":"ok","pkg":"'"$PKG"'","entries":[]}'; exit 0; }
+
+  python3 -c "
+import json
+entries = []
+with open('$LOG_FILE') as f:
+    for line in f:
+        line = line.strip()
+        if not line: continue
+        try:
+            entries.append(json.loads(line))
+        except: pass
+entries = entries[-$LIMIT:]
+print(json.dumps({'status':'ok','pkg':'$PKG','total':len(entries),'entries':entries}, ensure_ascii=False))
+" 2>/dev/null
+}
+
+log_stats() {
+  local PKG="${1:?evo-log stats <pkg>}"
+
+  local LOG_FILE="$HISTORY_DIR/${PKG}.jsonl"
+  [[ -f "$LOG_FILE" ]] || { echo '{"status":"ok","pkg":"'"$PKG"'","total":0,"by_action":{}}'; exit 0; }
+
+  python3 -c "
+import json
+from collections import Counter
+entries = []
+with open('$LOG_FILE') as f:
+    for line in f:
+        line = line.strip()
+        if not line: continue
+        try:
+            entries.append(json.loads(line))
+        except: pass
+actions = Counter(e.get('action','unknown') for e in entries)
+first = entries[0]['timestamp'] if entries else 'N/A'
+last = entries[-1]['timestamp'] if entries else 'N/A'
+print(json.dumps({
+    'status': 'ok',
+    'pkg': '$PKG',
+    'total': len(entries),
+    'by_action': dict(actions),
+    'first_record': first,
+    'last_record': last
+}, ensure_ascii=False))
+" 2>/dev/null
+}
+
+case "$ACTION" in
+  record) log_record "$@" ;;
+  show)   log_show "$@" ;;
+  stats)  log_stats "$@" ;;
+  *)      echo '{"status":"error","error":"unknown action: '"$ACTION"' (valid: record|show|stats)"}'; exit 1 ;;
+esac

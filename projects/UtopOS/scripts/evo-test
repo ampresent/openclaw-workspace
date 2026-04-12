@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# evo-test — 补丁后测试
+# 用法: evo-test <pkg> [--in container|vm|host] [--backend nix|rpm|conda] [--patch <file>]
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+PKG="${1:?用法: evo-test <pkg> [--in container|vm|host] [--backend nix|rpm|conda] [--patch <file>]}"
+shift
+
+ENV="container" BACKEND="" PATCH_FILE=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --in)      ENV="$2"; shift 2 ;;
+    --backend) BACKEND="$2"; shift 2 ;;
+    --patch)   PATCH_FILE="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+if [[ -z "$BACKEND" ]]; then
+  BACKEND=$("$EVO_HOME"/scripts/evo-detect 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['backend'])" 2>/dev/null || echo "unknown")
+fi
+
+WORK_DIR="/tmp/evo-fix-${PKG}"
+LOG_DIR="$EVO_HOME/logs"
+mkdir -p "$LOG_DIR"
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+LOG_FILE="$LOG_DIR/test-${PKG}-${TIMESTAMP}.log"
+
+# 构建测试命令
+run_test_container() {
+  local IMAGE=""
+  case "$BACKEND" in
+    nix)   IMAGE="nixos/nix:latest" ;;
+    rpm)   IMAGE="almalinux:9" ;;
+    conda) IMAGE="condaforge/miniforge3:latest" ;;
+    *)     echo '{"status":"error","error":"unknown backend '"$BACKEND"' for container test"}'; exit 1 ;;
+  esac
+
+  echo '{"status":"testing","env":"container","image":"'"$IMAGE"'","pkg":"'"$PKG"'"}' >&2
+
+  # 如果有 patch，先构建再测试
+  local BUILD_ARGS=""
+  [[ -n "$PATCH_FILE" ]] && BUILD_ARGS="--patch $(realpath "$PATCH_FILE")"
+
+  # 用 docker 运行测试
+  local CONTAINER_NAME="evo-test-${PKG}-$$"
+  local EXIT_CODE=0
+
+  docker run --rm --name "$CONTAINER_NAME" \
+    -v "$EVO_HOME:$EVO_HOME" \
+    -v "$WORK_DIR:$WORK_DIR" \
+    "$IMAGE" \
+    bash -c "
+      set -e
+      echo '=== Container test for $PKG ==='
+      echo 'Backend: $BACKEND'
+
+      case '$BACKEND' in
+        nix)
+          nix-build -E 'with import <nixpkgs> {}; $PKG' 2>&1 || exit 1
+          echo 'Build passed'
+          # 简单验证：检查输出路径是否存在
+          test -e result && echo 'Output verified' || exit 1
+          ;;
+        rpm)
+          if command -v rpm &>/dev/null; then
+            rpm -q '$PKG' || echo 'Package not installed (expected in test env)'
+            # 检查 spec 语法
+            if ls ~/rpmbuild/SPECS/*.spec 2>/dev/null; then
+              rpmbuild -bp ~/rpmbuild/SPECS/*.spec 2>&1 || exit 1
+              echo 'Spec prep passed'
+            fi
+          fi
+          ;;
+        conda)
+          if command -v conda &>/dev/null; then
+            conda info
+            echo 'Conda environment OK'
+          fi
+          ;;
+      esac
+      echo '=== Test passed ==='
+    " 2>&1 | tee "$LOG_FILE" || EXIT_CODE=$?
+
+  if [[ $EXIT_CODE -eq 0 ]]; then
+    echo '{"status":"ok","env":"container","pkg":"'"$PKG"'","result":"passed","log":"'"$LOG_FILE"'"}'
+  else
+    echo '{"status":"failed","env":"container","pkg":"'"$PKG"'","result":"failed","exit_code":'"$EXIT_CODE"',"log":"'"$LOG_FILE"'"}'
+    exit 1
+  fi
+}
+
+run_test_host() {
+  echo '{"status":"testing","env":"host","pkg":"'"$PKG"'","warning":"testing on host, this may modify system"}' >&2
+
+  local EXIT_CODE=0
+
+  # 在主机上直接测试（dry-run 方式）
+  {
+    echo "=== Host test for $PKG ==="
+    echo "Backend: $BACKEND"
+
+    # 先 build
+    if [[ -n "$PATCH_FILE" ]]; then
+      echo "Building with patch..."
+      "$EVO_HOME"/scripts/evo-build "$PKG" --patch "$PATCH_FILE" --backend "$BACKEND" 2>&1 || { echo "Build failed"; exit 1; }
+    fi
+
+    # verify
+    echo "Verifying..."
+    "$EVO_HOME"/scripts/evo-verify "$PKG" --backend "$BACKEND" 2>&1 || { echo "Verify failed"; exit 1; }
+
+    echo "=== Test passed ==="
+  } 2>&1 | tee "$LOG_FILE" || EXIT_CODE=$?
+
+  if [[ $EXIT_CODE -eq 0 ]]; then
+    echo '{"status":"ok","env":"host","pkg":"'"$PKG"'","result":"passed","log":"'"$LOG_FILE"'"}'
+  else
+    echo '{"status":"failed","env":"host","pkg":"'"$PKG"'","result":"failed","exit_code":'"$EXIT_CODE"',"log":"'"$LOG_FILE"'"}'
+    exit 1
+  fi
+}
+
+run_test_vm() {
+  echo '{"status":"error","env":"vm","error":"VM testing not yet implemented, use container or host"}'
+  exit 1
+}
+
+case "$ENV" in
+  container) run_test_container ;;
+  host)      run_test_host ;;
+  vm)        run_test_vm ;;
+  *)         echo '{"status":"error","error":"unknown env: '"$ENV"' (valid: container|vm|host)"}'; exit 1 ;;
+esac

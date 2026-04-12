@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# evo-deps — 反向依赖查询 + 重构建计划
+# 用法:
+#   evo-deps rdepends <pkg>        — 哪些包依赖这个包
+#   evo-deps rebuild-plan <pkg>    — 改了这个包需要重构建哪些
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+ACTION="${1:?用法: evo-deps <rdepends|rebuild-plan> <pkg>}"
+shift
+PKG="${1:?evo-deps $ACTION <pkg>}"
+shift
+
+detect_backend() {
+  "$EVO_HOME"/scripts/evo-detect 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['backend'])" 2>/dev/null || echo "unknown"
+}
+
+rdepends_nix() {
+  # nix-store -q --referrers 给出直接反向依赖
+  # 递归查找所有反向依赖
+  local STORE_PATH
+  STORE_PATH=$(nix-store -qR /run/current-system 2>/dev/null | grep "/$PKG-" | head -1 || echo "")
+
+  if [[ -z "$STORE_PATH" ]]; then
+    # 尝试从 nixpkgs 查询
+    nix-why-depends --precise "$(nix-build '<nixpkgs>' -A "$PKG" --no-out-link 2>/dev/null)" /run/current-system 2>/dev/null || true
+    echo '{"status":"ok","pkg":"'"$PKG"'","backend":"nix","rdepends":[],"message":"package not in current system closure"}'
+    return
+  fi
+
+  python3 -c "
+import subprocess, json
+
+pkg = '$PKG'
+store_path = '$STORE_PATH'
+
+# 获取所有引用这个包的包
+result = subprocess.run(['nix-store', '-q', '--referrers', store_path],
+                       capture_output=True, text=True)
+referrers = [l.strip() for l in result.stdout.strip().split('\n') if l.strip() and l.strip() != store_path]
+
+# 从 store path 提取包名
+def path_to_name(p):
+    parts = p.split('/')
+    if len(parts) > 1:
+        name_ver = parts[-1]
+        # 去掉 hash 前缀
+        if '-' in name_ver:
+            return name_ver.split('-', 1)[1] if len(name_ver.split('-', 1)) > 1 else name_ver
+    return p
+
+rdepends = list(set(path_to_name(r) for r in referrers))
+print(json.dumps({'status':'ok','pkg':pkg,'backend':'nix','rdepends':sorted(rdepends),'total':len(rdepends)}))
+" 2>/dev/null
+}
+
+rdepends_rpm() {
+  python3 -c "
+import subprocess, json
+
+pkg = '$PKG'
+result = subprocess.run(['rpm', '-qa', '--whatrequires', pkg],
+                       capture_output=True, text=True)
+deps = [l.strip() for l in result.stdout.strip().split('\n') if l.strip()]
+print(json.dumps({'status':'ok','pkg':pkg,'backend':'rpm','rdepends':deps,'total':len(deps)}))
+" 2>/dev/null || echo '{"status":"ok","pkg":"'"$PKG"'","backend":"rpm","rdepends":[],"total":0}'
+}
+
+rdepends_conda() {
+  # conda 没有直接的反向依赖查询，用 conda search --reverse-dependencies
+  local DEPS
+  DEPS=$(conda search --reverse-dependencies "$PKG" --json 2>/dev/null | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+result = []
+for pkg_name, versions in data.items():
+    for v in versions:
+        if '$PKG' in v.get('depends', []):
+            result.append(pkg_name)
+print(json.dumps(sorted(set(result))))
+" 2>/dev/null || echo "[]")
+
+  echo '{"status":"ok","pkg":"'"$PKG"'","backend":"conda","rdepends":'"$DEPS"'}'
+}
+
+rebuild_plan() {
+  local BACKEND
+  BACKEND=$(detect_backend)
+
+  # 先获取反向依赖
+  local RDEPS_JSON
+  case "$BACKEND" in
+    nix)   RDEPS_JSON=$(rdepends_nix 2>/dev/null) ;;
+    rpm)   RDEPS_JSON=$(rdepends_rpm 2>/dev/null) ;;
+    conda) RDEPS_JSON=$(rdepends_conda 2>/dev/null) ;;
+    *)     echo '{"status":"error","error":"unknown backend"}'; exit 1 ;;
+  esac
+
+  # 提取依赖列表并按拓扑排序（简单版：直接依赖排前面）
+  python3 -c "
+import json
+
+data = json.loads('''$RDEPS_JSON''')
+rdeps = data.get('rdepends', [])
+
+# 构建重构建计划
+plan = []
+for i, dep in enumerate(rdeps):
+    plan.append({
+        'order': i + 1,
+        'pkg': dep,
+        'reason': f'reverse-depends-on-$PKG',
+        'priority': 'high' if i < 3 else 'normal'
+    })
+
+print(json.dumps({
+    'status': 'ok',
+    'target_pkg': '$PKG',
+    'backend': '$BACKEND',
+    'total_rebuilds': len(plan),
+    'plan': plan,
+    'hint': 'Run evo-deps-batch $PKG to rebuild all in order'
+}))
+" 2>/dev/null
+}
+
+case "$ACTION" in
+  rdepends)
+    BACKEND=$(detect_backend)
+    case "$BACKEND" in
+      nix)   rdepends_nix ;;
+      rpm)   rdepends_rpm ;;
+      conda) rdepends_conda ;;
+      *)     echo '{"status":"error","error":"unknown backend: '"$BACKEND"'"}'; exit 1 ;;
+    esac
+    ;;
+  rebuild-plan) rebuild_plan ;;
+  *) echo '{"status":"error","error":"unknown action: '"$ACTION"' (valid: rdepends|rebuild-plan)"}'; exit 1 ;;
+esac
