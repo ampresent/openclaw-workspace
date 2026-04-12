@@ -18,7 +18,7 @@
 
 | 模块 | 状态 | 备注 |
 |------|------|------|
-| Skill 文档 | ✅ 活跃 | `skills/nix-evo/SKILL.md` |
+| Skill 决策层文档 | ✅ 重写完成 | `skills/nix-evo/SKILL.md` — 决策树 + 交互协议 + 信任白名单 |
 | 架构图 | ✅ 完成 | `docs/architecture.svg` |
 | 流程对比图 | ✅ 完成 | `docs/workflow-comparison.svg` |
 | Nix 后端工作流 | ✅ 完成 | 源码获取 + overlay 补丁 + generation 回滚 |
