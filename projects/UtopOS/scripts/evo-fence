@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# evo-fence — 实时文件系统监控 (基于 inotify)
+# 用法: evo-fence <path> [--timeout <sec>] [--output <file>] [--include <pattern>] [--quiet]
+# 记录所有文件创建/修改/删除/移动事件
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+TARGET=""
+TIMEOUT=0
+OUTPUT=""
+QUIET=false
+INCLUDE=""
+RECURSIVE=true
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --timeout|-t)  TIMEOUT="$2"; shift 2 ;;
+    --output|-o)   OUTPUT="$2"; shift 2 ;;
+    --include|-i)  INCLUDE="$2"; shift 2 ;;
+    --quiet|-q)    QUIET=true; shift ;;
+    --flat|-f)     RECURSIVE=false; shift ;;
+    --help|-h)
+      cat <<'HELP'
+evo-fence — 实时文件系统监控
+
+用法: evo-fence <path> [选项]
+
+选项:
+  -t, --timeout <sec>   监控时长（秒），0 = 无限
+  -o, --output <file>   事件日志输出路径
+  -i, --include <pat>   仅监控匹配 glob 的文件
+  -q, --quiet           不输出到 stdout
+  -f, --flat            不递归子目录
+  -h, --help            显示帮助
+
+事件格式 (JSONL):
+  {"ts":"...","event":"MODIFY","path":"./file.txt","src":""}
+  {"ts":"...","event":"CREATE","path":"./new.txt","src":""}
+  {"ts":"...","event":"DELETE","path":"./old.txt","src":""}
+  {"ts":"...","event":"MOVED_TO","path":"./dst.txt","src":"./src.txt"}
+
+依赖: inotifywait (inotify-tools)
+  安装: apt install inotify-tools / yum install inotify-tools
+HELP
+      exit 0
+      ;;
+    *)
+      if [[ -z "$TARGET" ]]; then
+        TARGET="$1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$TARGET" ]]; then
+  echo '{"status":"error","error":"用法: evo-fence <path>"}' >&2
+  exit 1
+fi
+
+if ! command -v inotifywait &>/dev/null; then
+  echo '{"status":"error","error":"需要 inotifywait，请安装 inotify-tools"}' >&2
+  exit 1
+fi
+
+[[ -z "$OUTPUT" ]] && OUTPUT="$EVO_HOME/reports/fence-$(date +%Y%m%d-%H%M%S).log"
+mkdir -p "$(dirname "$OUTPUT")"
+
+# 头部
+cat > "$OUTPUT" <<EOF
+{"type":"header","action":"fence","ts":"$(date -Iseconds)","path":"$(realpath "$TARGET")","timeout":$TIMEOUT}
+EOF
+
+# inotify 参数
+MON_OPTS=("--monitor" "--format" "%T|%e|%w%f|%w")
+[[ "$RECURSIVE" == "true" ]] && MON_OPTS+=("--recursive")
+[[ "$TIMEOUT" -gt 0 ]] && MON_OPTS+=("--timeout" "$((TIMEOUT * 1000))")
+
+# 事件映射
+EVENT_MAP=$(cat <<'PYEOF'
+import sys
+for line in sys.stdin:
+    line = line.strip()
+    if not line or '|' not in line:
+        continue
+    parts = line.split('|', 3)
+    if len(parts) < 4:
+        continue
+    ts, events, fullpath, wd = parts[0], parts[1], parts[2], parts[3]
+    # inotify 合并事件用逗号分隔
+    for evt in events.split(','):
+        evt = evt.strip()
+        if not evt:
+            continue
+        # 处理 MOVED_FROM/MOVED_TO 配对（简化处理）
+        out = {"ts": ts, "event": evt, "path": fullpath}
+        print(json.dumps(out, ensure_ascii=False))
+PYEOF
+)
+
+INOTIFY_CMD="inotifywait ${MON_OPTS[*]} $(realpath "$TARGET")"
+
+if [[ "$QUIET" == "true" ]]; then
+  eval "$INOTIFY_CMD" 2>/dev/null | python3 -c "
+import json, sys
+for line in sys.stdin:
+    line = line.strip()
+    if not line or '|' not in line:
+        continue
+    parts = line.split('|', 3)
+    if len(parts) < 3:
+        continue
+    ts, events, fullpath = parts[0], parts[1], parts[2]
+    for evt in events.split(','):
+        evt = evt.strip()
+        if not evt: continue
+        out = {\"ts\": ts, \"event\": evt, \"path\": fullpath}
+        print(json.dumps(out, ensure_ascii=False))
+" >> "$OUTPUT" 2>/dev/null
+else
+  # tee: 同时输出到 stdout 和文件
+  eval "$INOTIFY_CMD" 2>/dev/null | python3 -c "
+import json, sys
+for line in sys.stdin:
+    line = line.strip()
+    if not line or '|' not in line:
+        continue
+    parts = line.split('|', 3)
+    if len(parts) < 3:
+        continue
+    ts, events, fullpath = parts[0], parts[1], parts[2]
+    for evt in events.split(','):
+        evt = evt.strip()
+        if not evt: continue
+        out = {\"ts\": ts, \"event\": evt, \"path\": fullpath}
+        print(json.dumps(out, ensure_ascii=False))
+" | tee -a "$OUTPUT"
+fi
+
+# 尾部
+cat >> "$OUTPUT" <<EOF
+{"type":"footer","action":"fence_end","ts":"$(date -Iseconds)"}
+EOF
+
+if [[ "$QUIET" == "false" ]]; then
+  echo '{"status":"ok","action":"fence","log":"'"$OUTPUT"'"}' >&2
+fi

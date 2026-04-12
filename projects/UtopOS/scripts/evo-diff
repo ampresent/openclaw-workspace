@@ -1,0 +1,211 @@
+#!/usr/bin/env bash
+# evo-diff — 对比两个快照，输出变更报告
+# 用法: evo-diff <old.manifest> <new.manifest> [--json|--text] [--filter <type>]
+# filter: modified|created|deleted|permission|all
+set -euo pipefail
+
+OLD_MANIFEST=""
+NEW_MANIFEST=""
+FORMAT="json"
+FILTER="all"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json|-j)  FORMAT="json"; shift ;;
+    --text|-t)  FORMAT="text"; shift ;;
+    --filter|-f) FILTER="$2"; shift 2 ;;
+    --help|-h)
+      cat <<'HELP'
+evo-diff — 对比两个快照
+
+用法: evo-diff <old.manifest> <new.manifest> [选项]
+
+选项:
+  -j, --json         JSON 输出（默认）
+  -t, --text         人类可读文本输出
+  -f, --filter <t>   过滤: modified|created|deleted|permission|all
+  -h, --help         显示帮助
+
+变更类型:
+  modified    文件内容改变（sha256 不同）
+  created     新增文件/目录
+  deleted     删除文件/目录
+  permission  权限变更（sha256 相同但 mode 不同）
+HELP
+      exit 0
+      ;;
+    *)
+      if [[ -z "$OLD_MANIFEST" ]]; then
+        OLD_MANIFEST="$1"
+      elif [[ -z "$NEW_MANIFEST" ]]; then
+        NEW_MANIFEST="$1"
+      else
+        echo '{"status":"error","error":"多余参数: '"$1"'"}' >&2
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$OLD_MANIFEST" || -z "$NEW_MANIFEST" ]]; then
+  echo '{"status":"error","error":"用法: evo-diff <old.manifest> <new.manifest>"}' >&2
+  exit 1
+fi
+
+for f in "$OLD_MANIFEST" "$NEW_MANIFEST"; do
+  if [[ ! -f "$f" ]]; then
+    echo '{"status":"error","error":"文件不存在: '"$f"'"}' >&2
+    exit 1
+  fi
+done
+
+# 用 Python 做精确对比
+python3 - "$OLD_MANIFEST" "$NEW_MANIFEST" "$FORMAT" "$FILTER" <<'PYEOF'
+import json, sys, os
+from collections import defaultdict
+
+old_file = sys.argv[1]
+new_file = sys.argv[2]
+fmt = sys.argv[3]
+filter_type = sys.argv[4]
+
+def load_manifest(path):
+    header = {}
+    footer = {}
+    entries = {}
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except:
+                continue
+            t = obj.get("type")
+            if t == "header":
+                header = obj
+            elif t == "footer":
+                footer = obj
+            elif "path" in obj:
+                entries[obj["path"]] = obj
+    return header, entries, footer
+
+old_hdr, old_entries, old_ft = load_manifest(old_file)
+new_hdr, new_entries, new_ft = load_manifest(new_file)
+
+changes = []
+old_paths = set(old_entries.keys())
+new_paths = set(new_entries.keys())
+
+# created
+for p in sorted(new_paths - old_paths):
+    if filter_type in ("all", "created"):
+        changes.append({"type": "created", "path": p, "new": new_entries[p]})
+
+# deleted
+for p in sorted(old_paths - new_paths):
+    if filter_type in ("all", "deleted"):
+        changes.append({"type": "deleted", "path": p, "old": old_entries[p]})
+
+# common paths
+for p in sorted(old_paths & new_paths):
+    o = old_entries[p]
+    n = new_entries[p]
+
+    # type change (file ↔ dir)
+    if o.get("type") != n.get("type"):
+        if "sha256" in o and "sha256" not in n:
+            if filter_type in ("all",):
+                changes.append({"type": "changed_kind", "path": p, "was": "file", "now": "dir"})
+        elif "sha256" not in o and "sha256" in n:
+            if filter_type in ("all",):
+                changes.append({"type": "changed_kind", "path": p, "was": "dir", "now": "file"})
+        continue
+
+    if "sha256" in o and "sha256" in n:
+        if o["sha256"] != n["sha256"]:
+            if filter_type in ("all", "modified"):
+                changes.append({
+                    "type": "modified",
+                    "path": p,
+                    "old_sha256": o["sha256"],
+                    "new_sha256": n["sha256"],
+                    "old_size": o.get("size", 0),
+                    "new_size": n.get("size", 0)
+                })
+        elif o.get("mode") != n.get("mode"):
+            if filter_type in ("all", "permission"):
+                changes.append({
+                    "type": "permission",
+                    "path": p,
+                    "old_mode": o.get("mode"),
+                    "new_mode": n.get("mode")
+                })
+    elif "sha256" not in o and "sha256" not in n:
+        # both dirs, check mode
+        if o.get("mode") != n.get("mode"):
+            if filter_type in ("all", "permission"):
+                changes.append({
+                    "type": "permission",
+                    "path": p,
+                    "old_mode": o.get("mode"),
+                    "new_mode": n.get("mode")
+                })
+
+# stats
+stats = {
+    "created": sum(1 for c in changes if c["type"] == "created"),
+    "deleted": sum(1 for c in changes if c["type"] == "deleted"),
+    "modified": sum(1 for c in changes if c["type"] == "modified"),
+    "permission": sum(1 for c in changes if c["type"] == "permission"),
+}
+
+if fmt == "text":
+    old_path = old_hdr.get("path", "?")
+    new_path = new_hdr.get("path", "?")
+    print(f"═══ UtopOS Snapshot Diff ═══")
+    print(f"旧快照: {old_path} @ {old_hdr.get('ts', '?')}")
+    print(f"新快照: {new_path} @ {new_hdr.get('ts', '?')}")
+    print()
+    if not changes:
+        print("✅ 无变更")
+    else:
+        if stats["created"]:
+            print(f"📄 新增 ({stats['created']}):")
+            for c in changes:
+                if c["type"] == "created":
+                    kind = "dir" if c["new"].get("type") == "dir" else "file"
+                    print(f"  + {c['path']} ({kind})")
+        if stats["deleted"]:
+            print(f"\n🗑️  删除 ({stats['deleted']}):")
+            for c in changes:
+                if c["type"] == "deleted":
+                    kind = "dir" if c["old"].get("type") == "dir" else "file"
+                    print(f"  - {c['path']} ({kind})")
+        if stats["modified"]:
+            print(f"\n✏️  修改 ({stats['modified']}):")
+            for c in changes:
+                if c["type"] == "modified":
+                    sz_delta = c.get("new_size", 0) - c.get("old_size", 0)
+                    sign = "+" if sz_delta > 0 else ""
+                    print(f"  ~ {c['path']} ({sign}{sz_delta} bytes)")
+        if stats["permission"]:
+            print(f"\n🔒 权限变更 ({stats['permission']}):")
+            for c in changes:
+                if c["type"] == "permission":
+                    print(f"  ~ {c['path']} {c['old_mode']} → {c['new_mode']}")
+        print(f"\n总计: {len(changes)} 处变更")
+else:
+    result = {
+        "status": "ok",
+        "action": "diff",
+        "old": {"path": old_hdr.get("path"), "ts": old_hdr.get("ts"), "files": old_ft.get("files", 0)},
+        "new": {"path": new_hdr.get("path"), "ts": new_hdr.get("ts"), "files": new_ft.get("files", 0)},
+        "stats": stats,
+        "total_changes": len(changes),
+        "changes": changes
+    }
+    print(json.dumps(result, ensure_ascii=False))
+PYEOF

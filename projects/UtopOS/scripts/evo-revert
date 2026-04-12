@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+# evo-revert — 基于快照回滚文件变更
+# 用法: evo-revert <target> --from <before.manifest> --to <after.manifest>
+#       evo-revert <target> --from <manifest>  (用 before 快照恢复所有变更)
+# 依赖: 快照创建时启用了 --backup（即 before 快照+原始文件副本）
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TARGET=""
+FROM_MANIFEST=""
+TO_MANIFEST=""
+DRY_RUN=false
+BACKUP=true
+BACKUP_DIR=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --from|-f)     FROM_MANIFEST="$2"; shift 2 ;;
+    --to|-t)       TO_MANIFEST="$2"; shift 2 ;;
+    --dry-run|-n)  DRY_RUN=true; shift ;;
+    --no-backup)   BACKUP=false; shift ;;
+    --help|-h)
+      cat <<'HELP'
+evo-revert — 基于快照回滚文件变更
+
+用法: evo-revert <target> --from <manifest> [选项]
+
+选项:
+  -f, --from <manifest>   旧快照（回滚目标状态）
+  -t, --to <manifest>     新快照（当前状态），省略则重新拍摄
+  -n, --dry-run           只报告，不执行
+  --no-backup             回滚前不备份当前文件
+  -h, --help              显示帮助
+
+工作流程:
+  1. 对比 from 和 to 快照
+  2. 将 to 状态中的文件恢复为 from 状态
+  3. 删除 to 中新增的文件
+  4. 恢复 from 中被删除的文件（需 from 快照包含文件内容引用）
+
+注意: 本工具只能回滚文件元数据层面的变更（删除/创建/权限）。
+      完整内容恢复需要在创建快照时备份文件副本到 $EVO_HOME/backups/
+HELP
+      exit 0
+      ;;
+    *)
+      if [[ -z "$TARGET" ]]; then
+        TARGET="$1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$TARGET" || -z "$FROM_MANIFEST" ]]; then
+  echo '{"status":"error","error":"用法: evo-revert <target> --from <manifest>"}' >&2
+  exit 1
+fi
+
+# 如果没给 to，自动拍当前快照
+if [[ -z "$TO_MANIFEST" ]]; then
+  echo '{"status":"running","phase":"snapshot_current"}' >&2
+  TO_MANIFEST="$EVO_HOME/snapshots/revert-current-$(date +%Y%m%d-%H%M%S).manifest"
+  "$SCRIPTS/evo-snapshot" "$TARGET" --output "$TO_MANIFEST" --name "revert-current" >/dev/null
+fi
+
+# 计算变更
+DIFF_JSON=$("$SCRIPTS/evo-diff" "$FROM_MANIFEST" "$TO_MANIFEST" --json 2>/dev/null)
+
+# 回滚计划
+python3 - "$DIFF_JSON" "$TARGET" "$FROM_MANIFEST" "$EVO_HOME" "$DRY_RUN" "$BACKUP" <<'PYEOF'
+import json, sys, os, shutil, stat
+from pathlib import Path
+
+diff = json.loads(sys.argv[1])
+target = sys.argv[2]
+from_manifest = sys.argv[3]
+evo_home = sys.argv[4]
+dry_run = sys.argv[5] == "true"
+do_backup = sys.argv[6] == "true"
+
+changes = diff.get("changes", [])
+if not changes:
+    print(json.dumps({"status":"ok","action":"revert","message":"无变更需要回滚","reverted":0}))
+    sys.exit(0)
+
+# 加载 from 快照获取权限信息
+from_entries = {}
+with open(from_manifest) as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+            if "path" in obj:
+                from_entries[obj["path"]] = obj
+        except:
+            pass
+
+# 备份目录
+backup_dir = None
+if do_backup and not dry_run:
+    backup_dir = os.path.join(evo_home, "backups", f"revert-{os.popen('date +%Y%m%d-%H%M%S').read().strip()}")
+    os.makedirs(backup_dir, exist_ok=True)
+
+reverted = 0
+errors = []
+actions = []
+
+for c in changes:
+    ctype = c["type"]
+    cpath = c["path"]
+    fullpath = os.path.join(target, cpath)
+
+    if ctype == "created":
+        # 当前状态有的文件，from 没有 → 删除
+        if os.path.exists(fullpath):
+            if dry_run:
+                actions.append({"action": "delete", "path": cpath})
+            else:
+                try:
+                    if do_backup and backup_dir:
+                        dst = os.path.join(backup_dir, cpath)
+                        os.makedirs(os.path.dirname(dst), exist_ok=True)
+                        shutil.copy2(fullpath, dst)
+                    if os.path.isdir(fullpath):
+                        shutil.rmtree(fullpath)
+                    else:
+                        os.remove(fullpath)
+                    actions.append({"action": "deleted", "path": cpath})
+                    reverted += 1
+                except Exception as e:
+                    errors.append({"path": cpath, "error": str(e)})
+
+    elif ctype == "deleted":
+        # from 有但 to 没有 → 尝试恢复
+        entry = from_entries.get(cpath, {})
+        if entry.get("type") == "dir":
+            if dry_run:
+                actions.append({"action": "mkdir", "path": cpath})
+            else:
+                try:
+                    os.makedirs(fullpath, exist_ok=True)
+                    mode = int(entry.get("mode", "755"), 8)
+                    os.chmod(fullpath, mode)
+                    actions.append({"action": "restored_dir", "path": cpath})
+                    reverted += 1
+                except Exception as e:
+                    errors.append({"path": cpath, "error": str(e)})
+        else:
+            # 文件恢复：检查备份目录
+            backup_src = None
+            if backup_dir:
+                # 检查可能的备份位置
+                for bdir in [backup_dir, os.path.join(evo_home, "backups")]:
+                    candidate = os.path.join(bdir, cpath)
+                    if os.path.exists(candidate):
+                        backup_src = candidate
+                        break
+            if dry_run:
+                actions.append({"action": "restore_file", "path": cpath, "has_backup": backup_src is not None})
+            elif backup_src:
+                try:
+                    os.makedirs(os.path.dirname(fullpath), exist_ok=True)
+                    shutil.copy2(backup_src, fullpath)
+                    mode = int(entry.get("mode", "644"), 8)
+                    os.chmod(fullpath, mode)
+                    actions.append({"action": "restored_file", "path": cpath})
+                    reverted += 1
+                except Exception as e:
+                    errors.append({"path": cpath, "error": str(e)})
+            else:
+                actions.append({"action": "skip_no_backup", "path": cpath, "sha256": entry.get("sha256", "")})
+
+    elif ctype == "modified":
+        # 内容变了 → 用备份恢复
+        entry = from_entries.get(cpath, {})
+        backup_src = None
+        if backup_dir:
+            for bdir in [backup_dir, os.path.join(evo_home, "backups")]:
+                candidate = os.path.join(bdir, cpath)
+                if os.path.exists(candidate):
+                    backup_src = candidate
+                    break
+        if dry_run:
+            actions.append({"action": "restore_file", "path": cpath, "has_backup": backup_src is not None})
+        elif backup_src:
+            try:
+                shutil.copy2(backup_src, fullpath)
+                mode = int(entry.get("mode", "644"), 8)
+                os.chmod(fullpath, mode)
+                actions.append({"action": "restored_file", "path": cpath})
+                reverted += 1
+            except Exception as e:
+                errors.append({"path": cpath, "error": str(e)})
+        else:
+            actions.append({"action": "skip_no_backup", "path": cpath})
+
+    elif ctype == "permission":
+        entry = from_entries.get(cpath, {})
+        old_mode = entry.get("mode")
+        if old_mode:
+            if dry_run:
+                actions.append({"action": "chmod", "path": cpath, "mode": old_mode})
+            else:
+                try:
+                    os.chmod(fullpath, int(old_mode, 8))
+                    actions.append({"action": "chmoded", "path": cpath, "mode": old_mode})
+                    reverted += 1
+                except Exception as e:
+                    errors.append({"path": cpath, "error": str(e)})
+
+result = {
+    "status": "ok",
+    "action": "revert",
+    "dry_run": dry_run,
+    "reverted": reverted,
+    "skipped": len([a for a in actions if "skip" in a.get("action", "")]),
+    "errors": len(errors),
+    "actions": actions,
+    "error_details": errors
+}
+if backup_dir:
+    result["backup_dir"] = backup_dir
+print(json.dumps(result, ensure_ascii=False))
+PYEOF

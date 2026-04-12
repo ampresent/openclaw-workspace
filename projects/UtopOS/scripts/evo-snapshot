@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# evo-snapshot — 拍摄文件系统快照
+# 用法: evo-snapshot <path> [--output <file>] [--name <label>] [--exclude <pattern>]
+# 输出: JSON manifest (SHA-256 + 权限 + mtime + size)
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+TARGET=""
+OUTPUT=""
+LABEL=""
+EXCLUDES=()
+SNAP_DIR="$EVO_HOME/snapshots"
+mkdir -p "$SNAP_DIR"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --output|-o)  OUTPUT="$2"; shift 2 ;;
+    --name|-n)    LABEL="$2"; shift 2 ;;
+    --exclude|-e) EXCLUDES+=("$2"); shift 2 ;;
+    --help|-h)
+      cat <<'HELP'
+evo-snapshot — 拍摄文件系统快照
+
+用法: evo-snapshot <path> [选项]
+
+选项:
+  -o, --output <file>   输出文件路径
+  -n, --name <label>    快照标签
+  -e, --exclude <pat>   排除 glob 模式（可多次指定）
+  -h, --help            显示帮助
+
+输出格式 (JSONL):
+  {"path":"./file","sha256":"...","mode":"0644","size":1234,"mtime":"..."}
+HELP
+      exit 0
+      ;;
+    *)
+      if [[ -z "$TARGET" ]]; then
+        TARGET="$1"
+      else
+        echo '{"status":"error","error":"多余参数: '"$1"'"}' >&2
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$TARGET" ]]; then
+  echo '{"status":"error","error":"用法: evo-snapshot <path>"}' >&2
+  exit 1
+fi
+
+if [[ ! -e "$TARGET" ]]; then
+  echo '{"status":"error","error":"路径不存在: '"$TARGET"'"}' >&2
+  exit 1
+fi
+
+# 生成标签和输出路径
+TS=$(date +%Y%m%d-%H%M%S)
+[[ -z "$LABEL" ]] && LABEL=$(basename "$TARGET")
+[[ -z "$OUTPUT" ]] && OUTPUT="$SNAP_DIR/${LABEL}-${TS}.manifest"
+
+# 写头部
+cat > "$OUTPUT" <<EOF
+{"type":"header","ts":"$(date -Iseconds)","path":"$(realpath "$TARGET")","label":"$LABEL","version":"1"}
+EOF
+
+# 构建 find 排除参数
+FIND_EXCLUDES=()
+for pat in "${EXCLUDES[@]+"${EXCLUDES[@]}"}"; do
+  FIND_EXCLUDES+=(-not -path "$pat" -not -name "$pat")
+done
+
+# 扫描并写入
+SCAN_START=$(date +%s%N)
+
+{
+  cd "$TARGET"
+  find . "${FIND_EXCLUDES[@]+"${FIND_EXCLUDES[@]}"}" -print0 2>/dev/null | \
+  while IFS= read -r -d '' f; do
+    if [[ -f "$f" ]]; then
+      SHA=$(sha256sum "$f" 2>/dev/null | awk '{print $1}')
+      MODE=$(stat -c '%a' "$f" 2>/dev/null || echo "0000")
+      SIZE=$(stat -c '%s' "$f" 2>/dev/null || echo "0")
+      MTIME=$(stat -c '%Y' "$f" 2>/dev/null || echo "0")
+      printf '{"path":"%s","sha256":"%s","mode":"%s","size":%s,"mtime":%s}\n' \
+        "${f#./}" "$SHA" "$MODE" "$SIZE" "$MTIME"
+    elif [[ -d "$f" && "$f" != "." ]]; then
+      MODE=$(stat -c '%a' "$f" 2>/dev/null || echo "0000")
+      printf '{"path":"%s","type":"dir","mode":"%s"}\n' "${f#./}" "$MODE"
+    fi
+  done
+} >> "$OUTPUT"
+
+SCAN_END=$(date +%s%N)
+ELAPSED_MS=$(( (SCAN_END - SCAN_START) / 1000000 ))
+
+# 统计（从 manifest 文件计算）
+FILE_COUNT=$(grep -c '"sha256"' "$OUTPUT" 2>/dev/null || echo "0")
+DIR_COUNT=$(grep -c '"type":"dir"' "$OUTPUT" 2>/dev/null || echo "0")
+TOTAL_SIZE=$(python3 -c "
+import json, sys
+total = 0
+with open('$OUTPUT') as f:
+    for line in f:
+        try:
+            obj = json.loads(line)
+            if 'sha256' in obj:
+                total += obj.get('size', 0)
+        except: pass
+print(total)
+" 2>/dev/null || echo "0")
+
+# 写尾部
+cat >> "$OUTPUT" <<EOF
+{"type":"footer","files":$FILE_COUNT,"dirs":$DIR_COUNT,"total_bytes":$TOTAL_SIZE,"elapsed_ms":$ELAPSED_MS}
+EOF
+
+# 元数据到 stdout
+echo "{\"status\":\"ok\",\"action\":\"snapshot\",\"path\":\"$(realpath "$TARGET")\",\"manifest\":\"$OUTPUT\",\"files\":$FILE_COUNT,\"dirs\":$DIR_COUNT,\"total_bytes\":$TOTAL_SIZE,\"elapsed_ms\":$ELAPSED_MS,\"label\":\"$LABEL\"}"
