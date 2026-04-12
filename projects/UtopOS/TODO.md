@@ -67,7 +67,7 @@ scripts/ (执行层)  →  evo-detect, evo-fetch-source, evo-build, evo-cleanup 
   - 构建产物复制到 `~/.evo/builds/<pkg>-<version>/`
   - 返回构建结果 (success/failure) + 日志路径
 
-- [ ] `scripts/evo-build-queue` — 构建队列管理
+- [x] `scripts/evo-build-queue` — 构建队列管理
   - `evo-build-queue add <pkg> [--priority high|normal|low]`
   - `evo-build-queue run [--max-parallel N]` — 顺序/并行执行队列
   - `evo-build-queue status` — 查看队列状态
@@ -115,26 +115,30 @@ scripts/ (执行层)  →  evo-detect, evo-fetch-source, evo-build, evo-cleanup 
 
 ## Phase 2: 上游管理（P0）
 
-- [ ] `scripts/evo-upstream-add` — 注册上游仓库
+- [x] `scripts/evo-upstream-add` — 注册上游仓库
   - `evo-upstream-add <pkg> --url <repo-url> [--branch main] [--type community|internal]`
   - 写入 `~/.evo/upstream/<pkg>.toml`
 
-- [ ] `scripts/evo-upstream-check` — 检查上游更新
+- [x] `scripts/evo-upstream-check` — 检查上游更新
   - `evo-upstream-check <pkg>` — fetch 上游，对比当前跟踪版本
   - 输出: 有无新版本、新版本号、变更摘要
+  - 支持 `--all` 批量检查所有已注册包
 
-- [ ] `scripts/evo-upstream-fetch` — 拉取上游变更
+- [x] `scripts/evo-upstream-fetch` — 拉取上游变更
   - `evo-upstream-fetch <pkg>` — fetch + 更新本地上游副本
+  - 首次自动 clone，后续增量 fetch
 
-- [ ] `scripts/evo-rebase` — 自动 rebase 本地 patch 到新上游
-  - `evo-rebase <pkg> [--to <version>]`
+- [x] `scripts/evo-rebase` — 自动 rebase 本地 patch 到新上游
+  - `evo-rebase <pkg> [--to <version>] [--auto-resolve]`
   - 拉取上游 → 尝试 apply 所有 patch → 冲突时暂停并输出冲突详情
   - 成功：更新 patch 系列，记录 rebase 结果
   - 失败：输出冲突 patch，等待 agent/用户处理
+  - `--auto-resolve` 尝试 3-way merge
 
-- [ ] `scripts/evo-upstream-prompt` — 交互式上游选择
+- [x] `scripts/evo-upstream-prompt` — 交互式上游选择
   - `evo-upstream-prompt <pkg>` — 检测到多个上游时提示用户选择
   - 支持：社区上游 / 公司内部 fork / 两者都跟踪
+  - 自动检测 nixpkgs homepage、RPM URL、已知 GitHub 仓库
   - 写入用户选择到 `~/.evo/upstream/<pkg>.toml`
 
 ---

@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+# evo-build-queue — 构建队列管理
+# 用法:
+#   evo-build-queue add <pkg> [--priority high|normal|low]
+#   evo-build-queue run [--max-parallel N]
+#   evo-build-queue status
+#   evo-build-queue remove <pkg>
+#   evo-build-queue clear
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+QUEUE_DIR="$EVO_HOME/queue"
+QUEUE_FILE="$QUEUE_DIR/queue.jsonl"
+LOCK_FILE="$QUEUE_DIR/.lock"
+mkdir -p "$QUEUE_DIR"
+
+ACTION="${1:?用法: evo-build-queue <add|run|status|remove|clear> [pkg]}"
+shift
+
+lock() {
+  local max_wait=10
+  local waited=0
+  while [[ -f "$LOCK_FILE" ]]; do
+    sleep 0.5
+    waited=$((waited + 1))
+    [[ $waited -ge $max_wait ]] && { echo '{"status":"error","error":"queue locked, another process is running"}'; exit 1; }
+  done
+  echo $$ > "$LOCK_FILE"
+  trap 'rm -f "$LOCK_FILE"' EXIT
+}
+
+queue_add() {
+  lock
+  local PKG="${1:?evo-build-queue add <pkg>}"
+  local PRIORITY="normal"
+  shift || true
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --priority) PRIORITY="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  # 检查是否已在队列中
+  if [[ -f "$QUEUE_FILE" ]] && grep -q "\"pkg\":\"$PKG\"" "$QUEUE_FILE" 2>/dev/null; then
+    echo '{"status":"error","error":"package '"$PKG"' already in queue"}'
+    exit 1
+  fi
+
+  local TIMESTAMP=$(date -Iseconds)
+  local PRIORITY_NUM=50
+  case "$PRIORITY" in
+    high)   PRIORITY_NUM=10 ;;
+    normal) PRIORITY_NUM=50 ;;
+    low)    PRIORITY_NUM=90 ;;
+  esac
+
+  echo "{\"pkg\":\"$PKG\",\"priority\":\"$PRIORITY\",\"priority_num\":$PRIORITY_NUM,\"status\":\"pending\",\"added\":\"$TIMESTAMP\",\"backend\":\"\",\"patch\":\"\"}" >> "$QUEUE_FILE"
+  echo '{"status":"ok","action":"add","pkg":"'"$PKG"'","priority":"'"$PRIORITY"'"}'
+}
+
+queue_run() {
+  lock
+  [[ -f "$QUEUE_FILE" ]] || { echo '{"status":"ok","action":"run","message":"queue is empty","built":0}'; exit 0; }
+  [[ -s "$QUEUE_FILE" ]] || { echo '{"status":"ok","action":"run","message":"queue is empty","built":0}'; exit 0; }
+
+  local MAX_PARALLEL=1
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --max-parallel) MAX_PARALLEL="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  # 按优先级排序，提取待构建的包
+  local SORTED
+  SORTED=$(sort -t: -k1,1 "$QUEUE_FILE" | python3 -c "
+import sys, json
+items = []
+for line in sys.stdin:
+    line = line.strip()
+    if not line: continue
+    try:
+        items.append(json.loads(line))
+    except: pass
+items.sort(key=lambda x: x.get('priority_num', 50))
+for item in items:
+    if item.get('status') == 'pending':
+        print(item['pkg'])
+" 2>/dev/null)
+
+  [[ -n "$SORTED" ]] || { echo '{"status":"ok","action":"run","message":"no pending items","built":0}'; exit 0; }
+
+  local BUILT=0 FAILED=0
+  local RESULTS="[]"
+
+  while IFS= read -r PKG; do
+    echo '{"status":"building","pkg":"'"$PKG"'","progress":"'"$((BUILT + FAILED + 1))"'/..."}' >&2
+
+    # 调用 evo-build
+    local BUILD_RESULT
+    if BUILD_RESULT=$("$EVO_HOME"/scripts/evo-build "$PKG" 2>/dev/null); then
+      BUILT=$((BUILT + 1))
+      # 更新队列状态
+      python3 -c "
+import json, sys
+lines = []
+with open('$QUEUE_FILE') as f:
+    for line in f:
+        line = line.strip()
+        if not line: continue
+        obj = json.loads(line)
+        if obj.get('pkg') == '$PKG':
+            obj['status'] = 'done'
+            obj['built_at'] = '$(date -Iseconds)'
+        lines.append(json.dumps(obj))
+with open('$QUEUE_FILE', 'w') as f:
+    f.write('\n'.join(lines) + '\n')
+" 2>/dev/null || true
+    else
+      FAILED=$((FAILED + 1))
+      python3 -c "
+import json
+lines = []
+with open('$QUEUE_FILE') as f:
+    for line in f:
+        line = line.strip()
+        if not line: continue
+        obj = json.loads(line)
+        if obj.get('pkg') == '$PKG':
+            obj['status'] = 'failed'
+            obj['failed_at'] = '$(date -Iseconds)'
+        lines.append(json.dumps(obj))
+with open('$QUEUE_FILE', 'w') as f:
+    f.write('\n'.join(lines) + '\n')
+" 2>/dev/null || true
+    fi
+  done <<< "$SORTED"
+
+  echo '{"status":"ok","action":"run","built":'"$BUILT"',"failed":'"$FAILED"',"total":'"$((BUILT + FAILED))"'}'
+}
+
+queue_status() {
+  [[ -f "$QUEUE_FILE" ]] || { echo '{"status":"ok","action":"status","pending":0,"done":0,"failed":0,"items":[]}'; exit 0; }
+  [[ -s "$QUEUE_FILE" ]] || { echo '{"status":"ok","action":"status","pending":0,"done":0,"failed":0,"items":[]}'; exit 0; }
+
+  python3 -c "
+import json
+items = []
+with open('$QUEUE_FILE') as f:
+    for line in f:
+        line = line.strip()
+        if not line: continue
+        try:
+            items.append(json.loads(line))
+        except: pass
+pending = sum(1 for i in items if i.get('status') == 'pending')
+done = sum(1 for i in items if i.get('status') == 'done')
+failed = sum(1 for i in items if i.get('status') == 'failed')
+print(json.dumps({'status':'ok','action':'status','pending':pending,'done':done,'failed':failed,'items':items}))
+" 2>/dev/null || echo '{"status":"ok","action":"status","pending":0,"done":0,"failed":0,"items":[]}'
+}
+
+queue_remove() {
+  lock
+  local PKG="${1:?evo-build-queue remove <pkg>}"
+  [[ -f "$QUEUE_FILE" ]] || { echo '{"status":"error","error":"queue file not found"}'; exit 1; }
+
+  python3 -c "
+import json
+found = False
+lines = []
+with open('$QUEUE_FILE') as f:
+    for line in f:
+        line = line.strip()
+        if not line: continue
+        obj = json.loads(line)
+        if obj.get('pkg') == '$PKG':
+            found = True
+            continue
+        lines.append(json.dumps(obj))
+with open('$QUEUE_FILE', 'w') as f:
+    f.write('\n'.join(lines) + ('\n' if lines else ''))
+print(json.dumps({'status':'ok' if found else 'error','action':'remove','pkg':'$PKG','found':found}))
+" 2>/dev/null
+}
+
+queue_clear() {
+  lock
+  > "$QUEUE_FILE"
+  echo '{"status":"ok","action":"clear"}'
+}
+
+case "$ACTION" in
+  add)     queue_add "$@" ;;
+  run)     queue_run "$@" ;;
+  status)  queue_status ;;
+  remove)  queue_remove "$@" ;;
+  clear)   queue_clear ;;
+  *)       echo '{"status":"error","error":"unknown action: '"$ACTION"' (valid: add|run|status|remove|clear)"}'; exit 1 ;;
+esac

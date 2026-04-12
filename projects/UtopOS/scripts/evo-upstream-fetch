@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# evo-upstream-fetch — 拉取上游变更到本地
+# 用法: evo-upstream-fetch <pkg> [--branch <branch>]
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+UPSTREAM_DIR="$EVO_HOME/upstream"
+PKG="${1:?用法: evo-upstream-fetch <pkg> [--branch <branch>]}"
+shift
+BRANCH=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --branch) BRANCH="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+UPSTREAM_FILE="$UPSTREAM_DIR/${PKG}.toml"
+[[ -f "$UPSTREAM_FILE" ]] || { echo '{"status":"error","error":"upstream not registered for '"$PKG"', run evo-upstream-add first"}'; exit 1; }
+
+# 解析配置
+URL=$(grep '^url ' "$UPSTREAM_FILE" | sed 's/url = "\(.*\)"/\1/')
+[[ -z "$BRANCH" ]] && BRANCH=$(grep '^branch ' "$UPSTREAM_FILE" | sed 's/branch = "\(.*\)"/\1/')
+
+[[ -n "$URL" ]] || { echo '{"status":"error","error":"no upstream URL configured"}'; exit 1; }
+
+LOCAL_UPSTREAM="$UPSTREAM_DIR/repos/$PKG"
+TIMESTAMP=$(date -Iseconds)
+
+if [[ -d "$LOCAL_UPSTREAM/.git" ]]; then
+  # 已有克隆，更新
+  cd "$LOCAL_UPSTREAM"
+  PREV_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+
+  git fetch origin "$BRANCH" --quiet 2>&1
+  git checkout "$BRANCH" --quiet 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH" --quiet 2>/dev/null || true
+  git reset --hard "origin/$BRANCH" --quiet 2>&1
+
+  NEW_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+  COMMIT_COUNT=$(git rev-list "$PREV_HEAD".."$NEW_HEAD" --count 2>/dev/null || echo 0)
+
+  # 获取变更列表
+  CHANGES=$(git log "$PREV_HEAD".."$NEW_HEAD" --oneline 2>/dev/null | head -20 | tr '\n' '|' || echo "")
+else
+  # 首次克隆
+  mkdir -p "$(dirname "$LOCAL_UPSTREAM")"
+  echo '{"status":"fetching","pkg":"'"$PKG"'","action":"clone","url":"'"$URL"'"}' >&2
+
+  git clone --branch "$BRANCH" --single-branch "$URL" "$LOCAL_UPSTREAM" --quiet 2>&1 || {
+    echo '{"status":"error","pkg":"'"$PKG"'","error":"clone failed","url":"'"$URL"'"}'
+    exit 1
+  }
+
+  cd "$LOCAL_UPSTREAM"
+  PREV_HEAD="none"
+  NEW_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+  COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo 0)
+  CHANGES=$(git log --oneline 2>/dev/null | head -20 | tr '\n' '|' || echo "")
+fi
+
+# 更新 tracking 信息
+python3 -c "
+lines = []
+with open('$UPSTREAM_FILE') as f:
+    for line in f:
+        if line.startswith('last_fetch'):
+            lines.append('last_fetch = \"$TIMESTAMP\"\n')
+        elif line.startswith('last_version') and '$NEW_HEAD' != 'unknown':
+            lines.append('last_version = \"$NEW_HEAD\"\n')
+        elif line.startswith('status'):
+            lines.append('status = \"fetched\"\n')
+        else:
+            lines.append(line)
+with open('$UPSTREAM_FILE', 'w') as f:
+    f.writelines(lines)
+" 2>/dev/null || true
+
+echo '{"status":"ok","pkg":"'"$PKG"'","action":"fetch","branch":"'"$BRANCH"'","previous_head":"'"$PREV_HEAD"'","new_head":"'"$NEW_HEAD"'","commits_fetched":'"$COMMIT_COUNT"',"changes":"'"$CHANGES"'","local_repo":"'"$LOCAL_UPSTREAM"'"}'
