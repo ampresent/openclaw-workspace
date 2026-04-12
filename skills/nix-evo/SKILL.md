@@ -93,6 +93,36 @@ ls -la /etc/resolv.conf /etc/hosts /etc/hostname /etc/passwd /etc/group
 env | grep -E "PATH|HOME|LANG|LC_" | sort
 ```
 
+### 5. 符号链接完整性 (`symlink_audit`)
+
+```bash
+# 检查 /usr/local/bin 中的断链
+find /usr/local/bin -type l ! -exec test -e {} \; -print 2>/dev/null
+
+# 检查 /usr/bin 中的断链
+find /usr/bin -type l ! -exec test -e {} \; -print 2>/dev/null
+
+# 验证 ldconfig 完整性
+ldconfig -p 2>/dev/null | wc -l
+cat /etc/ld.so.conf.d/*.conf 2>/dev/null
+for conf in /etc/ld.so.conf.d/*.conf; do
+  [ -f "$conf" ] && [ ! -d "$(cat $conf)" ] && echo "BROKEN: $conf -> $(cat $conf)"
+done
+```
+
+### 6. 磁盘和临时文件 (`disk_check`)
+
+```bash
+# 检查磁盘使用
+df -h
+
+# 检查 /tmp 中的大文件 (>10MB)
+find /tmp -type f -size +10M -exec ls -lh {} \; 2>/dev/null
+
+# 检查 /var/log 大小
+du -sh /var/log/ 2>/dev/null
+```
+
 ## 修复协议
 
 发现任何问题后，按以下顺序修复：
