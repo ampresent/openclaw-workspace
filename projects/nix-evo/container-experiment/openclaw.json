@@ -1,0 +1,51 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.3.12",
+    "lastTouchedAt": "2026-04-12T06:00:00.000Z"
+  },
+  "models": {
+    "providers": {
+      "xiaomi": {
+        "baseUrl": "https://api.xiaomimimo.com/v1",
+        "apiKey": "${MIMO_API_KEY}",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "mimo-v2-pro",
+            "name": "MiMo V2 Pro",
+            "reasoning": true,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 1048576,
+            "maxTokens": 65536
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": { "primary": "xiaomi/mimo-v2-pro" },
+      "models": { "xiaomi/mimo-v2-pro": {} },
+      "workspace": "/root/.openclaw/workspace",
+      "compaction": { "mode": "safeguard" }
+    }
+  },
+  "tools": {
+    "profile": "full",
+    "deny": ["tts"],
+    "web": { "search": { "enabled": true } },
+    "exec": { "security": "full", "ask": "off" },
+    "fs": { "workspaceOnly": false }
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "0.0.0.0"
+  }
+}

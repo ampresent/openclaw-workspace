@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  nix-evo-experiment:
+    build:
+      context: ..
+      dockerfile: container-experiment/Dockerfile
+    container_name: nix-evo-experiment
+    environment:
+      - MIMO_API_KEY=${MIMO_API_KEY}
+      - TZ=Asia/Shanghai
+    ports:
+      - "18789:18789"
+    volumes:
+      # Persist workspace (including git history and repair logs)
+      - nix-evo-workspace:/root/.openclaw/workspace
+      # Mount host git config for push access
+      - /root/.openclaw/.github_token:/root/.openclaw/.github_token:ro
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+volumes:
+  nix-evo-workspace:
