@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# evo-install — 通过包管理器安装构建产物
+# 用法: evo-install <pkg> [--backend nix|rpm|conda]
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+PKG="${1:?用法: evo-install <pkg> [--backend nix|rpm|conda]}"
+shift
+BACKEND=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --backend) BACKEND="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+if [[ -z "$BACKEND" ]]; then
+  BACKEND=$("$EVO_HOME"/scripts/evo-detect 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['backend'])" 2>/dev/null || echo "unknown")
+fi
+
+WORK_DIR="/tmp/evo-fix-${PKG}"
+LOG_DIR="$EVO_HOME/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/${PKG}-install-$(date +%Y%m%d-%H%M%S).log"
+
+# 记录安装事务到变更历史
+record_transaction() {
+  local txn_id="$1" action="$2"
+  local HIST_DIR="$EVO_HOME/history"
+  mkdir -p "$HIST_DIR"
+  echo '{"ts":"'"$(date -Iseconds)"'","pkg":"'"$PKG"'","backend":"'"$BACKEND"'","action":"'"$action"'","txn_id":"'"$txn_id"'"}' >> "$HIST_DIR/${PKG}.jsonl"
+}
+
+case "$BACKEND" in
+  nix)
+    echo '{"status":"installing","backend":"nix","pkg":"'"$PKG"'"}' >&2
+    if nixos-rebuild switch 2>&1 | tee "$LOG_FILE"; then
+      # 记录 generation
+      GEN=$(nixos-rebuild list-generations 2>/dev/null | tail -1 | awk '{print $1}' || echo "unknown")
+      record_transaction "$GEN" "switch"
+      echo '{"status":"ok","backend":"nix","pkg":"'"$PKG"'","generation":"'"$GEN"'","log":"'"$LOG_FILE"'","rollback_cmd":"nixos-rebuild switch --to '"$GEN"'"}'
+    else
+      echo '{"status":"error","backend":"nix","pkg":"'"$PKG"'","error":"nixos-rebuild switch failed","log":"'"$LOG_FILE"'"}'
+      exit 1
+    fi
+    ;;
+
+  rpm)
+    RPM_FILE=$(find "$EVO_HOME/builds/${PKG}/" -name "*.rpm" 2>/dev/null | head -1)
+    if [[ -z "$RPM_FILE" ]]; then
+      # 也检查 rpmbuild 输出
+      RPM_FILE=$(find ~/rpmbuild/RPMS/ -name "${PKG}*.rpm" 2>/dev/null | head -1)
+    fi
+    [[ -n "$RPM_FILE" ]] || { echo '{"status":"error","error":"no built RPM found"}'; exit 1; }
+
+    echo '{"status":"installing","backend":"rpm","pkg":"'"$PKG"'","rpm":"'"$RPM_FILE"'"}' >&2
+    # 优先 dnf/yum localinstall
+    if command -v dnf &>/dev/null; then
+      INSTALL_CMD="dnf localinstall -y"
+    elif command -v yum &>/dev/null; then
+      INSTALL_CMD="yum localinstall -y"
+    else
+      INSTALL_CMD="rpm -Uvh --force"
+    fi
+    if $INSTALL_CMD "$RPM_FILE" 2>&1 | tee "$LOG_FILE"; then
+      # 获取事务 ID
+      TXN=$(yum history list 2>/dev/null | head -3 | tail -1 | awk '{print $1}' || echo "unknown")
+      record_transaction "$TXN" "install"
+      echo '{"status":"ok","backend":"rpm","pkg":"'"$PKG"'","rpm":"'"$RPM_FILE"'","txn_id":"'"$TXN"'","log":"'"$LOG_FILE"'","rollback_cmd":"yum history undo '"$TXN"'"}'
+    else
+      echo '{"status":"error","backend":"rpm","pkg":"'"$PKG"'","error":"install failed","log":"'"$LOG_FILE"'"}'
+      exit 1
+    fi
+    ;;
+
+  conda)
+    echo '{"status":"installing","backend":"conda","pkg":"'"$PKG"'"}' >&2
+    if conda install --use-local -y "$PKG" 2>&1 | tee "$LOG_FILE"; then
+      REV=$(conda list --revisions 2>/dev/null | tail -1 | awk '{print $2}' || echo "unknown")
+      record_transaction "$REV" "install"
+      echo '{"status":"ok","backend":"conda","pkg":"'"$PKG"'","revision":"'"$REV"'","log":"'"$LOG_FILE"'","rollback_cmd":"conda install --revision '"$REV"'"}'
+    else
+      echo '{"status":"error","backend":"conda","pkg":"'"$PKG"'","error":"conda install failed","log":"'"$LOG_FILE"'"}'
+      exit 1
+    fi
+    ;;
+
+  *)
+    echo '{"status":"error","error":"unknown backend: '"$BACKEND"'"}'; exit 1 ;;
+esac

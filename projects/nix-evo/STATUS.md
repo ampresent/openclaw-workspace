@@ -1,8 +1,8 @@
 # 状态
 
-- **阶段**: v0.5 — 纯 skill 模式
+- **阶段**: v0.6 — 脚本工具落地
 - **创建**: 2026-04-12
-- **上次更新**: 2026-04-12 15:38
+- **上次更新**: 2026-04-12 16:12
 
 ## 架构决策
 
@@ -25,6 +25,26 @@
 | RPM 后端工作流 | ✅ 完成 | SRPM + rpmbuild + yum history 回滚 |
 | Conda 后端工作流 | ✅ 完成 | feedstock + conda build + revision 回滚 |
 | 自动检测 + 源码获取 | ✅ 完成 | detect_backend() + fetch_source() |
+| **脚本工具 (Phase 1)** | ✅ **14 个脚本** | 见下方详情 |
+
+### Phase 1 脚本工具（全部完成并验证）
+
+| 脚本 | 功能 | 状态 |
+|------|------|------|
+| `evo-init` | 初始化 ~/.evo/ 目录结构 + config 模板 | ✅ |
+| `evo-detect` | 自动检测 nix/rpm/conda，输出 JSON | ✅ |
+| `evo-fetch-source` | 三后端源码下载 + 缓存 | ✅ |
+| `evo-get-info` | 包信息查询（统一 JSON 输出） | ✅ |
+| `evo-workspace` | create/list/archive/status/cleanup | ✅ |
+| `evo-cleanup` | 临时文件清理 + 磁盘水位检查 + dry-run | ✅ |
+| `evo-build` | 统一构建入口（nix overlay / rpmbuild / conda build） | ✅ |
+| `evo-verify` | dry-run 验证 + 风险评估 | ✅ |
+| `evo-install` | 通过包管理器安装 + 记录事务 ID | ✅ |
+| `evo-rollback` | 回滚到指定状态（generation/txn/revision） | ✅ |
+| `evo-patch-create` | 从工作目录 diff 生成补丁 + 元数据 | ✅ |
+| `evo-patch-list` | 列出补丁 + 元数据 | ✅ |
+| `evo-patch-check` | 补丁兼容性检查（git apply --check） | ✅ |
+| `evo-patch-series` | 管理补丁应用顺序 | ✅ |
 
 ## 已暂停的模块（保留代码）
 

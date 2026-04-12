@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# evo-patch-create — 从工作目录中的修改创建补丁
+# 用法: evo-patch-create <pkg> --desc "描述" [--ticket ISSUE-123] [--risk safe|moderate|dangerous]
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+PKG="${1:?用法: evo-patch-create <pkg> --desc '描述' [--ticket ID] [--risk LEVEL]}"
+shift
+DESC=""
+TICKET=""
+RISK="moderate"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --desc)   DESC="$2"; shift 2 ;;
+    --ticket) TICKET="$2"; shift 2 ;;
+    --risk)   RISK="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+[[ -n "$DESC" ]] || { echo '{"status":"error","error":"--desc is required"}'; exit 1; }
+
+WORK_DIR="/tmp/evo-fix-${PKG}"
+SRC_DIR="$WORK_DIR/src"
+[[ -d "$SRC_DIR" ]] || { echo '{"status":"error","error":"source not found at '"$SRC_DIR"', run evo-fetch-source first"}'; exit 1; }
+
+# 创建 patch 存储目录
+PATCHES_DIR="$EVO_HOME/patches/$PKG"
+mkdir -p "$PATCHES_DIR"
+
+# 生成 patch 文件名
+SAFE_NAME=$(echo "$DESC" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | head -c 50)
+PATCH_FILE="${PATCHES_DIR}/${SAFE_NAME}.patch"
+TIMESTAMP=$(date -Iseconds)
+
+# 在工作目录创建 git 仓库来生成 diff
+cd "$SRC_DIR"
+if [[ ! -d .git ]]; then
+  git init -q
+  git add -A
+  git commit -q -m "original source" --allow-empty 2>/dev/null || true
+fi
+
+# 生成 diff
+DIFF=$(git diff 2>/dev/null)
+if [[ -z "$DIFF" ]]; then
+  echo '{"status":"error","error":"no changes detected in source dir '"$SRC_DIR"'"}'
+  exit 1
+fi
+
+# 写入 patch
+echo "$DIFF" > "$PATCH_FILE"
+
+# 生成元数据
+META_FILE="${PATCH_FILE}.meta.json"
+cat > "$META_FILE" <<EOF
+{
+  "pkg": "$PKG",
+  "desc": "$DESC",
+  "ticket": "$TICKET",
+  "risk": "$RISK",
+  "created": "$TIMESTAMP",
+  "patch_file": "$PATCH_FILE",
+  "size_bytes": $(wc -c < "$PATCH_FILE"),
+  "files_changed": $(echo "$DIFF" | grep '^diff --git' | wc -l),
+  "insertions": $(echo "$DIFF" | grep '^+' | grep -v '^+++' | wc -l),
+  "deletions": $(echo "$DIFF" | grep '^-' | grep -v '^---' | wc -l)
+}
+EOF
+
+# 更新 workspace 元数据
+if [[ -f "$WORK_DIR/.evo-meta.json" ]]; then
+  python3 -c "
+import json
+m = json.load(open('$WORK_DIR/.evo-meta.json'))
+m.setdefault('patches', []).append({'file': '$(basename "$PATCH_FILE")', 'desc': '$DESC', 'risk': '$RISK', 'created': '$TIMESTAMP'})
+json.dump(m, open('$WORK_DIR/.evo-meta.json','w'), indent=2)
+" 2>/dev/null || true
+fi
+
+# 重置 git 状态（保留修改）
+git add -A 2>/dev/null || true
+
+echo '{"status":"ok","pkg":"'"$PKG"'","patch":"'"$PATCH_FILE"'","meta":"'"$META_FILE"'","desc":"'"$DESC"'","risk":"'"$RISK"'","ticket":"'"$TICKET"'","files_changed":'"$(echo "$DIFF" | grep '^diff --git' | wc -l)"',"size":'"$(wc -c < "$PATCH_FILE")"'}'

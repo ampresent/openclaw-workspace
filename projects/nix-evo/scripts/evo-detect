@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# evo-detect — 检测当前系统的包管理后端
+# 用法: evo-detect [--backend nix|rpm|conda]  (手动指定覆盖自动检测)
+# 输出: JSON { status, backend, version, details }
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+FORCE_BACKEND="${1:-}"
+
+detect_nix() {
+  if command -v nixos-rebuild &>/dev/null; then
+    local ver
+    ver=$(nixos-rebuild --version 2>/dev/null | head -1 || echo "unknown")
+    echo '{"backend":"nix","version":"'"$ver"'","tools":{"nixos-rebuild":true,"nix-build":'"$(command -v nix-build &>/dev/null && echo true || echo false)"',"nix-env":'"$(command -v nix-env &>/dev/null && echo true || echo false)"'}}'
+    return 0
+  fi
+  return 1
+}
+
+detect_rpm() {
+  if command -v rpm &>/dev/null; then
+    local ver yumdownloader dnf
+    ver=$(rpm --version 2>/dev/null || echo "unknown")
+    yumdownloader=$(command -v yumdownloader &>/dev/null && echo true || echo false)
+    dnf=$(command -v dnf &>/dev/null && echo true || echo false)
+    local pkg_mgr="yum"
+    command -v dnf &>/dev/null && pkg_mgr="dnf"
+    echo '{"backend":"rpm","version":"'"$ver"'","pkg_mgr":"'"$pkg_mgr"'","tools":{"rpm":true,"yumdownloader":'"$yumdownloader"',"dnf":'"$dnf"',"rpmbuild":'"$(command -v rpmbuild &>/dev/null && echo true || echo false)"'}}'
+    return 0
+  fi
+  return 1
+}
+
+detect_conda() {
+  if command -v conda &>/dev/null; then
+    local ver
+    ver=$(conda --version 2>/dev/null | awk '{print $NF}' || echo "unknown")
+    echo '{"backend":"conda","version":"'"$ver"'","tools":{"conda":true,"conda-build":'"$(command -v conda-build &>/dev/null && echo true || echo false)"'}}'
+    return 0
+  fi
+  return 1
+}
+
+# 手动指定后端
+if [[ -n "$FORCE_BACKEND" ]]; then
+  case "$FORCE_BACKEND" in
+    nix)   detect_nix   || echo '{"status":"error","backend":"nix","error":"nixos-rebuild not found"}'; exit ;;
+    rpm)   detect_rpm   || echo '{"status":"error","backend":"rpm","error":"rpm not found"}'; exit ;;
+    conda) detect_conda || echo '{"status":"error","backend":"conda","error":"conda not found"}'; exit ;;
+    *)     echo '{"status":"error","error":"unknown backend: '"$FORCE_BACKEND"' (valid: nix|rpm|conda)"}'; exit 1 ;;
+  esac
+fi
+
+# 自动检测 (优先级: nix > rpm > conda)
+RESULT=$(detect_nix 2>/dev/null) && { echo '{"status":"ok","auto_detected":true,'"${RESULT:1}"; exit 0; }
+RESULT=$(detect_rpm 2>/dev/null) && { echo '{"status":"ok","auto_detected":true,'"${RESULT:1}"; exit 0; }
+RESULT=$(detect_conda 2>/dev/null) && { echo '{"status":"ok","auto_detected":true,'"${RESULT:1}"; exit 0; }
+
+echo '{"status":"error","backend":"unknown","error":"no supported package manager found (tried: nix, rpm, conda)"}'
+exit 1

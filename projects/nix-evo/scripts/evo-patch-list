@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# evo-patch-list — 列出某包的所有补丁
+# 用法: evo-patch-list <pkg>
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+PKG="${1:?用法: evo-patch-list <pkg>}"
+
+PATCHES_DIR="$EVO_HOME/patches/$PKG"
+if [[ ! -d "$PATCHES_DIR" ]]; then
+  echo '{"status":"ok","pkg":"'"$PKG"'","patches":[]}'
+  exit 0
+fi
+
+echo -n '{"status":"ok","pkg":"'"$PKG"'","patches":['
+FIRST=true
+for patch in "$PATCHES_DIR"/*.patch; do
+  [[ -f "$patch" ]] || continue
+  NAME=$(basename "$patch")
+  META="${patch}.meta.json"
+  DESC="" RISK="unknown" CREATED="" TICKET=""
+  if [[ -f "$META" ]]; then
+    DESC=$(python3 -c "import json; print(json.load(open('$META')).get('desc',''))" 2>/dev/null || echo "")
+    RISK=$(python3 -c "import json; print(json.load(open('$META')).get('risk','unknown'))" 2>/dev/null || echo "unknown")
+    CREATED=$(python3 -c "import json; print(json.load(open('$META')).get('created',''))" 2>/dev/null || echo "")
+    TICKET=$(python3 -c "import json; print(json.load(open('$META')).get('ticket',''))" 2>/dev/null || echo "")
+  fi
+  SIZE=$(wc -c < "$patch")
+  FILES=$(grep '^diff --git' "$patch" 2>/dev/null | wc -l)
+  [[ "$FIRST" == "true" ]] && FIRST=false || echo -n ','
+  echo -n '{"name":"'"$NAME"'","desc":"'"$(echo "$DESC" | sed 's/"/\\"/g')"'","risk":"'"$RISK"'","created":"'"$CREATED"'","ticket":"'"$TICKET"'","size_bytes":'"$SIZE"',"files_changed":'"$FILES"'}'
+done
+echo ']}'

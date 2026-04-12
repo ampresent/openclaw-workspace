@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# evo-rollback — 回滚到之前的状态
+# 用法: evo-rollback <pkg> [--backend nix|rpm|conda] [--to <id>]
+# 不指定 --to 时回滚到上一个状态
+set -euo pipefail
+
+EVO_HOME="${EVO_HOME:-$HOME/.evo}"
+PKG="${1:?用法: evo-rollback <pkg> [--backend nix|rpm|conda] [--to <id>]}"
+shift
+BACKEND=""
+TARGET=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --backend) BACKEND="$2"; shift 2 ;;
+    --to)      TARGET="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+if [[ -z "$BACKEND" ]]; then
+  BACKEND=$("$EVO_HOME"/scripts/evo-detect 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['backend'])" 2>/dev/null || echo "unknown")
+fi
+
+LOG_DIR="$EVO_HOME/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/${PKG}-rollback-$(date +%Y%m%d-%H%M%S).log"
+
+record_rollback() {
+  local txn_id="$1"
+  mkdir -p "$EVO_HOME/history"
+  echo '{"ts":"'"$(date -Iseconds)"'","pkg":"'"$PKG"'","backend":"'"$BACKEND"'","action":"rollback","txn_id":"'"$txn_id"'"}' >> "$EVO_HOME/history/${PKG}.jsonl"
+}
+
+case "$BACKEND" in
+  nix)
+    if [[ -n "$TARGET" ]]; then
+      CMD="nixos-rebuild switch --to $TARGET"
+    else
+      CMD="nixos-rebuild switch --rollback"
+    fi
+    echo '{"status":"rolling_back","backend":"nix","cmd":"'"$CMD"'"}' >&2
+    if $CMD 2>&1 | tee "$LOG_FILE"; then
+      GEN=$(nixos-rebuild list-generations 2>/dev/null | tail -1 | awk '{print $1}' || echo "unknown")
+      record_rollback "$GEN"
+      echo '{"status":"ok","backend":"nix","pkg":"'"$PKG"'","rolled_to":"'"$GEN"'","log":"'"$LOG_FILE"'"}'
+    else
+      echo '{"status":"error","backend":"nix","pkg":"'"$PKG"'","error":"rollback failed","log":"'"$LOG_FILE"'"}'
+      exit 1
+    fi
+    ;;
+
+  rpm)
+    if [[ -n "$TARGET" ]]; then
+      CMD="yum history undo $TARGET"
+    else
+      # 获取最近一次涉及该包的事务
+      TXN=$(yum history list "$PKG" 2>/dev/null | grep -v "^$" | head -3 | tail -1 | awk '{print $1}' || echo "")
+      if [[ -z "$TXN" ]]; then
+        echo '{"status":"error","backend":"rpm","pkg":"'"$PKG"'","error":"no transaction history found"}'
+        exit 1
+      fi
+      CMD="yum history undo $TXN"
+    fi
+    echo '{"status":"rolling_back","backend":"rpm","cmd":"'"$CMD"'"}' >&2
+    if $CMD 2>&1 | tee "$LOG_FILE"; then
+      record_rollback "${TARGET:-auto}"
+      echo '{"status":"ok","backend":"rpm","pkg":"'"$PKG"'","rolled_to":"'"${TARGET:-auto}"'","log":"'"$LOG_FILE"'"}'
+    else
+      echo '{"status":"error","backend":"rpm","pkg":"'"$PKG"'","error":"rollback failed","log":"'"$LOG_FILE"'"}'
+      exit 1
+    fi
+    ;;
+
+  conda)
+    if [[ -n "$TARGET" ]]; then
+      CMD="conda install --revision $TARGET"
+    else
+      # 获取最近一个 revision
+      REV=$(conda list --revisions 2>/dev/null | tail -2 | head -1 | awk '{print $2}' || echo "")
+      if [[ -z "$REV" ]]; then
+        echo '{"status":"error","backend":"conda","pkg":"'"$PKG"'","error":"no revision history found"}'
+        exit 1
+      fi
+      CMD="conda install --revision $REV"
+    fi
+    echo '{"status":"rolling_back","backend":"conda","cmd":"'"$CMD"'"}' >&2
+    if $CMD 2>&1 | tee "$LOG_FILE"; then
+      record_rollback "${TARGET:-auto}"
+      echo '{"status":"ok","backend":"conda","pkg":"'"$PKG"'","rolled_to":"'"${TARGET:-auto}"'","log":"'"$LOG_FILE"'"}'
+    else
+      echo '{"status":"error","backend":"conda","pkg":"'"$PKG"'","error":"rollback failed","log":"'"$LOG_FILE"'"}'
+      exit 1
+    fi
+    ;;
+
+  *)
+    echo '{"status":"error","error":"unknown backend: '"$BACKEND"'"}'; exit 1 ;;
+esac

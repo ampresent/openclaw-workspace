@@ -20,19 +20,20 @@ scripts/ (执行层)  →  evo-detect, evo-fetch-source, evo-build, evo-cleanup 
 
 ### 1.1 基础设施脚本
 
-- [ ] `scripts/evo-init` — 初始化 evo 工作目录结构
-  - 创建 `~/.evo/` (patches/, builds/, cache/, logs/, archive/)
-  - 检测可用包管理器，写入 `~/.evo/config`
-  - 创建 `~/.evo/work/` 临时工作区
+- [x] `scripts/evo-init` — 初始化 evo 工作目录结构
+  - 创建 `~/.evo/` (patches/, builds/, cache/, logs/, archive/, work/, upstream/, history/)
+  - 生成默认 config、trust.toml、inventory.toml 模板
+  - 支持 --force 重新初始化
 
-- [ ] `scripts/evo-cleanup` — 临时文件清理
+- [x] `scripts/evo-cleanup` — 临时文件清理
   - 清理 `/tmp/evo-fix-*` 中超过 N 天的工作目录
   - 清理 `~/.evo/cache/` 中超过 N 天的源码缓存
   - 清理 `~/.evo/builds/` 中超过 N 天的构建产物
   - 磁盘水位检查，空间不足时激进清理
   - 保留标记为 `keep` 的工作目录
+  - 支持 --dry-run 预览
 
-- [ ] `scripts/evo-workspace` — 工作目录生命周期管理
+- [x] `scripts/evo-workspace` — 工作目录生命周期管理
   - `evo-workspace create <pkg>` — 创建 `/tmp/evo-fix-<pkg>/` + `~/.evo/work/<pkg>/`
   - `evo-workspace list` — 列出活跃工作目录
   - `evo-workspace archive <pkg>` — 打包归档（patch + 日志 + 元数据 → tar.gz）
@@ -40,26 +41,26 @@ scripts/ (执行层)  →  evo-detect, evo-fetch-source, evo-build, evo-cleanup 
 
 ### 1.2 包管理器检测 + 源码获取
 
-- [ ] `scripts/evo-detect` — 检测当前系统包管理器
+- [x] `scripts/evo-detect` — 检测当前系统包管理器
   - 输出: `nix` | `rpm` | `conda` | `unknown`
   - 检测版本号（nixos-rebuild 版本、rpm 版本、conda 版本）
   - 写入 `~/.evo/config` 缓存
 
-- [ ] `scripts/evo-fetch-source` — 下载源码
+- [x] `scripts/evo-fetch-source` — 下载源码
   - `evo-fetch-source <pkg> [--backend nix|rpm|conda]`
   - 自动调用对应后端的下载逻辑
   - 源码缓存到 `~/.evo/cache/<pkg>-<version>/`
   - 已有缓存则跳过下载
   - 输出源码路径供 agent 使用
 
-- [ ] `scripts/evo-get-info` — 获取包信息
+- [x] `scripts/evo-get-info` — 获取包信息
   - `evo-get-info <pkg> [--backend nix|rpm|conda]`
   - 输出: 包名、版本、源码路径、构建依赖、service unit
   - 统一 JSON 格式输出
 
 ### 1.3 构建管理
 
-- [ ] `scripts/evo-build` — 统一构建入口
+- [x] `scripts/evo-build` — 统一构建入口
   - `evo-build <pkg> [--backend nix|rpm|conda] [--patch <patch-file>]`
   - 应用 patch → 调用后端构建命令 → 产出包文件
   - 构建日志写入 `~/.evo/logs/<pkg>-<timestamp>.log`
@@ -73,39 +74,39 @@ scripts/ (执行层)  →  evo-detect, evo-fetch-source, evo-build, evo-cleanup 
   - `evo-build-queue clear` — 清空队列
   - 并发控制：大包限制并发，避免 OOM
 
-- [ ] `scripts/evo-verify` — 安装验证
+- [x] `scripts/evo-verify` — 安装验证
   - `evo-verify <pkg> [--backend nix|rpm|conda]`
   - dry-run / test build
   - 输出风险评估摘要（JSON）
   - 不实际安装，只验证
 
-- [ ] `scripts/evo-install` — 通过包管理器安装构建产物
+- [x] `scripts/evo-install` — 通过包管理器安装构建产物
   - `evo-install <built-pkg-path> [--backend nix|rpm|conda]`
   - 调用后端安装命令
   - 记录安装事务 ID（用于回滚）
 
-- [ ] `scripts/evo-rollback` — 回滚
+- [x] `scripts/evo-rollback` — 回滚
   - `evo-rollback <pkg> [--backend nix|rpm|conda] [--to <id>]`
   - 调用后端回滚命令
 
 ### 1.4 Diff / Patch 管理
 
-- [ ] `scripts/evo-patch-create` — 创建补丁
+- [x] `scripts/evo-patch-create` — 创建补丁
   - `evo-patch-create <pkg> --desc "修复说明" [--ticket ISSUE-123]`
   - 在源码目录中生成 diff
   - 写入 `~/.evo/patches/<pkg>/<patch-file>`
   - 生成元数据 JSON（原因、作者、时间、关联 issue、风险等级）
 
-- [ ] `scripts/evo-patch-list` — 列出某包的所有补丁
+- [x] `scripts/evo-patch-list` — 列出某包的所有补丁
   - `evo-patch-list <pkg>`
   - 输出: patch 文件名、描述、状态（applied/pending/expired）、风险等级
 
-- [ ] `scripts/evo-patch-check` — 补丁兼容性检查
+- [x] `scripts/evo-patch-check` — 补丁兼容性检查
   - `evo-patch-check <pkg>` — 检查所有 patch 能否干净 apply
   - `evo-patch-check <pkg> --against <version>` — 检查对指定上游版本的兼容性
   - 输出: 哪些 patch 可以 apply，哪些冲突
 
-- [ ] `scripts/evo-patch-series` — 管理补丁应用顺序
+- [x] `scripts/evo-patch-series` — 管理补丁应用顺序
   - `~/.evo/patches/<pkg>/series` 文件定义 apply 顺序
   - `evo-patch-series add <pkg> <patch> [--after <other-patch>]`
   - `evo-patch-series reorder <pkg>`
