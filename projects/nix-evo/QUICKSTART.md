@@ -1,6 +1,9 @@
 # nix-evo Quick Start
 
 > 让 AI Agent 用源码修复工作流解决系统软件问题。
+>
+> 详细用户指南：[docs/guide/GETTING-STARTED.md](docs/guide/GETTING-STARTED.md)
+> 深度系列文档：[docs/series/INDEX.md](docs/series/INDEX.md)
 
 ## 前提
 

@@ -40,6 +40,19 @@ nix-evo 以 **OpenClaw Skill** 的形式使用，不依赖独立的 MCP Server �
 
 详见 [skills/nix-evo/SKILL.md](../../skills/nix-evo/SKILL.md)
 
+## 文档
+
+- **[用户指南](docs/guide/GETTING-STARTED.md)** — 5 分钟上手，用 Claude Code 参与 OS 开发
+- **[系列文档](docs/series/INDEX.md)** — 8 卷深度解析，从理念到实践
+  - 第一卷：项目概览与设计理念
+  - 第二卷：架构深度剖析
+  - 第三卷：工作流详解
+  - 第四卷：Nix 后端完全指南
+  - 第五卷：RPM 后端完全指南
+  - 第六卷：Conda 后端完全指南
+  - 第七卷：安全与信任模型
+  - 第八卷：脚本工具参考手册
+
 ## 安全约束
 
 - 所有变更先验证（dry-run / test build）再安装
