@@ -11,3 +11,7 @@ dist
 .idea/
 .vscode/
 *.swp
+
+# Recordings
+*.cast
+recordings/
