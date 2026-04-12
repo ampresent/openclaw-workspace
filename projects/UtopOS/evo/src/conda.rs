@@ -456,4 +456,91 @@ mod tests {
             _ => panic!("Expected pip dep"),
         }
     }
+
+    #[test]
+    fn test_parse_env_list_empty() {
+        let envs = parse_env_list("");
+        assert!(envs.is_empty());
+    }
+
+    #[test]
+    fn test_parse_env_list_skips_header() {
+        let input = "#\n# Name           Path\n--------------------\nbase           /opt/micromamba\n";
+        let envs = parse_env_list(input);
+        assert_eq!(envs.len(), 1);
+        assert_eq!(envs[0].name, "base");
+    }
+
+    #[test]
+    fn test_parse_env_list_with_spaces_in_path() {
+        let input = "myenv    /opt/my envs/myenv\n";
+        let envs = parse_env_list(input);
+        assert_eq!(envs.len(), 1);
+        assert_eq!(envs[0].name, "myenv");
+    }
+
+    #[test]
+    fn test_parse_list_output_empty() {
+        let pkgs = parse_list_output("");
+        assert!(pkgs.is_empty());
+    }
+
+    #[test]
+    fn test_parse_list_output_skips_comments() {
+        let input = "# comment\n## another\npython 3.11 h00_0 defaults\n";
+        let pkgs = parse_list_output(input);
+        assert_eq!(pkgs.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_list_output_too_few_columns() {
+        let input = "python 3.11\n";
+        let pkgs = parse_list_output(input);
+        assert!(pkgs.is_empty());
+    }
+
+    #[test]
+    fn test_parse_environment_yml_minimal() {
+        let input = "name: test\nchannels:\n- defaults\ndependencies:\n- python\n";
+        let yml = parse_environment_yml(input).unwrap();
+        assert_eq!(yml.name, "test");
+        assert_eq!(yml.dependencies.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_environment_yml_no_pip() {
+        let input = "name: base\nchannels:\n- conda-forge\ndependencies:\n- numpy\n- pandas\n";
+        let yml = parse_environment_yml(input).unwrap();
+        assert_eq!(yml.dependencies.len(), 2);
+        for dep in &yml.dependencies {
+            assert!(matches!(dep, EnvDependency::Conda(_)));
+        }
+    }
+
+    #[test]
+    fn test_conda_env_debug() {
+        let env = CondaEnv {
+            name: "test".into(),
+            path: "/opt/envs/test".into(),
+            is_active: false,
+            python_version: Some("3.11".into()),
+            package_count: Some(42),
+        };
+        let debug = format!("{env:?}");
+        assert!(debug.contains("test"));
+        assert!(debug.contains("3.11"));
+    }
+
+    #[test]
+    fn test_conda_package_debug() {
+        let pkg = CondaPackage {
+            name: "numpy".into(),
+            version: "1.26.3".into(),
+            build: "py311_0".into(),
+            channel: "conda-forge".into(),
+            platform: Some("linux-64".into()),
+        };
+        assert_eq!(pkg.name, "numpy");
+        assert_eq!(pkg.version, "1.26.3");
+    }
 }

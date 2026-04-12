@@ -80,4 +80,53 @@ mod tests {
         limiter.active.fetch_sub(1, Ordering::Relaxed);
         assert_eq!(limiter.active.load(Ordering::Relaxed), 0);
     }
+
+    #[test]
+    fn test_limiter_zero_max() {
+        let limiter = ConcurrencyLimiter::new(0);
+        assert_eq!(limiter.max, 0);
+        // Any request should be rejected when max is 0
+        let current = limiter.active.fetch_add(1, Ordering::Relaxed);
+        assert!(current >= limiter.max);
+    }
+
+    #[test]
+    fn test_limiter_one_max() {
+        let limiter = ConcurrencyLimiter::new(1);
+        // First request passes
+        let first = limiter.active.fetch_add(1, Ordering::Relaxed);
+        assert!(first < limiter.max);
+        // Second request should be rejected
+        let second = limiter.active.fetch_add(1, Ordering::Relaxed);
+        assert!(second >= limiter.max);
+        // Clean up
+        limiter.active.fetch_sub(1, Ordering::Relaxed);
+    }
+
+    #[test]
+    fn test_limiter_concurrent_simulation() {
+        let limiter = ConcurrencyLimiter::new(3);
+        let mut accepted = 0;
+        for _ in 0..10 {
+            let current = limiter.active.fetch_add(1, Ordering::Relaxed);
+            if current < limiter.max {
+                accepted += 1;
+            } else {
+                limiter.active.fetch_sub(1, Ordering::Relaxed);
+            }
+        }
+        assert_eq!(accepted, 3);
+        // Clean up
+        limiter.active.fetch_sub(accepted, Ordering::Relaxed);
+    }
+
+    #[test]
+    fn test_limiter_large_max() {
+        let limiter = ConcurrencyLimiter::new(1000);
+        assert_eq!(limiter.max, 1000);
+        for _ in 0..100 {
+            limiter.active.fetch_add(1, Ordering::Relaxed);
+        }
+        assert_eq!(limiter.active.load(Ordering::Relaxed), 100);
+    }
 }

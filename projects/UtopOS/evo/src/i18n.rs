@@ -257,4 +257,92 @@ mod tests {
         let result = translate_dry_build("building nginx-1.24.0", "zh-CN");
         assert!(result.contains("正在构建"));
     }
+
+    #[test]
+    fn test_translate_ja_jp() {
+        let result = translate_message("error: attribute 'nginx' not found", "ja-JP");
+        assert!(result.contains("属性"));
+    }
+
+    #[test]
+    fn test_translate_hash_mismatch_zh() {
+        let result = translate_message("hash mismatch in fetch", "zh-CN");
+        assert!(result.contains("哈希不匹配"));
+    }
+
+    #[test]
+    fn test_translate_permission_denied_zh() {
+        let result = translate_message("permission denied for file", "zh-CN");
+        assert!(result.contains("权限"));
+    }
+
+    #[test]
+    fn test_translate_out_of_memory_zh() {
+        let result = translate_message("out of memory during build", "zh-CN");
+        assert!(result.contains("内存不足"));
+    }
+
+    #[test]
+    fn test_translate_unknown_message_passthrough() {
+        let result = translate_message("something completely random xyz", "zh-CN");
+        assert_eq!(result, "something completely random xyz");
+    }
+
+    #[test]
+    fn test_translate_build_output_multiple() {
+        let result = translate_dry_build("building nginx\nDownloading packages\nCopying files", "zh-CN");
+        assert!(result.contains("正在构建"));
+        assert!(result.contains("正在下载"));
+    }
+
+    #[test]
+    fn test_translate_de_de() {
+        let result = translate_message("permission denied", "de-DE");
+        // Should return German translation or fallback
+        assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn test_translate_fr_fr() {
+        let result = translate_message("permission denied", "fr-FR");
+        assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn test_translate_short_lang_code() {
+        // "zh" should work same as "zh-CN"
+        let full = translate_message("error: attribute not found", "zh-CN");
+        let short = translate_message("error: attribute not found", "zh");
+        assert_eq!(full, short);
+    }
+
+    #[test]
+    fn test_translate_infinite_recursion() {
+        let result = translate_message("infinite recursion encountered", "zh-CN");
+        assert!(result.contains("无限递归"));
+    }
+
+    #[test]
+    fn test_translate_collision() {
+        let result = translate_message("collision between packages", "zh-CN");
+        assert!(result.contains("包冲突"));
+    }
+
+    #[test]
+    fn test_translate_connection_timeout() {
+        let result = translate_message("connection timed out", "zh-CN");
+        assert!(result.contains("连接超时"));
+    }
+
+    #[test]
+    fn test_translate_build_messages_copying() {
+        let result = translate_dry_build("copying path to store", "zh-CN");
+        assert!(result.contains("正在复制"));
+    }
+
+    #[test]
+    fn test_translate_build_messages_activating() {
+        let result = translate_dry_build("activating the configuration", "zh-CN");
+        assert!(result.contains("正在激活配置"));
+    }
 }
