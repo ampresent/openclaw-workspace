@@ -95,3 +95,4 @@ LOG_*.md
 .github-token
 .worktrees/
 .github-credential
+.github-credential

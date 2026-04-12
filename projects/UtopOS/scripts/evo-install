@@ -29,13 +29,20 @@ mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/${PKG}-install-$(date +%Y%m%d-%H%M%S).log"
 
 
-# ── 文件监控: before 快照 ──
+# ── 文件监控: before 快照 + 文件备份 ──
 MONITOR_SNAP_BEFORE=""
 MONITOR_SNAP_AFTER=""
 if [[ -n "$MONITOR_PATH" ]]; then
   MONITOR_SNAP_BEFORE="$EVO_HOME/snapshots/${PKG}-pre-install-$(date +%Y%m%d-%H%M%S).manifest"
   "$SCRIPTS/evo-snapshot" "$MONITOR_PATH" --output "$MONITOR_SNAP_BEFORE" --name "${PKG}-pre-install" >/dev/null
   echo '{"status":"monitoring","phase":"before","manifest":"'"$MONITOR_SNAP_BEFORE"'"}' >&2
+
+  # 备份原始文件内容供回滚恢复
+  BACKUP_DEST="$EVO_HOME/backups/${PKG}-pre-install-$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$BACKUP_DEST"
+  echo '{"status":"monitoring","phase":"backup","dest":"'"$BACKUP_DEST"'"}' >&2
+  rsync -a --delete "$MONITOR_PATH/" "$BACKUP_DEST/" 2>/dev/null || \
+    cp -a "$MONITOR_PATH/"* "$BACKUP_DEST/" 2>/dev/null || true
 fi
 
 record_and_report() {

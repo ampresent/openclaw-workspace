@@ -159,6 +159,15 @@ for c in changes:
                     if os.path.exists(candidate):
                         backup_src = candidate
                         break
+                # 降级: 搜索所有 PKG 备份目录
+                if not backup_src:
+                    backups_root = os.path.join(evo_home, "backups")
+                    if os.path.isdir(backups_root):
+                        for bname in sorted(os.listdir(backups_root), reverse=True):
+                            candidate = os.path.join(backups_root, bname, cpath)
+                            if os.path.exists(candidate):
+                                backup_src = candidate
+                                break
             if dry_run:
                 actions.append({"action": "restore_file", "path": cpath, "has_backup": backup_src is not None})
             elif backup_src:
@@ -184,6 +193,15 @@ for c in changes:
                 if os.path.exists(candidate):
                     backup_src = candidate
                     break
+            # 降级: 搜索所有 PKG 备份目录
+            if not backup_src:
+                backups_root = os.path.join(evo_home, "backups")
+                if os.path.isdir(backups_root):
+                    for bname in sorted(os.listdir(backups_root), reverse=True):
+                        candidate = os.path.join(backups_root, bname, cpath)
+                        if os.path.exists(candidate):
+                            backup_src = candidate
+                            break
         if dry_run:
             actions.append({"action": "restore_file", "path": cpath, "has_backup": backup_src is not None})
         elif backup_src:

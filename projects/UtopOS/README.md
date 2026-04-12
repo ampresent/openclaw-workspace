@@ -140,6 +140,7 @@ scripts/evo-init
 | [设计文档](DESIGN.md) | 架构决策 |
 | [贡献指南](CONTRIBUTING.md) | 参与开发 |
 | [文件监控系统](docs/FILE-MONITORING.md) | 变更跟踪、异常检测、回滚 |
+| [回滚方案](docs/ROLLBACK.md) | 两层回滚：包管理器 + 文件系统 |
 
 ---
 

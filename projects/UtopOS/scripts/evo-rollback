@@ -1,18 +1,27 @@
 #!/usr/bin/env bash
-# evo-rollback — 回滚到之前的状态
-# 用法: evo-rollback <pkg> [--backend nix|rpm|conda] [--to <id>]
-# 不指定 --to 时回滚到上一个状态
+# evo-rollback — 两层回滚：包管理器 + 文件系统
+# 用法: evo-rollback <pkg> [--backend nix|rpm|conda] [--to <id>] [--revert] [--plan] [--dry-run]
+#
+# 第一层: 包管理器回滚 (yum history undo / nixos-rebuild --rollback / conda --revision)
+# 第二层: 文件系统回滚 (基于快照对比，恢复包管理器未覆盖的变更)
 set -euo pipefail
 
 EVO_HOME="${EVO_HOME:-$HOME/.evo}"
-PKG="${1:?用法: evo-rollback <pkg> [--backend nix|rpm|conda] [--to <id>]}"
+SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PKG="${1:?用法: evo-rollback <pkg> [--backend nix|rpm|conda] [--to <id>] [--revert] [--plan] [--dry-run]}"
 shift
 BACKEND=""
 TARGET=""
+DO_REVERT=false
+PLAN_ONLY=false
+DRY_RUN=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --backend) BACKEND="$2"; shift 2 ;;
-    --to)      TARGET="$2"; shift 2 ;;
+    --backend)   BACKEND="$2"; shift 2 ;;
+    --to)        TARGET="$2"; shift 2 ;;
+    --revert)    DO_REVERT=true; shift ;;
+    --plan|-p)   PLAN_ONLY=true; shift ;;
+    --dry-run|-n) DRY_RUN=true; shift ;;
     *) shift ;;
   esac
 done
@@ -24,12 +33,81 @@ fi
 LOG_DIR="$EVO_HOME/logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/${PKG}-rollback-$(date +%Y%m%d-%H%M%S).log"
+REPORT_DIR="$EVO_HOME/reports"
+mkdir -p "$REPORT_DIR"
 
-record_rollback() {
-  local txn_id="$1"
-  mkdir -p "$EVO_HOME/history"
-  echo '{"ts":"'"$(date -Iseconds)"'","pkg":"'"$PKG"'","backend":"'"$BACKEND"'","action":"rollback","txn_id":"'"$txn_id"'"}' >> "$EVO_HOME/history/${PKG}.jsonl"
+# ── 查找最近的安装快照 ──
+find_install_snapshot() {
+  local phase="$1"  # pre-install / post-install
+  # 从最近的安装报告中读取快照路径
+  local REPORT
+  REPORT=$(ls -t "$REPORT_DIR"/"${PKG}"-install-*.json 2>/dev/null | head -1)
+  if [[ -f "$REPORT" ]]; then
+    if [[ "$phase" == "before" ]]; then
+      python3 -c "import json; print(json.load(open('$REPORT')).get('before',''))" 2>/dev/null
+    else
+      python3 -c "import json; print(json.load(open('$REPORT')).get('after',''))" 2>/dev/null
+    fi
+    return
+  fi
+  # 降级: 从 snapshots 目录找
+  ls -t "$EVO_HOME/snapshots"/"${PKG}"-"${phase}"-*.manifest 2>/dev/null | head -1
 }
+
+# ── 记录回滚事务 ──
+record_rollback() {
+  local txn_id="$1" layer="$2"
+  mkdir -p "$EVO_HOME/history"
+  echo '{"ts":"'"$(date -Iseconds)"'","pkg":"'"$PKG"'","backend":"'"$BACKEND"'","action":"rollback","layer":"'"$layer"'","txn_id":"'"$txn_id"'"}' >> "$EVO_HOME/history/${PKG}.jsonl"
+}
+
+# ── PLAN: 预览模式 ──
+if [[ "$PLAN_ONLY" == "true" ]]; then
+  echo '{"status":"planning","pkg":"'"$PKG"'","backend":"'"$BACKEND"'"}' >&2
+
+  BEFORE=$(find_install_snapshot "before")
+  AFTER=$(find_install_snapshot "after")
+
+  PLAN_LAYER1="{}"
+  PLAN_LAYER2="{}"
+
+  # 第一层: 包管理器回滚计划
+  case "$BACKEND" in
+    nix)
+      PLAN_LAYER1='{"layer":"package_manager","backend":"nix","action":"nixos-rebuild switch --rollback"}'
+      ;;
+    rpm)
+      if [[ -n "$TARGET" ]]; then
+        PLAN_LAYER1='{"layer":"package_manager","backend":"rpm","action":"yum history undo '"$TARGET"'"}'
+      else
+        TXN=$(yum history list "$PKG" 2>/dev/null | grep -v "^$" | head -3 | tail -1 | awk '{print $1}' || echo "")
+        PLAN_LAYER1='{"layer":"package_manager","backend":"rpm","action":"yum history undo '"${TXN:-unknown}"'","txn_id":"'"${TXN:-unknown}"'"}'
+      fi
+      ;;
+    conda)
+      REV=$(conda list --revisions 2>/dev/null | tail -2 | head -1 | awk '{print $2}' || echo "")
+      PLAN_LAYER1='{"layer":"package_manager","backend":"conda","action":"conda install --revision '"${REV:-unknown}"'","revision":"'"${REV:-unknown}"'"}'
+      ;;
+  esac
+
+  # 第二层: 文件系统变更预览
+  if [[ -n "$BEFORE" && -n "$AFTER" && -f "$BEFORE" && -f "$AFTER" ]]; then
+    PLAN_LAYER2=$("$SCRIPTS/evo-diff" "$BEFORE" "$AFTER" --json 2>/dev/null || echo '{"total_changes":0}')
+  else
+    PLAN_LAYER2='{"layer":"filesystem","status":"no_snapshot","message":"无安装快照，无法预览文件系统回滚"}'
+  fi
+
+  echo "{\"status\":\"ok\",\"action\":\"plan\",\"pkg\":\"$PKG\",\"backend\":\"$BACKEND\",\"layer1\":$PLAN_LAYER1,\"layer2\":$PLAN_LAYER2,\"snapshots\":{\"before\":\"${BEFORE:-}\",\"after\":\"${AFTER:-}\"}}"
+  exit 0
+fi
+
+# ══════════════════════════════════════
+# 第一层: 包管理器回滚
+# ══════════════════════════════════════
+echo '{"status":"running","layer":1,"action":"package_manager_rollback","backend":"'"$BACKEND"'"}' >&2
+
+LAYER1_STATUS="ok"
+LAYER1_TXN=""
 
 case "$BACKEND" in
   nix)
@@ -38,14 +116,14 @@ case "$BACKEND" in
     else
       CMD="nixos-rebuild switch --rollback"
     fi
-    echo '{"status":"rolling_back","backend":"nix","cmd":"'"$CMD"'"}' >&2
-    if $CMD 2>&1 | tee "$LOG_FILE"; then
-      GEN=$(nixos-rebuild list-generations 2>/dev/null | tail -1 | awk '{print $1}' || echo "unknown")
-      record_rollback "$GEN"
-      echo '{"status":"ok","backend":"nix","pkg":"'"$PKG"'","rolled_to":"'"$GEN"'","log":"'"$LOG_FILE"'"}'
+    echo '{"status":"rolling_back","layer":1,"backend":"nix","cmd":"'"$CMD"'"}' >&2
+    if [[ "$DRY_RUN" == "true" ]]; then
+      echo '{"status":"dry_run","layer":1,"cmd":"'"$CMD"'"}'
+    elif $CMD 2>&1 | tee "$LOG_FILE"; then
+      LAYER1_TXN=$(nixos-rebuild list-generations 2>/dev/null | tail -1 | awk '{print $1}' || echo "unknown")
+      record_rollback "$LAYER1_TXN" "package_manager"
     else
-      echo '{"status":"error","backend":"nix","pkg":"'"$PKG"'","error":"rollback failed","log":"'"$LOG_FILE"'"}'
-      exit 1
+      LAYER1_STATUS="error"
     fi
     ;;
 
@@ -53,21 +131,25 @@ case "$BACKEND" in
     if [[ -n "$TARGET" ]]; then
       CMD="yum history undo $TARGET"
     else
-      # 获取最近一次涉及该包的事务
       TXN=$(yum history list "$PKG" 2>/dev/null | grep -v "^$" | head -3 | tail -1 | awk '{print $1}' || echo "")
       if [[ -z "$TXN" ]]; then
-        echo '{"status":"error","backend":"rpm","pkg":"'"$PKG"'","error":"no transaction history found"}'
-        exit 1
+        echo '{"status":"error","layer":1,"backend":"rpm","error":"no transaction history found"}' >&2
+        LAYER1_STATUS="error"
+        CMD=""
+      else
+        CMD="yum history undo $TXN"
       fi
-      CMD="yum history undo $TXN"
     fi
-    echo '{"status":"rolling_back","backend":"rpm","cmd":"'"$CMD"'"}' >&2
-    if $CMD 2>&1 | tee "$LOG_FILE"; then
-      record_rollback "${TARGET:-auto}"
-      echo '{"status":"ok","backend":"rpm","pkg":"'"$PKG"'","rolled_to":"'"${TARGET:-auto}"'","log":"'"$LOG_FILE"'"}'
-    else
-      echo '{"status":"error","backend":"rpm","pkg":"'"$PKG"'","error":"rollback failed","log":"'"$LOG_FILE"'"}'
-      exit 1
+    if [[ -n "$CMD" ]]; then
+      echo '{"status":"rolling_back","layer":1,"backend":"rpm","cmd":"'"$CMD"'"}' >&2
+      if [[ "$DRY_RUN" == "true" ]]; then
+        echo '{"status":"dry_run","layer":1,"cmd":"'"$CMD"'"}'
+      elif $CMD 2>&1 | tee "$LOG_FILE"; then
+        LAYER1_TXN="${TARGET:-auto}"
+        record_rollback "$LAYER1_TXN" "package_manager"
+      else
+        LAYER1_STATUS="error"
+      fi
     fi
     ;;
 
@@ -75,24 +157,87 @@ case "$BACKEND" in
     if [[ -n "$TARGET" ]]; then
       CMD="conda install --revision $TARGET"
     else
-      # 获取最近一个 revision
       REV=$(conda list --revisions 2>/dev/null | tail -2 | head -1 | awk '{print $2}' || echo "")
       if [[ -z "$REV" ]]; then
-        echo '{"status":"error","backend":"conda","pkg":"'"$PKG"'","error":"no revision history found"}'
-        exit 1
+        echo '{"status":"error","layer":1,"backend":"conda","error":"no revision history found"}' >&2
+        LAYER1_STATUS="error"
+        CMD=""
+      else
+        CMD="conda install --revision $REV"
       fi
-      CMD="conda install --revision $REV"
     fi
-    echo '{"status":"rolling_back","backend":"conda","cmd":"'"$CMD"'"}' >&2
-    if $CMD 2>&1 | tee "$LOG_FILE"; then
-      record_rollback "${TARGET:-auto}"
-      echo '{"status":"ok","backend":"conda","pkg":"'"$PKG"'","rolled_to":"'"${TARGET:-auto}"'","log":"'"$LOG_FILE"'"}'
-    else
-      echo '{"status":"error","backend":"conda","pkg":"'"$PKG"'","error":"rollback failed","log":"'"$LOG_FILE"'"}'
-      exit 1
+    if [[ -n "$CMD" ]]; then
+      echo '{"status":"rolling_back","layer":1,"backend":"conda","cmd":"'"$CMD"'"}' >&2
+      if [[ "$DRY_RUN" == "true" ]]; then
+        echo '{"status":"dry_run","layer":1,"cmd":"'"$CMD"'"}'
+      elif $CMD 2>&1 | tee "$LOG_FILE"; then
+        LAYER1_TXN="${TARGET:-auto}"
+        record_rollback "$LAYER1_TXN" "package_manager"
+      else
+        LAYER1_STATUS="error"
+      fi
     fi
     ;;
 
   *)
-    echo '{"status":"error","error":"unknown backend: '"$BACKEND"'"}'; exit 1 ;;
+    echo '{"status":"error","layer":1,"error":"unknown backend: '"$BACKEND"'"}' >&2
+    LAYER1_STATUS="error"
+    ;;
 esac
+
+# ══════════════════════════════════════
+# 第二层: 文件系统回滚
+# ══════════════════════════════════════
+LAYER2_STATUS="skipped"
+LAYER2_RESULT="{}"
+
+if [[ "$DO_REVERT" == "true" || "$LAYER1_STATUS" == "ok" ]]; then
+  BEFORE=$(find_install_snapshot "before")
+  AFTER=$(find_install_snapshot "after")
+
+  if [[ -n "$BEFORE" && -f "$BEFORE" ]]; then
+    echo '{"status":"running","layer":2,"action":"filesystem_revert","before":"'"$BEFORE"'","after":"'"${AFTER:-auto}"'"}' >&2
+
+    REVERT_ARGS=( "$EVO_HOME" --from "$BEFORE" )
+    [[ -n "$AFTER" && -f "$AFTER" ]] && REVERT_ARGS+=( --to "$AFTER" )
+    [[ "$DRY_RUN" == "true" ]] && REVERT_ARGS+=( --dry-run )
+
+    LAYER2_RESULT=$("$SCRIPTS/evo-revert" "$EVO_HOME" --from "$BEFORE" ${AFTER:+--to "$AFTER"} ${DRY_RUN:+--dry-run} 2>/dev/null || echo '{"status":"error","layer":2}')
+    LAYER2_STATUS="ok"
+
+    # 记录
+    if [[ "$DRY_RUN" != "true" ]]; then
+      REVERTED=$(echo "$LAYER2_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('reverted',0))" 2>/dev/null || echo "0")
+      record_rollback "revert-$REVERTED" "filesystem"
+    fi
+  else
+    LAYER2_STATUS="no_snapshot"
+    echo '{"status":"skipped","layer":2,"reason":"no_install_snapshot"}' >&2
+  fi
+fi
+
+# ══════════════════════════════════════
+# 汇总报告
+# ══════════════════════════════════════
+ROLLBACK_REPORT="$REPORT_DIR/${PKG}-rollback-$(date +%Y%m%d-%H%M%S).json"
+cat > "$ROLLBACK_REPORT" <<EOF
+{
+  "ts": "$(date -Iseconds)",
+  "pkg": "$PKG",
+  "backend": "$BACKEND",
+  "layer1": {
+    "type": "package_manager",
+    "status": "$LAYER1_STATUS",
+    "txn_id": "$LAYER1_TXN",
+    "log": "$LOG_FILE"
+  },
+  "layer2": {
+    "type": "filesystem",
+    "status": "$LAYER2_STATUS",
+    "result": $LAYER2_RESULT
+  },
+  "verdict": $(if [[ "$LAYER1_STATUS" == "error" ]]; then echo '"FAILED"'; elif [[ "$LAYER2_STATUS" == "no_snapshot" ]]; then echo '"PARTIAL"'; else echo '"OK"'; fi)
+}
+EOF
+
+echo "{\"status\":\"ok\",\"action\":\"rollback\",\"pkg\":\"$PKG\",\"backend\":\"$BACKEND\",\"layer1\":\"$LAYER1_STATUS\",\"layer2\":\"$LAYER2_STATUS\",\"report\":\"$ROLLBACK_REPORT\"}"
