@@ -70,6 +70,96 @@ for skill_dir in skills/*/; do
     install -m 0644 "$skill_dir"SKILL.md %{buildroot}%{_datadir}/%{name}/skills/$skill_name/
 done
 
+# /etc/skel — 新用户自动继承
+# OpenClaw: skills extraDirs 配置
+install -d %{buildroot}%{_sysconfdir}/skel/.openclaw
+cat > %{buildroot}%{_sysconfdir}/skel/.openclaw/openclaw-utopos.json <<'EOF'
+{
+  "skills": {
+    "load": {
+      "extraDirs": ["/usr/share/utopos/skills"]
+    }
+  }
+}
+EOF
+
+# Claude Code: skill symlink
+install -d %{buildroot}%{_sysconfdir}/skel/.claude/skills
+for skill_dir in skills/*/; do
+    skill_name=$(basename "$skill_dir")
+    # 在 skel 中用实际目录 (因为 symlink 到 /usr/share 对新用户没意义, useradd 不跟随 symlink)
+    cp -r "$skill_dir" %{buildroot}%{_sysconfdir}/skel/.claude/skills/$skill_name
+done
+
+# 注册脚本 — 供已有用户手动使用
+install -d %{buildroot}%{_datadir}/%{name}
+cat > %{buildroot}%{_datadir}/%{name}/register-skills.sh <<'REGSCRIPT'
+#!/usr/bin/env bash
+# utopos-register-skills — 为已有用户注册 UtopOS skills
+# 用法: utopos-register-skills [username]
+set -euo pipefail
+
+TARGET_USER="${1:-$USER}"
+TARGET_HOME=$(eval echo "~$TARGET_USER" 2>/dev/null || echo "/home/$TARGET_USER")
+SKILLS_DIR="/usr/share/utopos/skills"
+
+echo "注册 UtopOS skills 到 $TARGET_USER ($TARGET_HOME)"
+
+# OpenClaw
+if [[ -d "$TARGET_HOME/.openclaw" ]]; then
+    OC_CONFIG="$TARGET_HOME/.openclaw/openclaw.json"
+    python3 -c "
+import json, re
+config_path = '$OC_CONFIG'
+skills_dir = '$SKILLS_DIR'
+try:
+    with open(config_path) as f:
+        content = f.read()
+    content = re.sub(r'//.*?\n', '\n', content)
+    content = re.sub(r',\s*([\]}])', r'\1', content)
+    config = json.loads(content)
+except Exception:
+    config = {}
+if 'skills' not in config:
+    config['skills'] = {}
+if 'load' not in config['skills']:
+    config['skills']['load'] = {}
+if 'extraDirs' not in config['skills']['load']:
+    config['skills']['load']['extraDirs'] = []
+if skills_dir not in config['skills']['load']['extraDirs']:
+    config['skills']['load']['extraDirs'].append(skills_dir)
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+    print('  ✅ OpenClaw: 已注册')
+else:
+    print('  ✓  OpenClaw: 已存在')
+" 2>/dev/null
+else
+    echo "  ⚠️  未找到 $TARGET_HOME/.openclaw/"
+fi
+
+# Claude Code
+CLAUDE_SKILLS="$TARGET_HOME/.claude/skills"
+mkdir -p "$CLAUDE_SKILLS"
+for skill_dir in "$SKILLS_DIR"/*/; do
+    skill_name=$(basename "$skill_dir")
+    target="$CLAUDE_SKILLS/$skill_name"
+    if [[ -d "$target" ]]; then
+        echo "  ✓  Claude Code: $skill_name 已存在"
+    else
+        ln -s "$skill_dir" "$target"
+        echo "  ✅ Claude Code: $skill_name → $target"
+    fi
+done
+
+echo ""
+echo "完成。重启 Agent 生效:"
+echo "  OpenClaw: openclaw gateway restart"
+echo "  Claude Code: 重新启动 claude"
+REGSCRIPT
+chmod 0755 %{buildroot}%{_datadir}/%{name}/register-skills.sh
+ln -s %{_datadir}/%{name}/register-skills.sh %{buildroot}%{_bindir}/utopos-register-skills
+
 # 文档
 install -m 0644 README.md %{buildroot}%{_datadir}/doc/%{name}/
 install -m 0644 docs/ROLLBACK.md %{buildroot}%{_datadir}/doc/%{name}/
@@ -100,102 +190,10 @@ EOF
 %post
 %systemd_post utopos-agent.service
 
-SKILLS_DIR="%{_datadir}/%{name}/skills"
-OPENCLAW_EXTRA="/usr/share/utopos/skills"
-
 echo ""
 echo "════════════════════════════════════════════════"
 echo "  UtopOS %{version} 安装完成"
 echo "════════════════════════════════════════════════"
-echo ""
-
-# ── 1. 注册到 OpenClaw ──
-register_openclaw() {
-    local oc_home="$1"
-    local oc_config="$oc_home/openclaw.json"
-    [[ -f "$oc_config" ]] || return 1
-
-    python3 -c "
-import json, re
-config_path = '$oc_config'
-skills_dir = '$OPENCLAW_EXTRA'
-try:
-    with open(config_path) as f:
-        content = f.read()
-    content = re.sub(r'//.*?\n', '\n', content)
-    content = re.sub(r',\s*([\]}])', r'\1', content)
-    config = json.loads(content)
-except Exception:
-    config = {}
-if 'skills' not in config:
-    config['skills'] = {}
-if 'load' not in config['skills']:
-    config['skills']['load'] = {}
-if 'extraDirs' not in config['skills']['load']:
-    config['skills']['load']['extraDirs'] = []
-if skills_dir not in config['skills']['load']['extraDirs']:
-    config['skills']['load']['extraDirs'].append(skills_dir)
-    with open(config_path, 'w') as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
-    print('  ✅ OpenClaw: skills 已注册 → ' + config_path)
-else:
-    print('  ✓  OpenClaw: skills 已存在')
-" 2>/dev/null
-}
-
-# ── 2. 注册到 Claude Code ──
-register_claude() {
-    local claude_home="$1"
-    local claude_skills="$claude_home/skills"
-
-    mkdir -p "$claude_skills"
-
-    for skill_dir in "$SKILLS_DIR"/*/; do
-        local skill_name=$(basename "$skill_dir")
-        local target="$claude_skills/$skill_name"
-
-        if [[ -d "$target" ]]; then
-            echo "  ✓  Claude Code: $skill_name 已存在"
-        else
-            # 创建符号链接到系统安装的 skill
-            ln -s "$skill_dir" "$target"
-            echo "  ✅ Claude Code: $skill_name → $target"
-        fi
-    done
-}
-
-# ── 自动检测并注册 ──
-OPENCLAW_FOUND=false
-CLAUDE_FOUND=false
-
-# OpenClaw
-for oc_dir in "$HOME/.openclaw" /root/.openclaw /home/*/.openclaw; do
-    [[ -d "$oc_dir" ]] || continue
-    if register_openclaw "$oc_dir" 2>/dev/null; then
-        OPENCLAW_FOUND=true
-    fi
-done
-
-# Claude Code — 全局
-for claude_dir in "$HOME/.claude" /root/.claude /home/*/.claude; do
-    [[ -d "$claude_dir" ]] || continue
-    register_claude "$claude_dir"
-    CLAUDE_FOUND=true
-done
-
-# 如果没有找到 ~/.claude，为 root 创建
-if [[ "$CLAUDE_FOUND" == "false" ]]; then
-    register_claude "/root/.claude"
-    CLAUDE_FOUND=true
-    echo "  ✅ Claude Code: 已创建 /root/.claude/skills/"
-fi
-
-# 如果没有找到 OpenClaw 配置
-if [[ "$OPENCLAW_FOUND" == "false" ]]; then
-    echo "  ⚠️  未找到 OpenClaw 配置，安装后手动添加:"
-    echo '    { "skills": { "load": { "extraDirs": ["/usr/share/utopos/skills"] } } }'
-fi
-
 echo ""
 echo "  可用命令:"
 echo "    evo serve              启动 API 服务"
@@ -206,12 +204,11 @@ echo "    evo-rollback <pkg>     多层回滚"
 echo "    evo-fence <path>       实时文件监控"
 echo ""
 echo "  后端: --backend rpm | conda | btrfs"
-echo "  文档: %{_datadir}/doc/%{name}/"
 echo ""
-echo "  Skills 已注册:"
-echo "    - OpenClaw:  ~/.openclaw/openclaw.json → extraDirs"
-echo "    - Claude:    ~/.claude/skills/ → symlink"
-echo "    - 源文件:    %{_datadir}/%{name}/skills/"
+echo "  Skills:"
+echo "    源文件:  %{_datadir}/%{name}/skills/"
+echo "    新用户:  自动从 /etc/skel 继承"
+echo "    已有用户: utopos-register-skills"
 echo ""
 echo "  启动服务:"
 echo "    systemctl enable --now utopos-agent"
@@ -219,47 +216,6 @@ echo ""
 
 %preun
 %systemd_preun utopos-agent.service
-
-# 卸载时清理注册
-if [[ $1 -eq 0 ]]; then
-    # OpenClaw: 移除 extraDirs
-    for d in /root/.openclaw /home/*/.openclaw; do
-        OC_CONFIG="$d/openclaw.json"
-        [[ -f "$OC_CONFIG" ]] || continue
-        python3 -c "
-import json, re
-config_path = '$OC_CONFIG'
-skills_dir = '/usr/share/utopos/skills'
-try:
-    with open(config_path) as f:
-        content = f.read()
-    content = re.sub(r'//.*?\n', '\n', content)
-    content = re.sub(r',\s*([\]}])', r'\1', content)
-    config = json.loads(content)
-    dirs = config.get('skills', {}).get('load', {}).get('extraDirs', [])
-    if skills_dir in dirs:
-        dirs.remove(skills_dir)
-        with open(config_path, 'w') as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
-        print('  ✅ OpenClaw: 已注销 skills')
-except Exception:
-    pass
-" 2>/dev/null
-    done
-
-    # Claude Code: 移除 symlink
-    for d in /root/.claude /home/*/.claude; do
-        CLAUDE_SKILLS="$d/skills"
-        [[ -d "$CLAUDE_SKILLS" ]] || continue
-        for skill_name in UtopOS UtopOS-rpm UtopOS-conda UtopOS-nix; do
-            link="$CLAUDE_SKILLS/$skill_name"
-            if [[ -L "$link" && "$(readlink "$link")" == "/usr/share/utopos/skills/$skill_name" ]]; then
-                rm -f "$link"
-                echo "  ✅ Claude Code: 已移除 $skill_name"
-            fi
-        done
-    done
-fi
 
 %postun
 %systemd_postun_with_restart utopos-agent.service
@@ -317,6 +273,22 @@ fi
 %{_datadir}/%{name}/skills/UtopOS-rpm/SKILL.md
 %{_datadir}/%{name}/skills/UtopOS-conda/SKILL.md
 %{_datadir}/%{name}/skills/UtopOS-nix/SKILL.md
+%{_datadir}/%{name}/register-skills.sh
+%{_bindir}/utopos-register-skills
+
+# /etc/skel — 新用户自动继承
+%dir %{_sysconfdir}/skel/.openclaw
+%dir %{_sysconfdir}/skel/.claude
+%dir %{_sysconfdir}/skel/.claude/skills
+%dir %{_sysconfdir}/skel/.claude/skills/UtopOS
+%dir %{_sysconfdir}/skel/.claude/skills/UtopOS-rpm
+%dir %{_sysconfdir}/skel/.claude/skills/UtopOS-conda
+%dir %{_sysconfdir}/skel/.claude/skills/UtopOS-nix
+%config(noreplace) %{_sysconfdir}/skel/.openclaw/openclaw-utopos.json
+%{_sysconfdir}/skel/.claude/skills/UtopOS/SKILL.md
+%{_sysconfdir}/skel/.claude/skills/UtopOS-rpm/SKILL.md
+%{_sysconfdir}/skel/.claude/skills/UtopOS-conda/SKILL.md
+%{_sysconfdir}/skel/.claude/skills/UtopOS-nix/SKILL.md
 
 # 配置
 %config(noreplace) %{_sysconfdir}/%{name}/evo.conf
