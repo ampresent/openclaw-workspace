@@ -31,45 +31,100 @@
 - 变更可回滚（包管理器支持降级/回滚）
 - 变更可复现（同一构建流程产生相同结果）
 
-## 后端检测
+## 后端检测 + 源码获取（第一步就做）
 
-操作前先确定目标系统使用哪种包管理器：
+收到问题后，第一件事是识别包管理器，然后**自动下载源码**。
 
 ```bash
-# 检测
-which nixos-rebuild 2>/dev/null && echo "NixOS"
-which rpm 2>/dev/null && echo "RPM"
-which conda 2>/dev/null && echo "Conda"
+# Step 1: 检测包管理器
+detect_backend() {
+  if command -v nixos-rebuild &>/dev/null; then
+    echo "nix"
+  elif command -v rpm &>/dev/null; then
+    echo "rpm"
+  elif command -v conda &>/dev/null; then
+    echo "conda"
+  else
+    echo "unknown"
+  fi
+}
+BACKEND=$(detect_backend)
 ```
 
-根据检测结果选择对应的工作流分支。
+检测到后端后，**立即下载源码**，不要跳过这一步：
+
+```bash
+# Step 2: 根据后端下载源码
+fetch_source() {
+  local PKG=$1
+  local WORKDIR="/tmp/evo-fix-$PKG"
+  mkdir -p "$WORKDIR"
+
+  case "$BACKEND" in
+    nix)
+      echo "[nix] 获取 $PKG 源码..."
+      SRC=$(nix-build '<nixpkgs>' -A "$PKG.src" --no-out-link 2>/dev/null)
+      cp -r "$SRC" "$WORKDIR/src"
+      echo "[nix] 源码在: $WORKDIR/src"
+      ;;
+    rpm)
+      echo "[rpm] 获取 $PKG 源码..."
+      cd "$WORKDIR"
+      yumdownloader --source "$PKG" 2>/dev/null || dnf download --source "$PKG" 2>/dev/null
+      rpm -ivh "$WORKDIR"/*.src.rpm 2>/dev/null
+      # 解压源码 tarball
+      cd ~/rpmbuild/SOURCES/
+      tar xf "$WORKDIR"/*.tar.gz -C "$WORKDIR/src" 2>/dev/null || \
+        tar xf "$(ls ~/rpmbuild/SOURCES/*.tar.gz | head -1)" -C "$WORKDIR" 2>/dev/null
+      echo "[rpm] 源码在: $WORKDIR/"
+      echo "[rpm] SPEC 在: ~/rpmbuild/SPECS/"
+      ;;
+    conda)
+      echo "[conda] 获取 $PKG 源码..."
+      cd "$WORKDIR"
+      # 尝试从 conda-forge feedstock 获取
+      git clone "https://github.com/conda-forge/${PKG}-feedstock.git" src 2>/dev/null || \
+        conda skeleton pypi "$PKG" --output-dir "$WORKDIR/src" 2>/dev/null
+      echo "[conda] 源码在: $WORKDIR/src/"
+      echo "[conda] Recipe 在: $WORKDIR/src/recipe/"
+      ;;
+    *)
+      echo "[error] 未识别的包管理器，请手动指定 --backend nix|rpm|conda"
+      return 1
+      ;;
+  esac
+}
+```
+
+拿到源码后，再进入诊断和分析阶段。
 
 ---
 
 ## 通用工作流（六步）
 
-### 第一步：诊断（不要急着修）
+### 第一步：诊断 + 获取源码
 
-使用 `system_snapshot` 和 `service_logs` 了解问题。
+1. **识别包管理器**（`detect_backend`）
+2. **下载源码**（`fetch_source <package>`）
+3. **诊断问题**（`system_snapshot` + `service_logs`）
 
 ```
 用户: nginx 502 了
 
+→ detect_backend() → "rpm"
+→ fetch_source("nginx") → /tmp/evo-fix-nginx/
 → 调用 system_snapshot
 → 发现 php-fpm.service failed
 → 调用 service_logs("phpfpm.service")
 → 发现错误信息
+→ 进入 /tmp/evo-fix-nginx/ 分析源码
 ```
 
-**关键**：此时不要动手修。先理解根因。
+**关键**：诊断的同时源码已经准备好了，分析时直接进源码目录。
 
-### 第二步：定位源码包
+### 第二步：分析源代码
 
-根据后端找到出问题的软件对应的源码包。
-
-### 第三步：解压并分析源代码
-
-**这是核心步骤。** 不要看运行时文件，要看源码。
+**这是核心步骤。** 不要看运行时文件，看已下载的源码。
 
 分析时关注：
 
@@ -78,15 +133,15 @@ which conda 2>/dev/null && echo "Conda"
 - 编译参数是否导致了错误行为
 - 源码中的 bug
 
-### 第四步：生成补丁
+### 第三步：生成补丁
 
 基于源码分析结果，针对不同后端生成对应格式的补丁。
 
-### 第五步：验证 + 应用
+### 第四步：验证 + 应用
 
 通过包管理器验证（dry-run）再安装，不要直接改文件。
 
-### 第六步：提交到上游（可选但推荐）
+### 第五步：提交到上游（可选但推荐）
 
 如果修复的是上游 bug，向对应的上游仓库提交 PR。
 
@@ -94,26 +149,7 @@ which conda 2>/dev/null && echo "Conda"
 
 ## 后端一：Nix / NixOS
 
-### 定位源码包
-
-```bash
-# 查找包 derivation
-nix-instantiate '<nixpkgs>' -A php83
-
-# 获取源码路径
-nix-build '<nixpkgs>' -A php83.src --no-out-link
-
-# 或直接查看 store
-ls /nix/store/*-php-*/
-```
-
-### 解压源码
-
-```bash
-# nix-build 产出的源码目录可直接使用
-SRC=$(nix-build '<nixpkgs>' -A php83.src --no-out-link)
-cp -r $SRC /tmp/fix-workspace/
-```
+### 源码已由 `fetch_source("php83")` 获取到 `/tmp/evo-fix-php83/src/`
 
 ### 生成补丁
 
@@ -174,36 +210,7 @@ nixos-rebuild switch --to 42       # 回退到指定 generation
 
 ## 后端二：RPM（Rocky / RHEL / Fedora）
 
-### 定位源码包
-
-```bash
-# 查找提供某文件的包
-rpm -qf /usr/sbin/nginx
-
-# 查找已安装包的源码 RPM
-rpm -qi nginx | grep "Source RPM"
-rpm -q --qf '%{SOURCERPM}\n' nginx
-
-# 下载 SRPM
-yumdownloader --source nginx
-# 或
-dnf download --source nginx
-```
-
-### 解压源码
-
-```bash
-# 安装 SRPM（解包到 ~/rpmbuild/）
-rpm -ivh nginx-*.src.rpm
-
-# 源码目录结构
-ls ~/rpmbuild/SOURCES/    # 源码 tarball + 补丁文件
-ls ~/rpmbuild/SPECS/      # spec 文件
-
-# 解压源码
-cd ~/rpmbuild/SOURCES/
-tar xf nginx-*.tar.gz
-```
+### 源码已由 `fetch_source("nginx")` 获取到 `~/rpmbuild/` 和 `/tmp/evo-fix-nginx/`
 
 ### 分析源码
 
@@ -266,30 +273,7 @@ yum downgrade nginx-<旧版本>
 
 ## 后端三：Conda
 
-### 定位源码包
-
-```bash
-# 查看已安装包信息
-conda list <package>
-conda info <package>
-
-# 查找包的 recipe（源码）
-conda skeleton pypi <package>           # PyPI 包
-# 或从 conda-forge 获取 recipe
-git clone https://github.com/conda-forge/<package>-feedstock.git
-```
-
-### 解压源码
-
-```bash
-# 方式一：从 feedstock 获取
-cd <package>-feedstock
-ls recipe/              # meta.yaml + build.sh + bld.bat
-
-# 方式二：从已安装的包提取
-conda install <package>
-# 包安装在 $CONDA_PREFIX/lib/ 或 $CONDA_PREFIX/bin/
-```
+### 源码已由 `fetch_source("mypackage")` 获取到 `/tmp/evo-fix-mypackage/src/`
 
 ### 分析源码
 
