@@ -113,6 +113,37 @@ AI Agent (Claude Code / OpenClaw)
 
 ---
 
+## 安装
+
+### RPM 一键安装 (推荐)
+
+```bash
+# 构建
+make rpm
+
+# 或者手动
+./build-rpm.sh
+
+# 安装
+sudo rpm -ivh ~/rpmbuild/RPMS/x86_64/utopos-0.3.1-1.*.rpm
+
+# 启动服务
+systemctl enable --now utopos-agent
+```
+
+安装后即可使用所有 `evo-*` 命令，无需额外配置。
+
+### 源码安装
+
+```bash
+# 构建 Rust 二进制
+cd evo && cargo build --release
+
+# 手动安装脚本
+cp scripts/evo-* /usr/local/bin/
+cp evo/target/release/UtopOS-agent /usr/local/bin/evo
+```
+
 ## 快速开始
 
 ```bash
