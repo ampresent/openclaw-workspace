@@ -1,6 +1,23 @@
 {
+  "name": "nix-patchwatch",
+  "version": "0.1.0",
+  "description": "TUI for observing NixOS system changes, patches, and upstream diffs",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "lint": "eslint src/"
+  },
   "dependencies": {
-    "playwright": "^1.58.2",
-    "puppeteer-core": "^24.40.0"
+    "ink": "^5.1.0",
+    "ink-big-text": "^1.2.0",
+    "ink-gradient": "^3.0.0",
+    "ink-select-input": "^6.0.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "react": "^19.0.0",
+    "execa": "^9.0.0",
+    "diff": "^7.0.0"
   }
 }
