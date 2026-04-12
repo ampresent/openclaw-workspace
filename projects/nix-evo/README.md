@@ -1,73 +1,159 @@
 # nix-evo
 
-> 源码修复工作流 — AI Agent 通过分析和修补源代码来解决系统软件问题。
-> 支持 **Nix**、**RPM**、**Conda** 三种包管理后端。
+> **Agent-native OS Management** — 让 AI Agent 成为操作系统的原生管理者。
+> 不是写代码的 Copilot，是管系统的 Copilot。
 
-## 核心理念
+## 一句话
 
-**永远不要绕过问题，永远不要直接修改操作系统。**
+nix-evo 是第一个开源的 **Agent-native 操作系统管理平台**：
+AI Agent 通过修补源码、重新打包、包管理器安装来管理操作系统。
+不碰运行时文件，所有变更可追溯、可回滚。
 
-当 AI Agent 遇到系统软件问题时：解压源码 → 分析根因 → 修源码 → 重新打包 → 通过包管理器安装。不碰运行时文件。
+## 为什么叫 "evo"
 
-## 工作流
+**Evolution（进化）**。操作系统不应该是一次安装后逐渐腐化的静态产物，
+而应该是一个**持续进化的有机体**：
+- 遇到问题 → AI 分析根因 → 修补源码 → 系统进化
+- 上游 bug → AI 应用补丁 → 系统比上游更好
+- 安全漏洞 → AI 即时修复 → 不等发行版更新
+
+系统在 AI 的辅助下**持续进化**，而不是**持续腐化**。
+
+---
+
+## 市场定位
+
+### Agentic OS 格局（2025-2026）
 
 ```
-用户: nginx 502 了
-
-1. 识别包管理器 → rpm
-2. 下载源码     → yumdownloader --source nginx → ~/rpmbuild/
-3. 诊断问题     → systemctl status / journalctl
-4. 分析源码     → 进入源码目录，定位根因
-5. 生成补丁     → 修改源码，生成 .patch
-6. 重新打包     → rpmbuild -ba / conda build / nix-build
-7. 验证安装     → 先验证再安装，不直接改文件
-8. 提交上游     → 可选，生成 PR 反哺社区
+┌─────────────────────────────────────────────────────────────────┐
+│                    Agentic OS 赛道全景                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │ AIOS         │  │ Devin/Copilot│  │ Anthropic Operator   │  │
+│  │ (学术研究)    │  │ (代码生成)    │  │ (浏览器自动化)        │  │
+│  │ LLM as OS    │  │ 写代码       │  │ 操作 GUI             │  │
+│  │ Agent as App │  │ 不管系统     │  │ 不碰底层             │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
+│                                                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │ Ansible+AI   │  │ K8s+AI       │  │ nix-evo ★            │  │
+│  │ (配置管理)    │  │ (容器编排)    │  │ (源码级系统管理)       │  │
+│  │ 管配置文件    │  │ 管容器       │  │ 管源码+包             │  │
+│  │ 运行时修改    │  │ 不碰宿主OS   │  │ 包管理器原生集成       │  │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+### 我们和别人的区别
+
+| 项目 | 做什么 | 不做什么 | Agent 的角色 |
+|------|--------|---------|-------------|
+| **AIOS** | LLM 作为 OS 内核的抽象层 | 不管真实 Linux 系统 | 概念验证 |
+| **Devin** | 自主写代码、提交 PR | 不管部署和运行 | 代码工人 |
+| **Claude Code** | 辅助编程、执行命令 | 不提供系统管理工作流 | 万能助手（但没有 OS 专项知识） |
+| **Ansible + AI** | AI 生成 playbook，Ansible 执行 | 不改源码，只管配置 | 前端 |
+| **K8s + AI** | AI 管容器编排 | 不碰宿主 OS | 编排器 |
+| **Operator** | 浏览器自动化 | 不碰 CLI 和系统 | GUI 操作员 |
+| **nix-evo** | **修补源码 → 重打包 → 包管理器安装** | 不碰运行时文件 | **系统的外科医生** |
+
+### 核心差异：Source-First
+
+所有其他方案都在操作系统的**表面层**工作：
+- Devin 写代码，但不管理运行代码的系统
+- Ansible 管配置文件，但下次包更新可能覆盖
+- K8s 管容器，但容器内的 OS 问题还是问题
+- AIOS 是学术概念，没有落地到真实系统
+
+nix-evo 工作在操作系统的**源码层**：
+- 直接修改软件源码
+- 通过包管理器重新打包
+- 变更持久化、可追溯、可回滚
+- 系统不是被"维护"，而是被"进化"
+
+---
+
+## 架构
+
+```
+用户: "nginx 502 了"
+    │
+    ▼
+AI Agent (Claude Code / OpenClaw)
+    │ 读 skill（决策层）
+    │ 调脚本（执行层）
+    │
+    ├──→ scripts/evo-detect     → 检测: rpm
+    ├──→ scripts/evo-fetch-src  → 源码: /tmp/evo-fix-nginx/src/
+    ├──→ exec: journalctl       → 诊断: upstream timeout
+    ├──→ 分析源码               → 根因: 默认值 60s 太短
+    ├──→ scripts/evo-patch      → 补丁: fix-timeout.patch
+    ├──→ scripts/evo-build      → 构建: nginx-1.24.0-1.el9.rpm
+    ├──→ scripts/evo-verify     → 验证: risk=moderate
+    │    [用户确认]
+    ├──→ scripts/evo-install    → 安装: txn_id=15
+    │
+    ▼
+操作系统 (NixOS / Rocky / Fedora / Conda)
+```
+
+**无守护进程。** 无独立进程。纯脚本 + Skill 文档 + AI Agent。
+
+---
 
 ## 支持的后端
 
-| 后端 | 下载源码 | 打包 | 安装 | 回滚 |
-|------|---------|------|------|------|
-| **Nix** | `nix-build -A pkg.src` | overlay + overrideAttrs | `nixos-rebuild switch` | generation 回滚 |
-| **RPM** | `yumdownloader --source` | `rpmbuild -ba` | `yum localinstall` | `yum history undo` |
-| **Conda** | feedstock / conda skeleton | `conda build` | `conda install --local` | `conda install --revision` |
+| 后端 | 系统 | 补丁方式 | 回滚 |
+|------|------|---------|------|
+| **Nix** | NixOS | overlay + overrideAttrs | generation 切换 |
+| **RPM** | Rocky / RHEL / Fedora / CentOS | SRPM + spec patch | yum history undo |
+| **Conda** | 任何 Conda 环境 | feedstock + meta.yaml | conda --revision |
 
-## 使用方式
+---
 
-nix-evo 以 **OpenClaw Skill** 的形式使用，不依赖独立的 MCP Server 或 agent 进程。
+## 快速开始
 
-安装 skill 后，AI Agent 自动遵循源码修复工作流：检测包管理器 → 下载源码 → 分析 → 补丁 → 打包 → 安装。
+```bash
+# 1. 初始化
+scripts/evo-init
 
-详见 [skills/nix-evo/SKILL.md](../../skills/nix-evo/SKILL.md)
+# 2. 对 AI 说
+"nginx 502 了"
+
+# 3. AI 自动走完流程
+```
+
+详见 [用户指南](docs/guide/GETTING-STARTED.md)
+
+---
 
 ## 文档
 
-- **[用户指南](docs/guide/GETTING-STARTED.md)** — 5 分钟上手，用 Claude Code 参与 OS 开发
-- **[系列文档](docs/series/INDEX.md)** — 8 卷深度解析，从理念到实践
-  - 第一卷：项目概览与设计理念
-  - 第二卷：架构深度剖析
-  - 第三卷：工作流详解
-  - 第四卷：Nix 后端完全指南
-  - 第五卷：RPM 后端完全指南
-  - 第六卷：Conda 后端完全指南
-  - 第七卷：安全与信任模型
-  - 第八卷：脚本工具参考手册
+| 文档 | 说明 |
+|------|------|
+| [用户指南](docs/guide/GETTING-STARTED.md) | 5 分钟上手 |
+| [竞品分析](docs/series/vol-00-landscape.md) | Agentic OS 全景 + 我们的差异 |
+| [系列文档](docs/series/INDEX.md) | 8 卷深度解析 |
+| [Skill 决策层](skills/nix-evo/SKILL.md) | Agent 的操作手册 |
+| [设计文档](DESIGN.md) | 架构决策 |
+| [贡献指南](CONTRIBUTING.md) | 参与开发 |
 
-## 安全约束
+---
 
-- 所有变更先验证（dry-run / test build）再安装
-- 风险等级评估：safe / moderate / dangerous
-- 补丁文件保存在版本控制中，可追溯
-- 反模式：不编辑运行时文件、不跳过验证、不混用包管理器
+## 愿景
 
-## 架构（历史）
-
-> 以下为早期多组件架构设计，现已简化为纯 skill 模式。代码保留在 `evo/` 和 `mcp-server/` 以备未来多机编排场景复用。
+操作系统的历史：
 
 ```
-早期设计（已暂停）:
-用户 → MCP Server → nix-evo-agent → NixOS
-
-当前设计（活跃）:
-用户 → AI Agent (skill) → 系统 (bash 直接执行)
+1970s  手动编译     →  系统管理员手动编译安装一切
+1990s  包管理器     →  apt/yum 自动处理依赖和安装
+2010s  容器化       →  Docker 把问题推到镜像层
+2020s  配置即代码   →  Ansible/Terraform 管理基础设施
+2026   Agent-native →  AI Agent 修补源码、重打包、进化系统
 ```
+
+nix-evo 是 **2026 的操作系统管理范式**：
+不是管配置（Ansible），不是管容器（K8s），不是写代码（Devin），
+而是**直接管操作系统的源码，让系统持续进化**。

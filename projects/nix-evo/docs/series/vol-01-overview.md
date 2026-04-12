@@ -1,5 +1,10 @@
 # 第一卷：项目概览与设计理念
 
+> nix-evo 是第一个开源的 Agent-native 操作系统管理平台。
+> 不是写代码的 Copilot，是管系统的 Copilot。
+>
+> 竞品全景和市场定位见 [第零卷](vol-00-landscape.md)。
+
 ---
 
 ## 1.1 问题的起源
