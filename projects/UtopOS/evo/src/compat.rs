@@ -325,3 +325,200 @@ pub async fn handle_translate(
         notes,
     }).unwrap_or_default()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ─── service_mappings ────────────────────────────────────────────
+
+    #[test]
+    fn test_service_mappings_non_empty() {
+        let mappings = service_mappings();
+        assert!(!mappings.is_empty());
+    }
+
+    #[test]
+    fn test_service_mappings_contain_nginx() {
+        let mappings = service_mappings();
+        let nginx = mappings.iter().find(|m| m.nixos_option.contains("nginx"));
+        assert!(nginx.is_some());
+        let nginx = nginx.unwrap();
+        assert_eq!(nginx.target_pkg, "nginx");
+        assert_eq!(nginx.systemd_unit, "nginx.service");
+    }
+
+    #[test]
+    fn test_service_mappings_contain_postgresql() {
+        let mappings = service_mappings();
+        let pg = mappings.iter().find(|m| m.nixos_option.contains("postgresql"));
+        assert!(pg.is_some());
+        assert_eq!(pg.unwrap().target_pkg, "postgresql");
+    }
+
+    #[test]
+    fn test_service_mappings_contain_redis() {
+        let mappings = service_mappings();
+        let redis = mappings.iter().find(|m| m.nixos_option.contains("redis"));
+        assert!(redis.is_some());
+        assert_eq!(redis.unwrap().target_pkg, "redis-server");
+    }
+
+    // ─── pkg_name_map ───────────────────────────────────────────────
+
+    #[test]
+    fn test_pkg_map_ubuntu_has_nginx() {
+        let map = pkg_name_map("ubuntu");
+        assert_eq!(map.get("nginx"), Some(&"nginx"));
+    }
+
+    #[test]
+    fn test_pkg_map_ubuntu_has_redis() {
+        let map = pkg_name_map("ubuntu");
+        assert_eq!(map.get("redis"), Some(&"redis-server"));
+    }
+
+    #[test]
+    fn test_pkg_map_fedora_has_docker() {
+        let map = pkg_name_map("fedora");
+        assert_eq!(map.get("docker"), Some(&"docker-ce"));
+    }
+
+    #[test]
+    fn test_pkg_map_arch_has_nginx() {
+        let map = pkg_name_map("arch");
+        assert_eq!(map.get("nginx"), Some(&"nginx"));
+    }
+
+    #[test]
+    fn test_pkg_map_alpine_has_nginx() {
+        let map = pkg_name_map("alpine");
+        assert_eq!(map.get("nginx"), Some(&"nginx"));
+    }
+
+    #[test]
+    fn test_pkg_map_unknown_distro_empty() {
+        let map = pkg_name_map("windows");
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn test_pkg_map_debian_same_as_ubuntu() {
+        let ubuntu = pkg_name_map("ubuntu");
+        let debian = pkg_name_map("debian");
+        assert_eq!(ubuntu.get("redis"), debian.get("redis"));
+        assert_eq!(ubuntu.get("nginx"), debian.get("nginx"));
+    }
+
+    // ─── parse_services ─────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_services_nginx() {
+        let config = "{ services.nginx.enable = true; }";
+        let services = parse_services(config);
+        assert!(services.contains(&"nginx".to_string()));
+    }
+
+    #[test]
+    fn test_parse_services_multiple() {
+        let config = r#"{
+            services.nginx.enable = true;
+            services.postgresql.enable = true;
+            services.redis.enable = true;
+        }"#;
+        let services = parse_services(config);
+        assert!(services.contains(&"nginx".to_string()));
+        assert!(services.contains(&"postgresql".to_string()));
+        assert!(services.contains(&"redis".to_string()));
+    }
+
+    #[test]
+    fn test_parse_services_empty_config() {
+        let config = "{ environment.systemPackages = [ pkgs.vim ]; }";
+        let services = parse_services(config);
+        assert!(services.is_empty());
+    }
+
+    #[test]
+    fn test_parse_services_disabled() {
+        let config = "{ services.nginx.enable = false; }";
+        let services = parse_services(config);
+        assert!(!services.contains(&"nginx".to_string()));
+    }
+
+    // ─── generate_systemd_unit ──────────────────────────────────────
+
+    #[test]
+    fn test_generate_unit_contains_service_name() {
+        let unit = generate_systemd_unit("nginx", "ubuntu");
+        assert!(unit.contains("nginx.service"));
+        assert!(unit.contains("[Unit]"));
+        assert!(unit.contains("[Service]"));
+        assert!(unit.contains("[Install]"));
+    }
+
+    #[test]
+    fn test_generate_unit_has_network_target() {
+        let unit = generate_systemd_unit("redis", "debian");
+        assert!(unit.contains("After=network.target"));
+    }
+
+    #[test]
+    fn test_generate_unit_has_restart() {
+        let unit = generate_systemd_unit("postgresql", "fedora");
+        assert!(unit.contains("Restart=on-failure"));
+    }
+
+    // ─── generate_install_script ────────────────────────────────────
+
+    #[test]
+    fn test_install_script_ubuntu_uses_apt() {
+        let services = vec!["nginx".to_string()];
+        let script = generate_install_script(&services, "ubuntu");
+        assert!(script.contains("apt-get install -y"));
+        assert!(script.contains("nginx"));
+    }
+
+    #[test]
+    fn test_install_script_fedora_uses_dnf() {
+        let services = vec!["nginx".to_string()];
+        let script = generate_install_script(&services, "fedora");
+        assert!(script.contains("dnf install -y"));
+    }
+
+    #[test]
+    fn test_install_script_arch_uses_pacman() {
+        let services = vec!["nginx".to_string()];
+        let script = generate_install_script(&services, "arch");
+        assert!(script.contains("pacman -S --noconfirm"));
+    }
+
+    #[test]
+    fn test_install_script_alpine_uses_apk() {
+        let services = vec!["nginx".to_string()];
+        let script = generate_install_script(&services, "alpine");
+        assert!(script.contains("apk add"));
+    }
+
+    #[test]
+    fn test_install_script_empty_services() {
+        let services: Vec<String> = vec![];
+        let script = generate_install_script(&services, "ubuntu");
+        assert!(script.contains("# No known packages"));
+    }
+
+    #[test]
+    fn test_install_script_enables_services() {
+        let services = vec!["nginx".to_string()];
+        let script = generate_install_script(&services, "ubuntu");
+        assert!(script.contains("systemctl enable"));
+        assert!(script.contains("systemctl start"));
+    }
+
+    #[test]
+    fn test_install_script_apt_update() {
+        let services = vec!["nginx".to_string()];
+        let script = generate_install_script(&services, "ubuntu");
+        assert!(script.contains("apt-get update"));
+    }
+}

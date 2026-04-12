@@ -439,6 +439,93 @@ Requires=network.target
         };
         let json = serde_json::to_string(&edge).unwrap();
         assert!(json.contains(""from":"a.service""));
-        assert!(json.contains(""kind":"requires""));
+        assert!(json.contains("\"kind\":\"requires\""));
+    }
+
+    #[test]
+    fn test_parse_systemctl_show_empty() {
+        let map = parse_systemctl_show("");
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn test_parse_systemctl_show_no_equals() {
+        let map = parse_systemctl_show("some random text\nno keys here");
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn test_parse_systemctl_show_multiline() {
+        let output = "Id=mysql.service\nActiveState=inactive\nLoadState=loaded\nSubState=dead\n";
+        let map = parse_systemctl_show(output);
+        assert_eq!(map.len(), 4);
+        assert_eq!(map.get("SubState").unwrap(), "dead");
+    }
+
+    #[test]
+    fn test_extract_unit_names_services() {
+        let names = extract_unit_names("nginx.service postgres.service");
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&"nginx.service".to_string()));
+    }
+
+    #[test]
+    fn test_extract_unit_names_timer() {
+        let names = extract_unit_names("backup.timer");
+        assert_eq!(names.len(), 1);
+        assert_eq!(names[0], "backup.timer");
+    }
+
+    #[test]
+    fn test_extract_unit_names_ignores_plain_text() {
+        let names = extract_unit_names("some description text here");
+        assert!(names.is_empty());
+    }
+
+    #[test]
+    fn test_detect_circular_deps_three_node_cycle() {
+        let mut nodes = HashMap::new();
+        nodes.insert("a.service".into(), ServiceNode {
+            name: "a.service".into(), active: true, unit_type: "service".into(),
+            dependencies: vec!["b.service".into()], dependents: vec![],
+            load_state: "loaded".into(), active_state: "active".into(),
+        });
+        nodes.insert("b.service".into(), ServiceNode {
+            name: "b.service".into(), active: true, unit_type: "service".into(),
+            dependencies: vec!["c.service".into()], dependents: vec![],
+            load_state: "loaded".into(), active_state: "active".into(),
+        });
+        nodes.insert("c.service".into(), ServiceNode {
+            name: "c.service".into(), active: true, unit_type: "service".into(),
+            dependencies: vec!["a.service".into()], dependents: vec![],
+            load_state: "loaded".into(), active_state: "active".into(),
+        });
+        let cycles = detect_circular_deps(&nodes);
+        assert!(!cycles.is_empty());
+    }
+
+    #[test]
+    fn test_detect_circular_deps_empty() {
+        let nodes = HashMap::new();
+        let cycles = detect_circular_deps(&nodes);
+        assert!(cycles.is_empty());
+    }
+
+    #[test]
+    fn test_find_failure_impact_chain() {
+        let edges = vec![
+            Edge { from: "c.service".into(), to: "b.service".into(), kind: "requires".into() },
+            Edge { from: "b.service".into(), to: "a.service".into(), kind: "requires".into() },
+        ];
+        let impact = find_failure_impact("a.service", &edges);
+        assert!(impact.contains(&"b.service".to_string()));
+        assert!(impact.contains(&"c.service".to_string()));
+    }
+
+    #[test]
+    fn test_find_failure_impact_empty_edges() {
+        let edges = vec![];
+        let impact = find_failure_impact("anything.service", &edges);
+        assert!(impact.is_empty());
     }
 }

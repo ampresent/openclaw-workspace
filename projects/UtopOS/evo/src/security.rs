@@ -456,6 +456,273 @@ fn find_line(content: &str, pattern: &str) -> Option<usize> {
     None
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ─── find_line ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_find_line_found() {
+        let content = "line1\nline2\nmatch here\nline4";
+        assert_eq!(find_line(content, "match"), Some(3));
+    }
+
+    #[test]
+    fn test_find_line_not_found() {
+        let content = "line1\nline2\nline3";
+        assert_eq!(find_line(content, "missing"), None);
+    }
+
+    #[test]
+    fn test_find_line_first_line() {
+        let content = "first\nsecond";
+        assert_eq!(find_line(content, "first"), Some(1));
+    }
+
+    #[test]
+    fn test_find_line_empty_content() {
+        assert_eq!(find_line("", "anything"), None);
+    }
+
+    // ─── count_services ─────────────────────────────────────────────
+
+    #[test]
+    fn test_count_services_zero() {
+        let config = "{ environment.systemPackages = [ pkgs.vim ]; }";
+        assert_eq!(count_services(config), 0);
+    }
+
+    #[test]
+    fn test_count_services_three() {
+        let config = r#"{
+            services.nginx.enable = true;
+            services.postgresql.enable = true;
+            services.redis.enable = true;
+        }"#;
+        assert_eq!(count_services(config), 3);
+    }
+
+    #[test]
+    fn test_count_services_disabled_not_counted() {
+        let config = "{ services.nginx.enable = false; }";
+        assert_eq!(count_services(config), 0);
+    }
+
+    // ─── check_firewall ─────────────────────────────────────────────
+
+    #[test]
+    fn test_firewall_missing_triggers_critical() {
+        let config = "{ services.nginx.enable = true; }";
+        let mut findings = vec![];
+        check_firewall(config, &mut findings);
+        assert!(findings.iter().any(|f| f.category == "firewall" && matches!(f.severity, Severity::Critical)));
+    }
+
+    #[test]
+    fn test_firewall_disabled_triggers_critical() {
+        let config = "{ networking.firewall.enable = false; }";
+        let mut findings = vec![];
+        check_firewall(config, &mut findings);
+        assert!(findings.iter().any(|f| f.title.contains("禁用")));
+    }
+
+    #[test]
+    fn test_firewall_enabled_no_critical() {
+        let config = r#"{
+            networking.firewall.enable = true;
+            networking.firewall.allowedTCPPorts = [ 80 443 ];
+        }"#;
+        let mut findings = vec![];
+        check_firewall(config, &mut findings);
+        assert!(!findings.iter().any(|f| matches!(f.severity, Severity::Critical)));
+    }
+
+    #[test]
+    fn test_firewall_no_port_rules_triggers_medium() {
+        let config = "{ networking.firewall.enable = true; }";
+        let mut findings = vec![];
+        check_firewall(config, &mut findings);
+        assert!(findings.iter().any(|f| f.category == "firewall" && matches!(f.severity, Severity::Medium)));
+    }
+
+    // ─── check_ssh_security ─────────────────────────────────────────
+
+    #[test]
+    fn test_ssh_not_configured() {
+        let config = "{ services.nginx.enable = true; }";
+        let mut findings = vec![];
+        check_ssh_security(config, &mut findings);
+        assert!(findings.iter().any(|f| f.title.contains("SSH 服务未配置")));
+    }
+
+    #[test]
+    fn test_ssh_root_login_permit_is_critical() {
+        let config = r#"{
+            services.openssh.enable = true;
+            services.openssh.settings.PermitRootLogin = "yes";
+        }"#;
+        let mut findings = vec![];
+        check_ssh_security(config, &mut findings);
+        assert!(findings.iter().any(|f| matches!(f.severity, Severity::Critical) && f.title.contains("root 登录")));
+    }
+
+    #[test]
+    fn test_ssh_no_permit_root_login_setting() {
+        let config = "{ services.openssh.enable = true; }";
+        let mut findings = vec![];
+        check_ssh_security(config, &mut findings);
+        assert!(findings.iter().any(|f| f.title.contains("root 登录未限制")));
+    }
+
+    #[test]
+    fn test_ssh_no_password_auth_setting() {
+        let config = r#"{
+            services.openssh.enable = true;
+            services.openssh.settings.PermitRootLogin = "no";
+        }"#;
+        let mut findings = vec![];
+        check_ssh_security(config, &mut findings);
+        assert!(findings.iter().any(|f| f.title.contains("密码认证未禁用")));
+    }
+
+    #[test]
+    fn test_ssh_hardened_no_findings() {
+        let config = r#"{
+            services.openssh.enable = true;
+            services.openssh.settings.PermitRootLogin = "no";
+            services.openssh.settings.PasswordAuthentication = false;
+        }"#;
+        let mut findings = vec![];
+        check_ssh_security(config, &mut findings);
+        assert!(findings.is_empty());
+    }
+
+    // ─── check_auth_security ────────────────────────────────────────
+
+    #[test]
+    fn test_auth_empty_password() {
+        let config = r#"{
+            users.users.alice = {
+                password = "";
+                isNormalUser = true;
+            };
+        }"#;
+        let mut findings = vec![];
+        check_auth_security(config, &mut findings);
+        assert!(findings.iter().any(|f| f.title.contains("空密码")));
+    }
+
+    #[test]
+    fn test_auth_weak_password() {
+        let config = r#"{
+            users.users.alice = {
+                password = "admin";
+                isNormalUser = true;
+            };
+        }"#;
+        let mut findings = vec![];
+        check_auth_security(config, &mut findings);
+        assert!(findings.iter().any(|f| f.title.contains("弱密码")));
+    }
+
+    #[test]
+    fn test_auth_passwordless_sudo() {
+        let config = "{ security.sudo.wheelNeedsPassword = false; }";
+        let mut findings = vec![];
+        check_auth_security(config, &mut findings);
+        assert!(findings.iter().any(|f| f.title.contains("wheel") && f.title.contains("免密")));
+    }
+
+    #[test]
+    fn test_auth_strong_password_no_findings() {
+        let config = r#"{
+            users.users.alice = {
+                hashedPassword = "$6$rounds=656000$...";
+                isNormalUser = true;
+            };
+        }"#;
+        let mut findings = vec![];
+        check_auth_security(config, &mut findings);
+        assert!(!findings.iter().any(|f| f.category == "auth"));
+    }
+
+    // ─── check_service_security ─────────────────────────────────────
+
+    #[test]
+    fn test_service_docker_enabled() {
+        let config = "{ virtualisation.docker.enable = true; }";
+        let mut findings = vec![];
+        check_service_security(config, &mut findings);
+        assert!(findings.iter().any(|f| f.title.contains("Docker")));
+    }
+
+    #[test]
+    fn test_service_nginx_no_tls() {
+        let config = "{ services.nginx.enable = true; }";
+        let mut findings = vec![];
+        check_service_security(config, &mut findings);
+        assert!(findings.iter().any(|f| f.title.contains("TLS")));
+    }
+
+    #[test]
+    fn test_service_nginx_with_ssl_no_tls_finding() {
+        let config = r#"{
+            services.nginx.enable = true;
+            services.nginx.sslCertificate = "/etc/ssl/cert.pem";
+        }"#;
+        let mut findings = vec![];
+        check_service_security(config, &mut findings);
+        assert!(!findings.iter().any(|f| f.title.contains("TLS")));
+    }
+
+    // ─── check_kernel_security ──────────────────────────────────────
+
+    #[test]
+    fn test_kernel_no_mac_framework() {
+        let config = "{ services.nginx.enable = true; }";
+        let mut findings = vec![];
+        check_kernel_security(config, &mut findings);
+        assert!(findings.iter().any(|f| f.title.contains("MAC")));
+    }
+
+    #[test]
+    fn test_kernel_apparmor_configured() {
+        let config = "{ security.apparmor.enable = true; }";
+        let mut findings = vec![];
+        check_kernel_security(config, &mut findings);
+        assert!(!findings.iter().any(|f| f.title.contains("MAC")));
+    }
+
+    #[test]
+    fn test_kernel_ip_forwarding() {
+        let config = r#"{
+            boot.kernel.sysctl = {
+                "net.ipv4.conf.all.forwarding" = 1;
+            };
+        }"#;
+        let mut findings = vec![];
+        check_kernel_security(config, &mut findings);
+        assert!(findings.iter().any(|f| f.title.contains("IP 转发")));
+    }
+
+    // ─── Severity ordering ──────────────────────────────────────────
+
+    #[test]
+    fn test_finding_severity_serialization() {
+        let finding = Finding {
+            severity: Severity::Critical,
+            category: "test".into(),
+            title: "Test".into(),
+            description: "Test".into(),
+            recommendation: "Test".into(),
+            line_hint: Some(42),
+        };
+        let json = serde_json::to_string(&finding).unwrap();
+        assert!(json.contains("\"critical\""));
+    }
+}
+
 // ─── API Handlers ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]

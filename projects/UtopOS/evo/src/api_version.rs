@@ -223,3 +223,171 @@ pub fn route_matches_version(path: &str, version: &str) -> bool {
         None => version == "v1", // unversioned routes to v1
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ─── extract_version ─────────────────────────────────────────────
+
+    #[test]
+    fn test_extract_v1_version() {
+        let (ver, rest) = extract_version("/api/v1/snapshot");
+        assert_eq!(ver, Some("v1".into()));
+        assert_eq!(rest, "/snapshot");
+    }
+
+    #[test]
+    fn test_extract_v2_version() {
+        let (ver, rest) = extract_version("/api/v2/config/apply");
+        assert_eq!(ver, Some("v2".into()));
+        assert_eq!(rest, "/config/apply");
+    }
+
+    #[test]
+    fn test_extract_no_version() {
+        let (ver, rest) = extract_version("/api/snapshot");
+        assert_eq!(ver, None);
+        assert_eq!(rest, "/api/snapshot");
+    }
+
+    #[test]
+    fn test_extract_unversioned_api_root() {
+        let (ver, rest) = extract_version("/api/");
+        assert_eq!(ver, None);
+        assert_eq!(rest, "/api/");
+    }
+
+    #[test]
+    fn test_extract_non_api_path() {
+        let (ver, rest) = extract_version("/health");
+        assert_eq!(ver, None);
+        assert_eq!(rest, "/health");
+    }
+
+    #[test]
+    fn test_extract_empty_path() {
+        let (ver, rest) = extract_version("");
+        assert_eq!(ver, None);
+        assert_eq!(rest, "");
+    }
+
+    #[test]
+    fn test_extract_v10_version() {
+        let (ver, rest) = extract_version("/api/v10/deploy");
+        assert_eq!(ver, Some("v10".into()));
+        assert_eq!(rest, "/deploy");
+    }
+
+    #[test]
+    fn test_extract_deep_path() {
+        let (ver, rest) = extract_version("/api/v1/observability/alerts/check");
+        assert_eq!(ver, Some("v1".into()));
+        assert_eq!(rest, "/observability/alerts/check");
+    }
+
+    #[test]
+    fn test_extract_non_numeric_version() {
+        // "vabc" should not be parsed as version
+        let (ver, rest) = extract_version("/api/vabc/foo");
+        assert_eq!(ver, None);
+        assert_eq!(rest, "/api/vabc/foo");
+    }
+
+    #[test]
+    fn test_extract_version_no_trailing() {
+        let (ver, rest) = extract_version("/api/v1");
+        assert_eq!(ver, Some("v1".into()));
+        assert_eq!(rest, "/");
+    }
+
+    // ─── route_matches_version ───────────────────────────────────────
+
+    #[test]
+    fn test_route_matches_v1_versioned() {
+        assert!(route_matches_version("/api/v1/snapshot", "v1"));
+    }
+
+    #[test]
+    fn test_route_does_not_match_wrong_version() {
+        assert!(!route_matches_version("/api/v2/snapshot", "v1"));
+    }
+
+    #[test]
+    fn test_route_unversioned_defaults_to_v1() {
+        assert!(route_matches_version("/api/snapshot", "v1"));
+        assert!(!route_matches_version("/api/snapshot", "v2"));
+    }
+
+    #[test]
+    fn test_route_non_api_path_matches_v1() {
+        assert!(route_matches_version("/health", "v1"));
+    }
+
+    // ─── ApiVersionRegistry ──────────────────────────────────────────
+
+    #[test]
+    fn test_registry_new_has_two_versions() {
+        let reg = ApiVersionRegistry::new();
+        assert_eq!(reg.versions.len(), 2);
+    }
+
+    #[test]
+    fn test_registry_current_is_v1() {
+        let reg = ApiVersionRegistry::new();
+        assert_eq!(reg.current, "v1");
+    }
+
+    #[test]
+    fn test_registry_get_existing() {
+        let reg = ApiVersionRegistry::new();
+        let v1 = reg.get("v1");
+        assert!(v1.is_some());
+        assert_eq!(v1.unwrap().status, "stable");
+        assert_eq!(v1.unwrap().prefix, "/api/v1");
+    }
+
+    #[test]
+    fn test_registry_get_nonexistent() {
+        let reg = ApiVersionRegistry::new();
+        assert!(reg.get("v99").is_none());
+    }
+
+    #[test]
+    fn test_registry_is_supported() {
+        let reg = ApiVersionRegistry::new();
+        assert!(reg.is_supported("v1"));
+        assert!(reg.is_supported("v2"));
+        assert!(!reg.is_supported("v99"));
+    }
+
+    #[test]
+    fn test_registry_is_not_deprecated() {
+        let reg = ApiVersionRegistry::new();
+        assert!(!reg.is_deprecated("v1"));
+        assert!(!reg.is_deprecated("v2"));
+    }
+
+    #[test]
+    fn test_registry_v2_is_beta() {
+        let reg = ApiVersionRegistry::new();
+        let v2 = reg.get("v2").unwrap();
+        assert_eq!(v2.status, "beta");
+        assert_eq!(v2.prefix, "/api/v2");
+        assert!(v2.sunset.is_none());
+    }
+
+    #[test]
+    fn test_registry_v1_has_no_sunset() {
+        let reg = ApiVersionRegistry::new();
+        let v1 = reg.get("v1").unwrap();
+        assert!(v1.sunset.is_none());
+    }
+
+    #[test]
+    fn test_registry_deprecated_unknown_version() {
+        let reg = ApiVersionRegistry::new();
+        // unknown version is not deprecated (doesn't exist)
+        assert!(!reg.is_deprecated("v0"));
+    }
+}
