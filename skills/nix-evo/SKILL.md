@@ -210,41 +210,20 @@ risk_levels = ["safe", "moderate"]   # moderate 也自动
 
 ---
 
-## 后端专项参考
+## 后端专项 Skill
 
-### Nix / NixOS
+通用工作流本 skill 已覆盖。后端的深度知识（语言速查、构建细节、常见问题排障）拆分为独立 skill：
 
-补丁方式：overlay + `overrideAttrs`
+| 后端 | Skill | 内容 |
+|------|-------|------|
+| **Nix / NixOS** | `nix-evo-nix/SKILL.md` | Nix 语言速查、overlay / overrideAttrs 深度用法、NixOS module 开发、generation 回滚 |
+| **RPM** | `nix-evo-rpm/SKILL.md` | Spec 文件结构、rpmbuild 用法、SRPM 工作流、yum history 回滚、发行版差异 |
+| **Conda** | `nix-evo-conda/SKILL.md` | Feedstock 结构、meta.yaml Jinja2 模板、conda build / skeleton、revision 回滚、私有 channel |
 
-```nix
-# evo-build 自动生成的 overlay（~/.evo/builds/<pkg>/overlay-*.nix）
-final: prev: {
-  <pkg> = prev.<pkg>.overrideAttrs (old: {
-    patches = (old.patches or []) ++ [ ./patch.patch ];
-  });
-}
-```
-
-回滚：`nixos-rebuild switch --rollback` 或 `--to <generation>`
-
-### RPM（Rocky / RHEL / Fedora）
-
-补丁方式：SRPM + spec 文件注册 Patch
-
-- 源码在 `~/rpmbuild/SOURCES/`
-- Spec 在 `~/rpmbuild/SPECS/`
-- `evo-build` 自动注册 patch 到 spec
-
-回滚：`yum history undo <txn_id>`
-
-### Conda
-
-补丁方式：feedstock recipe + meta.yaml patches 列表
-
-- Source 在 `/tmp/evo-fix-<pkg>/src/`
-- Recipe 在 `src/recipe/` 或 `src/<pkg>/`
-
-回滚：`conda install --revision <N>`
+**何时读子 skill**：
+- Agent 遇到该后端特有的问题（如 "spec 文件怎么写"、"overlay 语法"）
+- 需要排查该后端特有的构建错误
+- 要做后端深度操作（写 NixOS module、调 rpmbuild 参数）
 
 ---
 

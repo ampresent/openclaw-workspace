@@ -215,16 +215,16 @@ scripts/ (执行层)  →  evo-detect, evo-fetch-source, evo-build, evo-cleanup 
 
 将当前单一 SKILL.md 拆分为：
 
-- [ ] `skills/nix-evo/SKILL.md` — 通用工作流（检测、诊断、patch 管理、用户交互）
-- [ ] `skills/nix-evo-nix/SKILL.md` — Nix 后端专项
+- [x] `skills/nix-evo/SKILL.md` — 通用工作流（检测、诊断、patch 管理、用户交互）
+- [x] `skills/nix-evo-nix/SKILL.md` — Nix 后端专项
   - nix-build / overlay / overrideAttrs / nixos-rebuild
   - Nix 语言基础（给 agent 看的）
   - flake.nix 结构
-- [ ] `skills/nix-evo-rpm/SKILL.md` — RPM 后端专项
+- [x] `skills/nix-evo-rpm/SKILL.md` — RPM 后端专项
   - rpmbuild / spec 文件 / SRPM
   - yum/dnf 操作
   - RPM 宏和构建系统
-- [ ] `skills/nix-evo-conda/SKILL.md` — Conda 后端专项
+- [x] `skills/nix-evo-conda/SKILL.md` — Conda 后端专项
   - conda build / meta.yaml / recipe
   - feedstock 结构
   - conda 环境管理
