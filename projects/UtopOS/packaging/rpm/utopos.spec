@@ -169,12 +169,7 @@ install -m 0644 docs/FILE-MONITORING.md %{buildroot}%{_datadir}/doc/%{name}/
 install -m 0644 packaging/systemd/utopos-agent.service %{buildroot}%{_unitdir}/
 
 # 默认配置
-cat > %{buildroot}%{_sysconfdir}/%{name}/evo.conf <<'EOF'
-# UtopOS Agent 配置
-bind = "127.0.0.1:7890"
-log_level = "info"
-data_dir = "/var/lib/utopos"
-EOF
+install -m 0644 packaging/conf/evo.toml %{buildroot}%{_sysconfdir}/%{name}/evo.toml
 
 # OpenClaw skills 注册配置片段
 cat > %{buildroot}%{_sysconfdir}/%{name}/openclaw-skills.json <<'EOF'
@@ -291,8 +286,7 @@ echo ""
 %{_sysconfdir}/skel/.claude/skills/UtopOS-nix/SKILL.md
 
 # 配置
-%config(noreplace) %{_sysconfdir}/%{name}/evo.conf
-%config(noreplace) %{_sysconfdir}/%{name}/openclaw-skills.json
+%config(noreplace) %{_sysconfdir}/%{name}/evo.toml
 
 # 数据目录 (ghost, 由 systemd StateDirectory 创建)
 %dir %{_localstatedir}/lib/%{name}
