@@ -62,6 +62,14 @@ for script in scripts/evo-*; do
     install -m 0755 "$script" %{buildroot}%{_bindir}/$(basename "$script")
 done
 
+# Skills — Agent 决策层
+install -d %{buildroot}%{_datadir}/%{name}/skills
+for skill_dir in skills/*/; do
+    skill_name=$(basename "$skill_dir")
+    install -d %{buildroot}%{_datadir}/%{name}/skills/$skill_name
+    install -m 0644 "$skill_dir"SKILL.md %{buildroot}%{_datadir}/%{name}/skills/$skill_name/
+done
+
 # 文档
 install -m 0644 README.md %{buildroot}%{_datadir}/doc/%{name}/
 install -m 0644 docs/ROLLBACK.md %{buildroot}%{_datadir}/doc/%{name}/
@@ -96,6 +104,13 @@ echo "    evo-fence <path>       实时文件监控"
 echo ""
 echo "  后端: --backend rpm | conda | btrfs"
 echo "  文档: %{_datadir}/doc/%{name}/"
+echo ""
+echo "  Skills (Agent 决策层):"
+echo "    %{_datadir}/%{name}/skills/"
+echo "    - UtopOS      通用操作手册"
+echo "    - UtopOS-rpm  RPM 后端专用"
+echo "    - UtopOS-conda Conda 后端专用"
+echo "    - UtopOS-nix  Nix 后端参考"
 echo ""
 echo "  启动服务:"
 echo "    systemctl enable --now utopos-agent"
@@ -149,6 +164,17 @@ echo ""
 
 # Systemd
 %{_unitdir}/utopos-agent.service
+
+# Skills — Agent 决策层
+%dir %{_datadir}/%{name}/skills
+%dir %{_datadir}/%{name}/skills/UtopOS
+%dir %{_datadir}/%{name}/skills/UtopOS-rpm
+%dir %{_datadir}/%{name}/skills/UtopOS-conda
+%dir %{_datadir}/%{name}/skills/UtopOS-nix
+%{_datadir}/%{name}/skills/UtopOS/SKILL.md
+%{_datadir}/%{name}/skills/UtopOS-rpm/SKILL.md
+%{_datadir}/%{name}/skills/UtopOS-conda/SKILL.md
+%{_datadir}/%{name}/skills/UtopOS-nix/SKILL.md
 
 # 配置
 %config(noreplace) %{_sysconfdir}/%{name}/evo.conf

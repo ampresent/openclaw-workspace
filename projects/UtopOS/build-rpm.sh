@@ -68,7 +68,7 @@ tar czf "$TARBALL" \
     --exclude='node_modules' \
     --exclude='*.tar.gz' \
     -C "$PROJECT_ROOT" \
-    evo scripts docs packaging README.md CONTRIBUTING.md
+    evo scripts skills docs packaging README.md CONTRIBUTING.md
 
 echo "  → $TARBALL ($(du -h "$TARBALL" | cut -f1))"
 
