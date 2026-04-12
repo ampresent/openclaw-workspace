@@ -93,3 +93,4 @@ LOG_*.md
 *.mov
 .git-credentials
 .github-token
+.worktrees/
