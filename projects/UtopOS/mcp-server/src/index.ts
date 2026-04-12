@@ -1,0 +1,815 @@
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  Tool,
+} from "@modelcontextprotocol/sdk/types.js";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
+import { homedir } from "os";
+import { ensureTunnel, cleanupTunnels } from "./ssh-tunnel.js";
+import { agentGet, agentPost, AgentError } from "./api-client.js";
+
+// ─── hosts.toml parsing ─────────────────────────────────────────────────
+
+interface HostEntry {
+  url: string;
+  token?: string;
+  ssh_tunnel?: string; // e.g. "user@remote-host:7890"
+  description?: string;
+}
+
+const CONFIG_PATH = join(
+  process.env.XDG_CONFIG_HOME || join(homedir(), ".config"),
+  "UtopOS",
+  "hosts.toml"
+);
+
+/**
+ * Minimal TOML parser for hosts.toml structure.
+ * Supports: [hosts.name], key = "value", # comments
+ */
+function parseHostsToml(content: string): Record<string, HostEntry> {
+  const hosts: Record<string, HostEntry> = {};
+  let currentSection: string | null = null;
+
+  for (const rawLine of content.split("\n")) {
+    const line = rawLine.replace(/#.*$/, "").trim();
+    if (!line) continue;
+
+    // Section header: [hosts.name]
+    const sectionMatch = line.match(/^\[hosts\.([a-zA-Z0-9_-]+)\]$/);
+    if (sectionMatch) {
+      currentSection = sectionMatch[1];
+      hosts[currentSection] = { url: "" };
+      continue;
+    }
+
+    // Key-value
+    const kvMatch = line.match(/^([a-zA-Z_]+)\s*=\s*"(.*)"$/);
+    if (kvMatch && currentSection) {
+      const [, key, value] = kvMatch;
+      if (key === "url") hosts[currentSection].url = value;
+      else if (key === "token") hosts[currentSection].token = value;
+      else if (key === "ssh_tunnel") hosts[currentSection].ssh_tunnel = value;
+      else if (key === "description") hosts[currentSection].description = value;
+    }
+  }
+
+  return hosts;
+}
+
+function loadHosts(): Record<string, HostEntry> {
+  if (existsSync(CONFIG_PATH)) {
+    try {
+      const content = readFileSync(CONFIG_PATH, "utf-8");
+      return parseHostsToml(content);
+    } catch (e) {
+      console.error(`Warning: Failed to parse ${CONFIG_PATH}: ${e}`);
+    }
+  }
+
+  // Fallback: env vars for single-host setup
+  const envUrl = process.env.NIX_EVO_AGENT_URL || "http://127.0.0.1:7890";
+  const envToken = process.env.NIX_EVO_TOKEN;
+  return {
+    default: {
+      url: envUrl,
+      ...(envToken ? { token: envToken } : {}),
+    },
+  };
+}
+
+// ─── Config ─────────────────────────────────────────────────────────────
+
+const hosts = loadHosts();
+const hostNames = Object.keys(hosts);
+
+console.error(`Loaded ${hostNames.length} host(s): ${hostNames.join(", ")}`);
+if (!existsSync(CONFIG_PATH)) {
+  console.error(`Note: No hosts.toml found at ${CONFIG_PATH}, using env vars`);
+}
+
+/**
+ * Resolve a host from the tool call argument.
+ * If no host specified, uses "default" or the only available host.
+ * Returns the host entry with its original URL (tunnel resolution happens per-request).
+ */
+function resolveHost(hostArg?: string): { name: string; entry: HostEntry } {
+  // Explicit host name
+  if (hostArg && hosts[hostArg]) {
+    return { name: hostArg, entry: hosts[hostArg] };
+  }
+  // Default
+  if (hosts["default"]) {
+    return { name: "default", entry: hosts["default"] };
+  }
+  // Only one host available — use it
+  if (hostNames.length === 1) {
+    return { name: hostNames[0], entry: hosts[hostNames[0]] };
+  }
+  // Multiple hosts, no default — error
+  throw new Error(
+    `请指定 host 参数。可用主机: ${hostNames.join(", ")}`
+  );
+}
+
+/**
+ * Get the effective URL for a host, establishing SSH tunnel if needed.
+ */
+async function getEffectiveUrl(hostName: string, entry: HostEntry): Promise<string> {
+  if (entry.ssh_tunnel) {
+    return ensureTunnel(hostName, entry.ssh_tunnel, entry.url);
+  }
+  return entry.url;
+}
+
+// ─── Agent API client (re-exported from api-client.ts) ──────────────────
+
+// agentGet and agentPost are imported from ./api-client.js
+// They now include retry, timeout, and error classification.
+
+// ─── Tool definitions ─────────────────────────────────────────────────────
+
+const hostParamDesc = hostNames.length > 1
+  ? `服务器标识。可用: ${hostNames.join(", ")}`
+  : "服务器标识";
+
+const TOOLS: Tool[] = [
+  {
+    name: "health_check",
+    description: "检查 UtopOS-agent 的连接状态和版本信息。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "system_snapshot",
+    description: "获取 NixOS 服务器的全局状态快照（服务、磁盘、内存、最近失败）。诊断问题时第一步必调。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "service_logs",
+    description: "获取指定 systemd 服务的 journalctl 日志。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        unit: { type: "string", description: "服务名，如 nginx.service" },
+        lines: { type: "number", description: "日志行数，默认 50", default: 50 },
+      },
+      required: ["unit"],
+    },
+  },
+  {
+    name: "config_read",
+    description: "读取 NixOS 配置源码文件。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        path: { type: "string", description: "配置文件路径，默认 /etc/nixos/configuration.nix" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "config_list",
+    description: "列出 NixOS 配置目录中的所有文件和 import 结构。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        dir: { type: "string", description: "配置目录路径，默认 /etc/nixos" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "config_search",
+    description: "在 NixOS 配置文件中搜索模式（支持 grep 语法）。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        pattern: { type: "string", description: "搜索模式（grep 兼容）" },
+        path: { type: "string", description: "搜索路径，默认 /etc/nixos" },
+        case_insensitive: { type: "boolean", description: "是否忽略大小写", default: false },
+        limit: { type: "number", description: "最大结果数", default: 50 },
+      },
+      required: ["pattern"],
+    },
+  },
+  {
+    name: "package_info",
+    description: "查询已安装包的详细信息。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        name: { type: "string", description: "包名，如 nginx" },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "generation_diff",
+    description: "对比两个 NixOS generation 的差异（包增删、服务变更）。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        from: { type: "string", description: "起始 generation 编号" },
+        to: { type: "string", description: "目标 generation 编号" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "config_validate",
+    description: "Dry-run 验证 NixOS 配置变更，返回影响摘要和风险评估。在 config_apply 之前必须调用。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        config: { type: "string", description: "新的 NixOS 配置内容" },
+      },
+      required: ["config"],
+    },
+  },
+  {
+    name: "config_diff",
+    description: "对比新配置与当前配置的差异（行级 diff）。在 apply 前用于确认具体改动。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        config: { type: "string", description: "新的 NixOS 配置内容" },
+      },
+      required: ["config"],
+    },
+  },
+  {
+    name: "config_apply",
+    description: "应用 NixOS 配置变更（执行 nixos-rebuild switch）。会生成新的 generation，支持回滚。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        config: { type: "string", description: "NixOS 配置内容（可选，不传则使用当前配置文件）" },
+        message: { type: "string", description: "变更说明，记录到 generation 注释" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "config_generate",
+    description: "根据自然语言描述生成 NixOS 配置片段。支持 nginx、docker、ssh、firewall、postgresql 等常见模式。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        prompt: { type: "string", description: "自然语言描述，如 '安装 nginx 并启用 SSL'" },
+        existing_config: { type: "string", description: "可选，现有配置内容（增量修改模式）" },
+        format: { type: "string", description: "输出格式: 'snippet' 或 'full'", default: "snippet" },
+      },
+      required: ["prompt"],
+    },
+  },
+  {
+    name: "rollback_list",
+    description: "列出可用的 NixOS generation。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "rollback_apply",
+    description: "回滚到指定的 NixOS generation。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        target: { type: "number", description: "目标 generation 编号（不指定则回滚到上一个）" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "backup_list",
+    description: "列出所有配置备份。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "backup_create",
+    description: "创建配置备份（在 apply 前自动创建安全备份）。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        label: { type: "string", description: "备份标签" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "backup_restore",
+    description: "从备份恢复配置。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        host: { type: "string", description: hostParamDesc },
+        backup_id: { type: "string", description: "备份 ID" },
+        dry_run: { type: "boolean", description: "是否只预览不执行", default: false },
+      },
+      required: ["backup_id"],
+    },
+  },
+];
+
+// ─── Risk assessment layer (MCP-side) ─────────────────────────────────────
+
+function formatRiskBadge(level: string): string {
+  switch (level) {
+    case "safe":
+      return "🟢 安全";
+    case "moderate":
+      return "🟡 中等风险";
+    case "dangerous":
+      return "🔴 高风险";
+    default:
+      return "❓ 未知";
+  }
+}
+
+function formatValidateOutput(result: any): string {
+  const parts: string[] = [];
+
+  // Status line
+  parts.push(result.valid ? "✅ 验证通过" : "❌ 验证失败");
+
+  // Summary
+  const s = result.summary || {};
+  if (s.packages_added?.length) {
+    parts.push(`\n📦 将安装 (${s.packages_added.length}):`);
+    // Show first 10
+    const shown = s.packages_added.slice(0, 10);
+    for (const p of shown) parts.push(`  + ${p}`);
+    if (s.packages_added.length > 10) {
+      parts.push(`  ... 及其他 ${s.packages_added.length - 10} 个`);
+    }
+  }
+  if (s.packages_removed?.length) {
+    parts.push(`\n🗑️  将删除 (${s.packages_removed.length}):`);
+    for (const p of s.packages_removed.slice(0, 10)) parts.push(`  - ${p}`);
+  }
+  if (s.services_restart?.length) {
+    parts.push(`\n🔄 将重启 (${s.services_restart.length}):`);
+    for (const svc of s.services_restart) parts.push(`  ⟳ ${svc}`);
+  }
+  if (s.services_stop?.length) {
+    parts.push(`\n⏹️  将停止 (${s.services_stop.length}):`);
+    for (const svc of s.services_stop) parts.push(`  ■ ${svc}`);
+  }
+
+  // Risk assessment
+  const level = s.risk_level || "unknown";
+  const reasons = s.risk_reasons || [];
+  parts.push(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  parts.push(`⚠️  风险评估: ${formatRiskBadge(level)}`);
+  for (const r of reasons) parts.push(`  • ${r}`);
+  if (level === "dangerous") {
+    parts.push(`\n⛔ 此变更风险较高，请谨慎确认！`);
+  }
+  parts.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+
+  return parts.join("\n");
+}
+
+function formatSnapshot(result: any): string {
+  const parts: string[] = [];
+
+  parts.push(`🖥️  ${result.hostname} (NixOS ${result.nixos_version})`);
+  parts.push(`   内核: ${result.kernel} | 运行时间: ${result.uptime}`);
+
+  // Disk warnings
+  const diskWarning = result.disk?.find((d: any) => d.used_pct > 80);
+  if (diskWarning) {
+    parts.push(`\n⚠️  磁盘使用率高: ${diskWarning.mount} (${diskWarning.used_pct}%)`);
+  }
+
+  // Failed services
+  if (result.recent_failures?.length > 0) {
+    parts.push(`\n❌ 失败的服务 (${result.recent_failures.length}):`);
+    for (const f of result.recent_failures) {
+      parts.push(`  • ${f.unit}`);
+      if (f.log_excerpt) parts.push(`    ${f.log_excerpt.slice(0, 120)}`);
+    }
+  }
+
+  // Memory
+  if (result.memory) {
+    parts.push(`\n💾 内存: ${result.memory.used} / ${result.memory.total} (可用: ${result.memory.available})`);
+  }
+
+  // Running services count
+  if (result.services?.length) {
+    parts.push(`\n🟢 运行中: ${result.services.length} 个服务`);
+  }
+
+  return parts.join("\n");
+}
+
+function formatGenerations(result: any): string {
+  const parts: string[] = [];
+  parts.push(`📋 NixOS Generation 历史 (当前: ${result.current})\n`);
+
+  // Show last 10
+  const gens = (result.generations || []).slice(-10).reverse();
+  for (const g of gens) {
+    const marker = g.number === result.current ? " ← 当前" : "";
+    parts.push(`  ${g.number}. ${g.date} ${g.description}${marker}`);
+  }
+
+  if (result.diff) {
+    const d = result.diff;
+    if (d.packages_added?.length || d.packages_removed?.length) {
+      parts.push(`\n🔄 包变更 (from→to):`);
+      if (d.packages_added.length) parts.push(`  +${d.packages_added.length} 新增`);
+      if (d.packages_removed.length) parts.push(`  -${d.packages_removed.length} 删除`);
+    }
+  }
+
+  return parts.join("\n");
+}
+
+function formatRollbackList(result: any): string {
+  const parts: string[] = [];
+  parts.push(`📋 可用 Generation (当前: ${result.current})\n`);
+
+  const gens = (result.generations || []).slice(-15).reverse();
+  for (const g of gens) {
+    const marker = g.number === result.current ? " ← 当前" : "";
+    parts.push(`  ${g.number}. ${g.date} ${g.description}${marker}`);
+  }
+
+  return parts.join("\n");
+}
+
+function formatGenerateOutput(result: any): string {
+  const parts: string[] = [];
+  const badge = result.ai_generated ? "🤖 AI 生成" : "📋 模板匹配";
+  const confidence = Math.round((result.confidence || 0) * 100);
+
+  parts.push(`${badge} (置信度: ${confidence}%)\n`);
+  parts.push(`📝 ${result.explanation}\n`);
+
+  if (result.affected_packages?.length) {
+    parts.push(`📦 涉及包: ${result.affected_packages.join(", ")}`);
+  }
+  if (result.affected_services?.length) {
+    parts.push(`🔄 涉及服务: ${result.affected_services.join(", ")}`);
+  }
+
+  parts.push(`\n⚠️  风险: ${formatRiskBadge(result.risk_level || "unknown")}`);
+  parts.push(`\n--- 生成的配置 ---\n`);
+  parts.push("```nix");
+  parts.push(result.config);
+  parts.push("```");
+
+  return parts.join("\n");
+}
+
+function formatBackupList(result: any): string {
+  const parts: string[] = [];
+  const backups = result.backups || [];
+
+  if (backups.length === 0) {
+    return "📦 暂无备份";
+  }
+
+  parts.push(`📦 配置备份 (${backups.length} 个)\n`);
+
+  for (const b of backups) {
+    const date = new Date(b.created_at * 1000).toLocaleString("zh-CN");
+    const size = b.size_bytes > 1024 * 1024
+      ? `${(b.size_bytes / 1024 / 1024).toFixed(1)} MB`
+      : `${(b.size_bytes / 1024).toFixed(1)} KB`;
+    const type = b.auto ? "🔄 自动" : "📝 手动";
+    parts.push(`  ${type} ${b.id}`);
+    parts.push(`    标签: ${b.label} | ${size} | ${b.file_count} 文件 | ${date}`);
+  }
+
+  return parts.join("\n");
+}
+
+function formatBackupRestore(result: any): string {
+  const parts: string[] = [];
+
+  if (result.dry_run_files) {
+    parts.push(`🔍 预览模式: ${result.dry_run_files.length} 个文件将被恢复\n`);
+    for (const f of result.dry_run_files.slice(0, 20)) {
+      parts.push(`  • ${f}`);
+    }
+    if (result.dry_run_files.length > 20) {
+      parts.push(`  ... 及其他 ${result.dry_run_files.length - 20} 个文件`);
+    }
+    return parts.join("\n");
+  }
+
+  parts.push(`✅ ${result.summary}`);
+  parts.push(`\n恢复了 ${result.files_restored} 个文件`);
+
+  return parts.join("\n");
+}
+
+function formatDiffOutput(result: any): string {
+  const parts: string[] = [];
+
+  if (!result.has_changes) {
+    return "✅ 配置无变更";
+  }
+
+  parts.push(`📝 ${result.summary}\n`);
+
+  for (const f of result.files_changed || []) {
+    parts.push(`📄 ${f.path} (${f.status}, ${f.diff_lines} 行变更)`);
+  }
+
+  if (result.diff) {
+    parts.push(`\n\`\`\`diff`);
+    parts.push(result.diff);
+    parts.push("```");
+  }
+
+  return parts.join("\n");
+}
+
+function formatConfigList(result: any): string {
+  const parts: string[] = [];
+
+  parts.push(`📂 配置目录: ${result.config_dir} (${result.total_files} 个文件)\n`);
+
+  const nixFiles = result.files?.filter((f: any) => f.is_nix) || [];
+  const otherFiles = result.files?.filter((f: any) => !f.is_nix) || [];
+
+  if (nixFiles.length > 0) {
+    parts.push(`📄 Nix 配置文件:`);
+    for (const f of nixFiles) {
+      const size = f.size_bytes > 1024
+        ? `${(f.size_bytes / 1024).toFixed(1)}K`
+        : `${f.size_bytes}B`;
+      parts.push(`  ${f.name} (${size})`);
+    }
+  }
+
+  if (result.imports?.length > 0) {
+    parts.push(`\n🔗 Import 结构:`);
+    for (const imp of result.imports) {
+      const src = imp.source.split('/').pop();
+      parts.push(`  ${src}:`);
+      for (const i of imp.imports) {
+        parts.push(`    → ${i}`);
+      }
+    }
+  }
+
+  if (otherFiles.length > 0) {
+    parts.push(`\n📎 其他文件:`);
+    for (const f of otherFiles) {
+      parts.push(`  ${f.name}`);
+    }
+  }
+
+  return parts.join("\n");
+}
+
+// ─── Main server ──────────────────────────────────────────────────────────
+
+async function main() {
+  const server = new Server(
+    { name: "UtopOS", version: "0.3.2" },
+    { capabilities: { tools: {} } }
+  );
+
+  // List tools
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: TOOLS,
+  }));
+
+  // Call tool
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    const a = args || {};
+
+    try {
+      const { name: hostName, entry: host } = resolveHost(a.host as string | undefined);
+      const baseUrl = await getEffectiveUrl(hostName, host);
+      const token = host.token;
+      let result: any;
+
+      switch (name) {
+        case "health_check":
+          result = await agentGet(baseUrl, token, "/health", {});
+          break;
+
+        case "system_snapshot":
+          result = await agentGet(baseUrl, token, "/api/snapshot", { host: a.host as string });
+          break;
+
+        case "service_logs":
+          result = await agentGet(baseUrl, token, "/api/logs", {
+            host: a.host as string,
+            unit: a.unit as string,
+            lines: String(a.lines || 50),
+          });
+          break;
+
+        case "config_read":
+          result = await agentGet(baseUrl, token, "/api/config", {
+            host: a.host as string,
+            path: a.path as string,
+          });
+          break;
+
+        case "config_list":
+          result = await agentGet(baseUrl, token, "/api/config/list", {
+            dir: a.dir as string,
+          });
+          break;
+
+        case "config_search":
+          result = await agentPost(baseUrl, token, "/api/config/search", {
+            pattern: a.pattern,
+            path: a.path,
+            case_insensitive: a.case_insensitive,
+            limit: a.limit,
+          });
+          break;
+
+        case "package_info":
+          result = await agentGet(baseUrl, token, "/api/package", {
+            host: a.host as string,
+            name: a.name as string,
+          });
+          break;
+
+        case "generation_diff":
+          result = await agentGet(baseUrl, token, "/api/generations", {
+            host: a.host as string,
+            from: a.from as string,
+            to: a.to as string,
+          });
+          break;
+
+        case "config_validate":
+          result = await agentPost(baseUrl, token, "/api/config/validate", {
+            host: a.host,
+            config: a.config,
+          });
+          break;
+
+        case "config_diff":
+          result = await agentPost(baseUrl, token, "/api/config/diff", {
+            config: a.config,
+          });
+          break;
+
+        case "config_apply":
+          result = await agentPost(baseUrl, token, "/api/config/apply", {
+            host: a.host,
+            config: a.config,
+            message: a.message,
+          });
+          break;
+
+        case "rollback_list":
+          result = await agentGet(baseUrl, token, "/api/generations", { host: a.host as string });
+          break;
+
+        case "rollback_apply":
+          result = await agentPost(baseUrl, token, "/api/rollback", {
+            host: a.host,
+            target: a.target,
+          });
+          break;
+
+        case "config_generate":
+          result = await agentPost(baseUrl, token, "/api/config/generate", {
+            prompt: a.prompt,
+            existing_config: a.existing_config,
+            format: a.format || "snippet",
+          });
+          break;
+
+        case "backup_list":
+          result = await agentGet(baseUrl, token, "/api/backups", {});
+          break;
+
+        case "backup_create":
+          result = await agentPost(baseUrl, token, "/api/backup/create", {
+            label: a.label,
+          });
+          break;
+
+        case "backup_restore":
+          result = await agentPost(baseUrl, token, "/api/backup/restore", {
+            backup_id: a.backup_id,
+            dry_run: a.dry_run,
+          });
+          break;
+
+        default:
+          throw new Error(`Unknown tool: ${name}`);
+      }
+
+      // Format output based on tool type
+      let text: string;
+      switch (name) {
+        case "health_check":
+          text = `✅ Agent 连接正常\n版本: ${result.version || "未知"}\nNixOS: ${result.nixos ? "是" : "否"}\n运行时间: ${result.uptime_secs || 0}s`;
+          break;
+        case "system_snapshot":
+          text = `${formatSnapshot(result)}\n\n---\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
+          break;
+        case "config_validate":
+          text = `${formatValidateOutput(result)}\n\n---\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
+          break;
+        case "config_diff":
+          text = formatDiffOutput(result);
+          break;
+        case "config_list":
+          text = formatConfigList(result);
+          break;
+        case "config_generate":
+          text = formatGenerateOutput(result);
+          break;
+        case "generation_diff":
+          text = `${formatGenerations(result)}\n\n---\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
+          break;
+        case "rollback_list":
+          text = `${formatRollbackList(result)}\n\n---\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
+          break;
+        case "backup_list":
+          text = formatBackupList(result);
+          break;
+        case "backup_restore":
+          text = formatBackupRestore(result);
+          break;
+        default:
+          text = JSON.stringify(result, null, 2);
+      }
+
+      return {
+        content: [{ type: "text" as const, text }],
+      };
+    } catch (error) {
+      if (error instanceof AgentError) {
+        const retryHint = error.retryable ? "\n💡 这是临时性错误，可能需要重试。" : "";
+        return {
+          content: [{
+            type: "text" as const,
+            text: `❌ ${error.code}: ${error.message}${retryHint}`
+          }],
+          isError: true,
+        };
+      }
+      const msg = error instanceof Error ? error.message : String(error);
+      return {
+        content: [{ type: "text" as const, text: `错误: ${msg}` }],
+        isError: true,
+      };
+    }
+  });
+
+  // Start stdio transport
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error("UtopOS MCP server v0.3.2 running on stdio");
+}
+
+main().catch((err) => {
+  console.error("Fatal:", err);
+  process.exit(1);
+});

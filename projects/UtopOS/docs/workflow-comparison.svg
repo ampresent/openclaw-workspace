@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 780" font-family="'Inter','SF Pro','Helvetica Neue',sans-serif">
+  <defs>
+    <linearGradient id="gOld" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ef4444"/><stop offset="100%" stop-color="#f97316"/></linearGradient>
+    <linearGradient id="gNew" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#06b6d4"/><stop offset="100%" stop-color="#8b5cf6"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="6" flood-opacity="0.15"/></filter>
+    <marker id="arrOld" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="10" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,3.5 L0,7z" fill="#f87171"/>
+    </marker>
+    <marker id="arrNew" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="10" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,3.5 L0,7z" fill="#67e8f9"/>
+    </marker>
+    <marker id="arrGray" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="10" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,3.5 L0,7z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="960" height="780" rx="20" fill="#0f172a"/>
+
+  <!-- Title -->
+  <text x="480" y="44" text-anchor="middle" fill="#f1f5f9" font-size="22" font-weight="700">OS 研发流程对比</text>
+  <text x="480" y="68" text-anchor="middle" fill="#94a3b8" font-size="13">传统团队协作 vs AI Agent 自驱迭代</text>
+
+  <!-- Divider -->
+  <line x1="480" y1="88" x2="480" y2="740" stroke="#334155" stroke-width="1" stroke-dasharray="6"/>
+
+  <!-- ==================== LEFT: Old Way ==================== -->
+  <rect x="30" y="90" width="430" height="28" rx="6" fill="url(#gOld)" opacity="0.9"/>
+  <text x="245" y="109" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">❌ 传统：用户 → 团队 → 发布 → 验证</text>
+
+  <!-- Step 1 -->
+  <rect x="50" y="132" width="390" height="55" rx="10" fill="#1e293b" stroke="#7f1d1d" stroke-width="1"/>
+  <circle cx="74" cy="160" r="13" fill="#7f1d1d"/>
+  <text x="74" y="165" text-anchor="middle" fill="#fca5a5" font-size="11" font-weight="700">1</text>
+  <text x="96" y="153" fill="#f1f5f9" font-size="13" font-weight="600">📋 用户提需求给 OS 研发团队</text>
+  <text x="96" y="173" fill="#64748b" font-size="11">写工单、开需求会、排优先级</text>
+
+  <line x1="245" y1="187" x2="245" y2="204" stroke="#f87171" stroke-width="1.5" marker-end="url(#arrOld)"/>
+  <text x="260" y="199" fill="#fbbf24" font-size="9">⏳ 等待排期</text>
+
+  <!-- Step 2 -->
+  <rect x="50" y="208" width="390" height="55" rx="10" fill="#1e293b" stroke="#7f1d1d" stroke-width="1"/>
+  <circle cx="74" cy="236" r="13" fill="#7f1d1d"/>
+  <text x="74" y="241" text-anchor="middle" fill="#fca5a5" font-size="11" font-weight="700">2</text>
+  <text x="96" y="229" fill="#f1f5f9" font-size="13" font-weight="600">👨‍💻 OS 团队研发 + 发布新包</text>
+  <text x="96" y="249" fill="#64748b" font-size="11">编码、测试、打包、发布到仓库</text>
+
+  <line x1="245" y1="263" x2="245" y2="280" stroke="#f87171" stroke-width="1.5" marker-end="url(#arrOld)"/>
+  <text x="260" y="275" fill="#fbbf24" font-size="9">⏳ 等待发布</text>
+
+  <!-- Step 3 -->
+  <rect x="50" y="284" width="390" height="55" rx="10" fill="#1e293b" stroke="#7f1d1d" stroke-width="1"/>
+  <circle cx="74" cy="312" r="13" fill="#7f1d1d"/>
+  <text x="74" y="317" text-anchor="middle" fill="#fca5a5" font-size="11" font-weight="700">3</text>
+  <text x="96" y="305" fill="#f1f5f9" font-size="13" font-weight="600">🔍 用户验证 + 升级系统</text>
+  <text x="96" y="325" fill="#64748b" font-size="11">升级包、手动测试、确认问题是否解决</text>
+
+  <!-- Feedback loop back to step 1 -->
+  <path d="M 48,312 C 22,312 22,158 48,158" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="4" marker-end="url(#arrGray)"/>
+  <text x="16" y="240" text-anchor="middle" fill="#94a3b8" font-size="9" transform="rotate(-90,16,240)">不符合？重新提需求</text>
+
+  <line x1="245" y1="339" x2="245" y2="356" stroke="#f87171" stroke-width="1.5" marker-end="url(#arrOld)"/>
+
+  <!-- Step 4 -->
+  <rect x="50" y="360" width="390" height="55" rx="10" fill="#1e293b" stroke="#7f1d1d" stroke-width="1"/>
+  <circle cx="74" cy="388" r="13" fill="#7f1d1d"/>
+  <text x="74" y="393" text-anchor="middle" fill="#fca5a5" font-size="11" font-weight="700">4</text>
+  <text x="96" y="381" fill="#f1f5f9" font-size="13" font-weight="600">🔄 不断迭代（天 / 周级别）</text>
+  <text x="96" y="401" fill="#64748b" font-size="11">每轮：需求→开发→发布→验证→反馈</text>
+
+  <!-- Pain points -->
+  <rect x="50" y="432" width="390" height="115" rx="10" fill="#1e293b" stroke="#450a0a" stroke-width="1"/>
+  <text x="245" y="456" text-anchor="middle" fill="#f87171" font-size="12" font-weight="600">⚠️ 痛点</text>
+  <text x="68" y="478" fill="#94a3b8" font-size="11">• 需求到落地：天~周级延迟</text>
+  <text x="68" y="496" fill="#94a3b8" font-size="11">• 依赖团队排期，非技术用户被卡住</text>
+  <text x="68" y="514" fill="#94a3b8" font-size="11">• 沟通损耗：需求理解偏差 → 返工</text>
+  <text x="68" y="532" fill="#94a3b8" font-size="11">• 用户只是"提需求的人"，无法参与实现</text>
+
+  <!-- ==================== RIGHT: New Way ==================== -->
+  <rect x="500" y="90" width="430" height="28" rx="6" fill="url(#gNew)" opacity="0.9"/>
+  <text x="715" y="109" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">✅ UtopOS：AI Agent 自驱迭代</text>
+
+  <!-- Step 1 -->
+  <rect x="520" y="132" width="390" height="55" rx="10" fill="#1e293b" stroke="#155e75" stroke-width="1"/>
+  <circle cx="544" cy="160" r="13" fill="#155e75"/>
+  <text x="544" y="165" text-anchor="middle" fill="#67e8f9" font-size="11" font-weight="700">1</text>
+  <text x="566" y="153" fill="#f1f5f9" font-size="13" font-weight="600">🚀 用户用 AI Agent 开发业务</text>
+  <text x="566" y="173" fill="#67e8f9" font-size="11">自然语言描述需求，AI 编码实现</text>
+
+  <line x1="715" y1="187" x2="715" y2="204" stroke="#67e8f9" stroke-width="1.5" marker-end="url(#arrNew)"/>
+
+  <!-- Step 2 -->
+  <rect x="520" y="208" width="390" height="55" rx="10" fill="#1e293b" stroke="#155e75" stroke-width="1"/>
+  <circle cx="544" cy="236" r="13" fill="#155e75"/>
+  <text x="544" y="241" text-anchor="middle" fill="#67e8f9" font-size="11" font-weight="700">2</text>
+  <text x="566" y="229" fill="#f1f5f9" font-size="13" font-weight="600">🔎 AI 检测到 OS 缺陷</text>
+  <text x="566" y="249" fill="#67e8f9" font-size="11">缺包、配置错误、不支持某功能</text>
+
+  <line x1="715" y1="263" x2="715" y2="280" stroke="#67e8f9" stroke-width="1.5" marker-end="url(#arrNew)"/>
+  <text x="730" y="275" fill="#fbbf24" font-size="9">⚡ 自动触发</text>
+
+  <!-- Step 3 -->
+  <rect x="520" y="284" width="390" height="55" rx="10" fill="#1e293b" stroke="#155e75" stroke-width="1"/>
+  <circle cx="544" cy="312" r="13" fill="#155e75"/>
+  <text x="544" y="317" text-anchor="middle" fill="#67e8f9" font-size="11" font-weight="700">3</text>
+  <text x="566" y="305" fill="#f1f5f9" font-size="13" font-weight="600">⚙️ 自动打补丁 + 升级系统</text>
+  <text x="566" y="325" fill="#67e8f9" font-size="11">config_validate → config_apply → 生效</text>
+
+  <line x1="715" y1="339" x2="715" y2="356" stroke="#67e8f9" stroke-width="1.5" marker-end="url(#arrNew)"/>
+
+  <!-- Step 4 -->
+  <rect x="520" y="360" width="390" height="55" rx="10" fill="#1e293b" stroke="#155e75" stroke-width="1"/>
+  <circle cx="544" cy="388" r="13" fill="#155e75"/>
+  <text x="544" y="393" text-anchor="middle" fill="#67e8f9" font-size="11" font-weight="700">4</text>
+  <text x="566" y="381" fill="#f1f5f9" font-size="13" font-weight="600">📤 补丁提交到中心仓库</text>
+  <text x="566" y="401" fill="#67e8f9" font-size="11">生成 PR → 反哺社区 → 其他用户受益</text>
+
+  <!-- Benefits -->
+  <rect x="520" y="432" width="390" height="115" rx="10" fill="#1e293b" stroke="#166534" stroke-width="1"/>
+  <text x="715" y="456" text-anchor="middle" fill="#4ade80" font-size="12" font-weight="600">💡 核心优势</text>
+  <text x="538" y="478" fill="#94a3b8" font-size="11">• 需求到落地：分钟级，不等人</text>
+  <text x="538" y="496" fill="#94a3b8" font-size="11">• 用户 = 开发者，AI Agent = OS 工程师</text>
+  <text x="538" y="514" fill="#94a3b8" font-size="11">• 无沟通损耗，意图直达实现</text>
+  <text x="538" y="532" fill="#94a3b8" font-size="11">• 补丁反哺上游，生态正循环</text>
+
+  <!-- ==================== Bottom: Core Shift ==================== -->
+  <rect x="60" y="565" width="840" height="195" rx="14" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="480" y="595" text-anchor="middle" fill="#f1f5f9" font-size="16" font-weight="700">核心转变</text>
+
+  <!-- Left column: Old interaction -->
+  <rect x="90" y="610" width="350" height="130" rx="10" fill="#0f172a" stroke="#7f1d1d" stroke-width="1"/>
+  <text x="265" y="632" text-anchor="middle" fill="#f87171" font-size="12" font-weight="600">传统交互链路</text>
+  <text x="265" y="656" text-anchor="middle" fill="#f1f5f9" font-size="13">👤 用户 ─提需求→ 👥 OS 团队</text>
+  <text x="265" y="680" text-anchor="middle" fill="#f1f5f9" font-size="13">👥 OS 团队 ─发包→ 🖥️ 系统</text>
+  <text x="265" y="704" text-anchor="middle" fill="#f1f5f9" font-size="13">👤 用户 ─验证→ 🖥️ 系统</text>
+  <text x="265" y="726" text-anchor="middle" fill="#64748b" font-size="11">链路长 · 反馈慢 · 人驱动</text>
+
+  <!-- Arrow between columns -->
+  <line x1="455" y1="678" x2="505" y2="678" stroke="#64748b" stroke-width="2" marker-end="url(#arrGray)"/>
+  <text x="480" y="670" text-anchor="middle" fill="#64748b" font-size="9">UtopOS</text>
+
+  <!-- Right column: New interaction -->
+  <rect x="520" y="610" width="350" height="130" rx="10" fill="#0f172a" stroke="#155e75" stroke-width="1"/>
+  <text x="695" y="632" text-anchor="middle" fill="#67e8f9" font-size="12" font-weight="600">UtopOS 交互链路</text>
+  <text x="695" y="656" text-anchor="middle" fill="#f1f5f9" font-size="13">👤 用户 ─自然语言→ 🤖 AI Agent</text>
+  <text x="695" y="680" text-anchor="middle" fill="#f1f5f9" font-size="13">🤖 AI Agent ─自动补丁→ 🖥️ 系统</text>
+  <text x="695" y="704" text-anchor="middle" fill="#f1f5f9" font-size="13">🤖 AI Agent ─提交 PR→ 📦 中心仓库</text>
+  <text x="695" y="726" text-anchor="middle" fill="#64748b" font-size="11">链路短 · 实时反馈 · AI 驱动</text>
+</svg>
