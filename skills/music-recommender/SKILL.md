@@ -51,31 +51,18 @@ grep -i "关键词" projects/music-recommender/douban-music-collect.csv
 
 **注意**：部分匹配可能返回多条结果，需要人工判断是否真正重复。例如搜索 "Coltrane" 会返回多张专辑，需要确认具体是哪一张。
 
-### 6. 标记推荐专辑到 CSV 【用户要求时执行】
+### 6. 保存推荐结果【每次推荐后执行】
 
-当用户要求"标记"或"记录"某张推荐专辑时，将其添加到收藏 CSV 中。
+每次推荐完成后，将推荐结果保存为 Markdown 文件。
 
-**CSV 列结构**：
-```
-title,artist,year,rating,date,url,genre,recommendation_reason
-```
+**文件位置**：`projects/music-recommender/recommendations/{YYYY-MM-DD}.md`
 
-**填写规则**：
-- `genre`：流派标签
-- `recommendation_reason`：合并写入「关联种子 + 推荐理由 + 听感预期」，格式如下：
-  ```
-  关联种子: {种子专辑名}。{推荐理由}。听感预期: {听感描述}
-  ```
+**保存内容**：
+- 种子专辑介绍（2 张）
+- 推荐专辑（5 张），包含流派、关联种子、推荐理由、听感预期
+- 推荐逻辑总结
 
-**执行命令**：
-```bash
-echo "{专辑名},{艺人},{年份},,{日期},,{流派},"关联种子: {种子}。{理由}。听感预期: {听感}"" >> projects/music-recommender/douban-music-collect.csv
-```
-
-**示例**：
-```bash
-echo "Trilogie de la Mort,Éliane Radigue,1993,,2026-04-21,,Drone / Minimal Electronic,"关联种子: Sketches From New Brighton。电子合成器 drone 的先驱，Loscil 的传统可追溯至此。听感预期: 单音持续数十分钟，泛音缓慢变化"" >> projects/music-recommender/douban-music-collect.csv
-```
+**执行方式**：使用 write_file 工具创建文件
 
 ### 7. 输出推荐
 
@@ -147,4 +134,4 @@ echo "Trilogie de la Mort,Éliane Radigue,1993,,2026-04-21,,Drone / Minimal Elec
 ## 文件位置
 
 - **收藏数据**: `projects/music-recommender/douban-music-collect.csv`
-- **推荐输出**: `projects/music-recommender/music-analysis/recommendation_{YYYY-MM-DD}.md`
+- **推荐输出**: `projects/music-recommender/recommendations/{YYYY-MM-DD}.md`
